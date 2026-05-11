@@ -60,7 +60,7 @@
 1. 使用现成云数据库
 2. 本地自行创建 MySQL 数据库并导入脚本
 
-如果使用云数据库，请在数据库客户端或 IDE 中新建连接，按你们组内实际分发的信息填写：
+如果使用云数据库，请在数据库客户端或 IDE 中新建连接，按实际分发的信息填写：
 - 主机名
 - 端口
 - 用户名
@@ -69,18 +69,18 @@
 如果使用本地数据库：
 - 先安装 MySQL 8.x
 - 创建数据库连接
-- 执行 [sql/school.sql](D:/xkxt/sql/school.sql)
+- 执行 [sql/school.sql](../xkxt/sql/school.sql)
 
 补充文件：
-- [sql/school_queries.sql](D:/xkxt/sql/school_queries.sql)：常用测试 SQL
-- [sql/api_design.md](D:/xkxt/sql/api_design.md)：接口设计说明
-- [sql/entity_design.md](D:/xkxt/sql/entity_design.md)：实体结构说明
+- [sql/school_queries.sql](../xkxt/sql/school_queries.sql)：常用测试 SQL
+- [sql/api_design.md](../xkxt/sql/api_design.md)：接口设计说明
+- [sql/entity_design.md](../xkxt/sql/entity_design.md)：实体结构说明
 
 ### 2. Java 和 Maven 安装
 
 后端运行需要先安装：
-- `JDK 21`
-- `Maven 3.9.x`
+- `JDK 21`(详细版本见下)
+- `Maven 3.9.x`(详细版本见下)
 
 #### 安装 Java
 
@@ -146,8 +146,8 @@ Java version: 21.0.8
 ### 3. Node.js 和 npm 安装
 
 前端运行需要先安装：
-- `Node.js`
-- `npm`
+- `Node.js v22.20.0`
+- `npm v10.9.3`
 
 建议安装 `Node.js LTS` 版本，安装 Node 时会自动安装 npm。
 
@@ -178,14 +178,14 @@ spring:
     password: 123456
 ```
 
-如果你们组使用云数据库，就把 `url`、`username`、`password` 改成对应信息。
+如果使用云数据库，就把 `url`、`username`、`password` 改成对应信息。
 
 ### 2. 启动后端
 
 在项目根目录打开终端，执行：
 
 ```powershell
-cd D:\xkxt\backend
+cd ..\xkxt\backend
 mvn spring-boot:run
 ```
 
@@ -199,14 +199,14 @@ mvn spring-boot:run
 Port 8080 was already in use
 ```
 
-可以修改 [application.yml](D:/xkxt/backend/src/main/resources/application.yml)：
+大概率是之前的终端没关闭，页可以修改 [application.yml](D:/xkxt/backend/src/main/resources/application.yml)：
 
 ```yml
 server:
   port: 8081
 ```
 
-### 3. 验证后端是否启动成功
+### 3. 验证后端是否启动成功（可忽略）
 
 浏览器或 Postman 访问：
 
@@ -223,7 +223,7 @@ http://localhost:8080/api/auth/profile
 在项目根目录打开终端，执行：
 
 ```powershell
-cd D:\xkxt\frontend
+cd ..\xkxt\frontend
 npm install
 ```
 
@@ -256,7 +256,7 @@ http://localhost:5173
 
 前端通过 Vite 代理调用后端接口，配置文件在：
 
-[frontend/vite.config.js](D:/xkxt/frontend/vite.config.js)
+[frontend/vite.config.js](..xkxt/frontend/vite.config.js)
 
 默认代理到：
 
@@ -358,7 +358,7 @@ npm run dev
 处理：
 - 检查 `MAVEN_HOME`
 - 检查 `Path` 是否包含 `%MAVEN_HOME%\bin`
-- 重新打开终端后执行 `mvn -v`
+- 重新打开终端后执行 `mvn -v`，看是否有相应版本
 
 ### 2. `npm install` 报 EPERM
 
@@ -377,31 +377,13 @@ npm install --cache C:\Users\你的用户名\.npm-cache
 npm config set cache "C:\Users\你的用户名\.npm-cache" --global
 ```
 
+**再或者以管理员权限执行`npm install`**
+
 ### 3. 后端启动时报端口被占用
 
 处理方法：
 - 修改后端端口
 - 或结束占用 `8080` 的进程
-
-### 4. 学生点选课失败
-
-常见原因：
-- 选课时间不在当前范围内
-- 教学班状态不是 `选课中`
-- 教学班人数已满
-- 课程时间冲突
-- 已重复选课
-
-优先检查管理员页面中的选课设置。
-
-## 组员协作建议
-
-1. 先 `git clone` 项目
-2. 先确认数据库连接信息
-3. 先启动后端，再启动前端
-4. 不要提交以下内容：
-   - `frontend/node_modules`
-   - `backend/target`
 
 ## 说明
 
@@ -413,7 +395,7 @@ npm config set cache "C:\Users\你的用户名\.npm-cache" --global
 - 管理员基础数据管理
 - 管理员选课设置与统计分析
 
-如果后续继续扩展，可以增加：
+AI建议如果后续继续扩展，可以增加：
 - 更完整的分页查询
 - 更细致的权限校验
 - 管理员教学班管理
