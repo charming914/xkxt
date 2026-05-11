@@ -1,0 +1,16 @@
+body {
+  margin: 0;
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  color: #1f2d2a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.page-card {
+  padding: 24px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 20px 50px rgba(22, 48, 41, 0.08);
+}
