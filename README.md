@@ -1,91 +1,420 @@
-# 教学事务管理系统项目骨架
+# 教学事务管理系统
 
-当前目录已经按前后端分离方式完成基础分类：
+本项目是一个基于 B/S 架构的教学事务管理系统，支持 `系统管理员`、`教师`、`学生` 三类角色，包含选课、课表、成绩录入、统计分析、基础信息维护等功能。
 
-## 目录结构
+## 项目结构
 
 ```text
 .
-├─ backend        Spring Boot 后端
-├─ frontend       Vue + Vite 前端
-├─ sql            数据库建库脚本
-└─ docs           相关文档
+├─ backend    Spring Boot 后端
+├─ frontend   Vue 3 + Vite 前端
+├─ sql        数据库脚本与设计文档
+└─ docs       其他文档
 ```
 
-## 后端说明
+## 技术栈
 
-- 技术栈：`Spring Boot 3`、`MyBatis-Plus`、`MySQL`
-- 启动类：`com.school.TeachingAffairsApplication`
-- 接口分层：
-  - `auth`
-  - `admin`
-  - `teacher`
-  - `student`
-  - `common`
+后端：
+- `Java 21`
+- `Spring Boot 3`
+- `MyBatis-Plus`
+- `MySQL`
+- `Maven`
 
-## 前端说明
+前端：
+- `Node.js`
+- `Vue 3`
+- `Vite`
+- `Vue Router`
+- `Pinia`
+- `Element Plus`
 
-- 技术栈：`Vue 3`、`Vite`、`Vue Router`、`Pinia`、`Element Plus`
-- 目录分层：
-  - `layouts`
-  - `router`
-  - `views/admin`
-  - `views/teacher`
-  - `views/student`
-  - `styles`
+## 主要功能
 
-## 启动方式
+管理员：
+- 学生管理：查询、新增、编辑、删除
+- 教师管理：查询、新增、编辑、删除
+- 课程管理：查询、新增、编辑、删除
+- 选课时间设置：开启或关闭选课、设置选课起止时间
+- 统计分析：查看教学班数量、选课人数、容量使用率
+
+教师：
+- 查看授课列表
+- 查看已选课学生
+- 录入和提交成绩
+
+学生：
+- 查看可选课程
+- 在线选课
+- 查看个人课表
+- 查看个人成绩
+
+## 运行前准备
 
 ### 1. 数据库
 
-先执行：(不执行用了，已经放在rds里了)
+项目默认使用 MySQL。
 
-只用在vs里重新创建一个链接，主机名：124.70.200.70，密码填一下就行
+当前数据库可以有两种使用方式：
 
-- `school.sql`
+1. 使用现成云数据库
+2. 本地自行创建 MySQL 数据库并导入脚本
 
-### 2. 后端
+如果使用云数据库，请在数据库客户端或 IDE 中新建连接，按你们组内实际分发的信息填写：
+- 主机名
+- 端口
+- 用户名
+- 密码
 
-先装java，项目Java version是21.0.8，去官网跟着操作安装，配置环境
+如果使用本地数据库：
+- 先安装 MySQL 8.x
+- 创建数据库连接
+- 执行 [sql/school.sql](D:/xkxt/sql/school.sql)
 
-再装Maven：[下载直链](https://dlcdn.apache.org/maven/maven-3/3.9.15/binaries/apache-maven-3.9.15-bin.zip)直接下载下来解压到一个地方就行，然后配置环境
+补充文件：
+- [sql/school_queries.sql](D:/xkxt/sql/school_queries.sql)：常用测试 SQL
+- [sql/api_design.md](D:/xkxt/sql/api_design.md)：接口设计说明
+- [sql/entity_design.md](D:/xkxt/sql/entity_design.md)：实体结构说明
 
-最后打开个终端输入`mvn -v`，出现下面文字说明装好了
+### 2. Java 和 Maven 安装
 
-```cmd
-Maven home: D:\apache-maven-3.9.15
-Java version: 21.0.8, vendor: Oracle Corporation, runtime: C:\Program Files\Java\jdk-21
-Default locale: zh_SG, platform encoding: UTF-8
-OS name: "windows 11", version: "10.0", arch: "amd64", family: "windows"
+后端运行需要先安装：
+- `JDK 21`
+- `Maven 3.9.x`
+
+#### 安装 Java
+
+1. 去 Oracle 或 OpenJDK 官网下载安装 `JDK 21`
+2. 安装完成后配置环境变量：
+
+系统变量：
+```text
+JAVA_HOME = C:\Program Files\Java\jdk-21
 ```
 
-进入 `backend` 目录后运行：
+在 `Path` 中加入：
+```text
+%JAVA_HOME%\bin
+```
 
-```bash
+3. 打开新的 PowerShell 或 CMD，执行：
+
+```powershell
+java -version
+```
+
+如果看到类似输出，说明安装成功：
+
+```text
+java version "21.0.8"
+```
+
+#### 安装 Maven
+
+1. 下载 Maven 3.9.x 二进制压缩包
+2. 解压到本地目录，例如：
+
+```text
+D:\apache-maven-3.9.15
+```
+
+3. 配置环境变量：
+
+系统变量：
+```text
+MAVEN_HOME = D:\apache-maven-3.9.15
+```
+
+在 `Path` 中加入：
+```text
+%MAVEN_HOME%\bin
+```
+
+4. 打开新的 PowerShell 或 CMD，执行：
+
+```powershell
+mvn -v
+```
+
+如果看到类似输出，说明 Maven 安装成功：
+
+```text
+Maven home: D:\apache-maven-3.9.15
+Java version: 21.0.8
+```
+
+### 3. Node.js 和 npm 安装
+
+前端运行需要先安装：
+- `Node.js`
+- `npm`
+
+建议安装 `Node.js LTS` 版本，安装 Node 时会自动安装 npm。
+
+安装完成后，在 PowerShell 或 CMD 中执行：
+
+```powershell
+node -v
+npm -v
+```
+
+如果都能输出版本号，说明前端运行环境安装成功。
+
+## 后端启动说明
+
+### 1. 修改数据库配置
+
+打开后端配置文件：
+
+[backend/src/main/resources/application.yml](D:/xkxt/backend/src/main/resources/application.yml)
+
+根据自己的数据库修改以下内容：
+
+```yml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/school?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+```
+
+如果你们组使用云数据库，就把 `url`、`username`、`password` 改成对应信息。
+
+### 2. 启动后端
+
+在项目根目录打开终端，执行：
+
+```powershell
+cd D:\xkxt\backend
 mvn spring-boot:run
 ```
 
 默认端口：
-- `8080`
+```text
+8080
+```
 
-后端环境比较好安装
+如果启动时报：
+```text
+Port 8080 was already in use
+```
 
-### 3. 前端
+可以修改 [application.yml](D:/xkxt/backend/src/main/resources/application.yml)：
 
-**需要安装的环境**
+```yml
+server:
+  port: 8081
+```
 
-- Node.js
-  建议装 LTS 版本，带 npm
-- npm
-  一般跟着 Node 一起装
-- 剩下的npm install会自己装
+### 3. 验证后端是否启动成功
 
-进入 `frontend` 目录后运行：
+浏览器或 Postman 访问：
 
-```bash
+```text
+http://localhost:8080/api/auth/profile
+```
+
+如果你改了端口，就把 `8080` 替换成你实际端口。
+
+## 前端启动说明
+
+### 1. 安装依赖
+
+在项目根目录打开终端，执行：
+
+```powershell
+cd D:\xkxt\frontend
 npm install
+```
+
+如果你之前遇到过 npm 缓存权限问题，可以使用：
+
+```powershell
+npm install --cache C:\Users\你的用户名\.npm-cache
+```
+
+### 2. 启动前端
+
+执行：
+
+```powershell
 npm run dev
 ```
 
 默认端口：
-- `5173`
+```text
+5173
+```
+
+启动后浏览器访问：
+
+```text
+http://localhost:5173
+```
+
+### 3. 前端代理配置
+
+前端通过 Vite 代理调用后端接口，配置文件在：
+
+[frontend/vite.config.js](D:/xkxt/frontend/vite.config.js)
+
+默认代理到：
+
+```js
+target: 'http://localhost:8080'
+```
+
+如果后端改成了 `8081`，这里也要一起改成：
+
+```js
+target: 'http://localhost:8081'
+```
+
+改完后重新执行：
+
+```powershell
+npm run dev
+```
+
+## 系统测试账号
+
+默认测试账号如下：
+
+管理员：
+- 账号：`admin`
+- 密码：`123456`
+
+学生：
+- 账号：`20240001`
+- 密码：`123456`
+
+教师：
+- 账号：`T0101`
+- 密码：`123456`
+
+## 选课开启方式
+
+学生能否成功选课，同时受两个条件控制：
+- 当前时间必须在选课时间范围内
+- 当前学期教学班状态必须是 `选课中`
+
+推荐通过管理员页面设置：
+
+1. 管理员登录
+2. 打开 `统计分析`
+3. 在顶部 `选课设置` 区域中：
+   - 设置选课开始时间
+   - 设置选课结束时间
+   - 打开“开启/关闭选课”开关
+4. 点击“保存设置”
+
+然后学生就可以在学生端进行选课。
+
+## 角色权限说明
+
+学生：
+- 只显示学生端页面
+- 看不到教师端和管理员端页面
+
+教师：
+- 只显示教师端页面
+- 看不到学生端和管理员端页面
+
+管理员：
+- 只显示管理员端页面
+- 可以管理基础数据和选课设置
+
+## 常用启动命令
+
+后端启动：
+
+```powershell
+cd D:\xkxt\backend
+mvn spring-boot:run
+```
+
+前端安装依赖：
+
+```powershell
+cd D:\xkxt\frontend
+npm install
+```
+
+前端启动：
+
+```powershell
+cd D:\xkxt\frontend
+npm run dev
+```
+
+## 常见问题
+
+### 1. `mvn` 命令无法识别
+
+原因：
+- Maven 没安装
+- Maven 没配环境变量
+
+处理：
+- 检查 `MAVEN_HOME`
+- 检查 `Path` 是否包含 `%MAVEN_HOME%\bin`
+- 重新打开终端后执行 `mvn -v`
+
+### 2. `npm install` 报 EPERM
+
+原因：
+- npm 缓存目录权限异常
+
+处理：
+
+```powershell
+npm install --cache C:\Users\你的用户名\.npm-cache
+```
+
+或者执行：
+
+```powershell
+npm config set cache "C:\Users\你的用户名\.npm-cache" --global
+```
+
+### 3. 后端启动时报端口被占用
+
+处理方法：
+- 修改后端端口
+- 或结束占用 `8080` 的进程
+
+### 4. 学生点选课失败
+
+常见原因：
+- 选课时间不在当前范围内
+- 教学班状态不是 `选课中`
+- 教学班人数已满
+- 课程时间冲突
+- 已重复选课
+
+优先检查管理员页面中的选课设置。
+
+## 组员协作建议
+
+1. 先 `git clone` 项目
+2. 先确认数据库连接信息
+3. 先启动后端，再启动前端
+4. 不要提交以下内容：
+   - `frontend/node_modules`
+   - `backend/target`
+
+## 说明
+
+本项目当前已经完成：
+- 三类角色页面隔离
+- 学生选课
+- 学生课表与成绩查询
+- 教师授课与成绩录入
+- 管理员基础数据管理
+- 管理员选课设置与统计分析
+
+如果后续继续扩展，可以增加：
+- 更完整的分页查询
+- 更细致的权限校验
+- 管理员教学班管理
+- 成绩图表分析
