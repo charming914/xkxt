@@ -9,6 +9,7 @@ import com.school.common.exception.BusinessException;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminService {
 
     private final AdminMapper adminMapper;
+    private final PasswordEncoder passwordEncoder;
 
     public List<Map<String, Object>> students() {
         return adminMapper.selectStudents();
@@ -122,7 +124,7 @@ public class AdminService {
         if (roleId == null) {
             throw new BusinessException("角色不存在: " + roleCode);
         }
-        adminMapper.insertSysUser(username, realName, userType, username);
+        adminMapper.insertSysUser(username, passwordEncoder.encode("123456"), realName, userType, username);
         Integer userId = adminMapper.selectUserIdByUsername(username);
         if (userId == null) {
             throw new BusinessException("创建系统用户失败");

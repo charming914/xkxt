@@ -14,4 +14,5 @@ public class LoginUserVO {
     private String realName;
     private String roleCode;
     private String token;
+    private String password;
 }

@@ -209,10 +209,11 @@ public interface AdminMapper {
 
     @Insert("""
         INSERT INTO sys_user (username, password, real_name, user_type, ref_id, is_enabled)
-        VALUES (#{username}, '123456', #{realName}, #{userType}, #{refId}, 1)
+        VALUES (#{username}, #{password}, #{realName}, #{userType}, #{refId}, 1)
         """)
     int insertSysUser(
         @Param("username") String username,
+        @Param("password") String password,
         @Param("realName") String realName,
         @Param("userType") String userType,
         @Param("refId") String refId

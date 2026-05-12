@@ -1,9 +1,12 @@
 package com.school.auth.mapper;
 
 import com.school.auth.vo.LoginUserVO;
+import java.util.List;
+import java.util.Map;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface AuthMapper {
@@ -14,16 +17,16 @@ public interface AuthMapper {
             u.username AS username,
             u.real_name AS realName,
             r.role_code AS roleCode,
-            CONCAT('token-', u.user_id) AS token
+            CONCAT('token-', u.user_id) AS token,
+            u.password AS password
         FROM sys_user u
         JOIN sys_user_role ur ON u.user_id = ur.user_id
         JOIN sys_role r ON ur.role_id = r.role_id
         WHERE u.username = #{username}
-          AND u.password = #{password}
           AND u.is_enabled = 1
         LIMIT 1
         """)
-    LoginUserVO selectLoginUser(@Param("username") String username, @Param("password") String password);
+    LoginUserVO selectLoginUser(@Param("username") String username);
 
     @Select("""
         SELECT
@@ -41,12 +44,18 @@ public interface AuthMapper {
         """)
     LoginUserVO selectProfileByUsername(@Param("username") String username);
 
+    @Select("SELECT password FROM sys_user WHERE username = #{username} AND is_enabled = 1 LIMIT 1")
+    String selectPasswordByUsername(@Param("username") String username);
+
+    @Update("UPDATE sys_user SET password = #{password} WHERE username = #{username}")
+    int updatePassword(@Param("username") String username, @Param("password") String password);
+
     @Select("""
-        SELECT COUNT(1)
+        SELECT user_id AS userId, password AS password
         FROM sys_user
-        WHERE username = #{username}
-          AND password = #{oldPassword}
-          AND is_enabled = 1
         """)
-    Integer countByUsernameAndPassword(@Param("username") String username, @Param("oldPassword") String oldPassword);
+    List<Map<String, Object>> selectAllUserPasswords();
+
+    @Update("UPDATE sys_user SET password = #{password} WHERE user_id = #{userId}")
+    int updatePasswordByUserId(@Param("userId") Integer userId, @Param("password") String password);
 }

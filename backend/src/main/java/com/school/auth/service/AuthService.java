@@ -6,6 +6,7 @@ import com.school.auth.mapper.AuthMapper;
 import com.school.auth.vo.LoginUserVO;
 import com.school.common.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -13,12 +14,23 @@ import org.springframework.stereotype.Service;
 public class AuthService {
 
     private final AuthMapper authMapper;
+    private final PasswordEncoder passwordEncoder;
 
     public LoginUserVO login(LoginRequest request) {
-        LoginUserVO loginUser = authMapper.selectLoginUser(request.getUsername(), request.getPassword());
+        LoginUserVO loginUser = authMapper.selectLoginUser(request.getUsername());
         if (loginUser == null) {
             throw new BusinessException("用户名或密码错误");
         }
+        String storedPassword = loginUser.getPassword();
+        boolean matched = passwordEncoder.matches(request.getPassword(), storedPassword);
+        if (!matched && request.getPassword().equals(storedPassword)) {
+            authMapper.updatePassword(request.getUsername(), passwordEncoder.encode(request.getPassword()));
+            matched = true;
+        }
+        if (!matched) {
+            throw new BusinessException("用户名或密码错误");
+        }
+        loginUser.setPassword(null);
         return loginUser;
     }
 
@@ -31,9 +43,14 @@ public class AuthService {
     }
 
     public void updatePassword(String username, PasswordUpdateRequest request) {
-        Integer count = authMapper.countByUsernameAndPassword(username, request.getOldPassword());
-        if (count == null || count == 0) {
+        String encodedPassword = authMapper.selectPasswordByUsername(username);
+        boolean matched = encodedPassword != null && passwordEncoder.matches(request.getOldPassword(), encodedPassword);
+        if (!matched && encodedPassword != null && request.getOldPassword().equals(encodedPassword)) {
+            matched = true;
+        }
+        if (!matched) {
             throw new BusinessException("旧密码不正确");
         }
+        authMapper.updatePassword(username, passwordEncoder.encode(request.getNewPassword()));
     }
 }
