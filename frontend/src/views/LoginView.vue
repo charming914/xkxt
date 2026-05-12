@@ -13,8 +13,6 @@
         <el-button type="primary" class="full-width" :loading="loading" @click="handleLogin">登录</el-button>
       </el-form>
       <div class="tips">
-        <span>测试账号：admin / 123456</span>
-        <span>学生账号：20240001 / 123456</span>
       </div>
     </div>
   </div>
