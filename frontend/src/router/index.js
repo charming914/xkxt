@@ -12,6 +12,7 @@ import AdminStudentView from '../views/admin/AdminStudentView.vue'
 import AdminTeacherView from '../views/admin/AdminTeacherView.vue'
 import AdminCourseView from '../views/admin/AdminCourseView.vue'
 import AdminStatisticsView from '../views/admin/AdminStatisticsView.vue'
+import PasswordView from '../views/PasswordView.vue'
 
 const routes = [
   {
@@ -29,6 +30,12 @@ const routes = [
         path: '',
         name: 'dashboard',
         component: DashboardView,
+        meta: { roles: ['ADMIN', 'TEACHER', 'STUDENT'] }
+      },
+      {
+        path: 'password',
+        name: 'password',
+        component: PasswordView,
         meta: { roles: ['ADMIN', 'TEACHER', 'STUDENT'] }
       },
       {

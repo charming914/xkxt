@@ -1,6 +1,7 @@
 package com.school.common.exception;
 
 import com.school.common.api.ApiResponse;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -20,9 +21,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ApiResponse<Void> handleValidationException(MethodArgumentNotValidException e) {
-        String message = e.getBindingResult().getFieldError() == null
-            ? "参数校验失败"
-            : e.getBindingResult().getFieldError().getDefaultMessage();
+        FieldError fieldError = e.getBindingResult().getFieldError();
+        String message = fieldError != null ? fieldError.getDefaultMessage() : "参数校验失败";
         return ApiResponse.fail(message);
     }
 }

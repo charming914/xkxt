@@ -14,3 +14,11 @@ export function getProfile() {
     method: 'get'
   })
 }
+
+export function updatePassword(data) {
+  return request({
+    url: '/auth/password',
+    method: 'put',
+    data
+  })
+}

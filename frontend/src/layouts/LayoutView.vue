@@ -8,6 +8,7 @@
       </div>
       <nav>
         <RouterLink to="/">首页</RouterLink>
+        <RouterLink to="/password">修改密码</RouterLink>
         <RouterLink v-if="canViewStudent" to="/student/courses">学生选课</RouterLink>
         <RouterLink v-if="canViewStudent" to="/student/timetable">学生课表</RouterLink>
         <RouterLink v-if="canViewStudent" to="/student/scores">学生成绩</RouterLink>
