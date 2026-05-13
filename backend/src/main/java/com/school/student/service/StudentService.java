@@ -44,17 +44,16 @@ public class StudentService {
     }
 
     public void createCourseSelectionRequest(CourseSelectionRequestCreateRequest request) {
-        if (studentMapper.countSelectedCourse(request.getStudentId(), request.getTeachingClassId()) > 0) {
+        String studentId = request.getStudentId();
+        Integer teachingClassId = request.getTeachingClassId();
+
+        if (studentMapper.countSelectedCourse(studentId, teachingClassId) > 0) {
             throw new BusinessException("你已选上该课程，无需重复申请补选");
         }
-        if (studentMapper.countPendingRequest(request.getStudentId(), request.getTeachingClassId()) > 0) {
+        if (studentMapper.countPendingRequest(studentId, teachingClassId) > 0) {
             throw new BusinessException("该课程已有待审核的补选申请");
         }
-        studentMapper.insertCourseSelectionRequest(
-            request.getStudentId(),
-            request.getTeachingClassId(),
-            request.getRequestReason()
-        );
+        studentMapper.insertCourseSelectionRequest(studentId, teachingClassId, request.getRequestReason());
     }
 
     public List<Map<String, Object>> courseSelectionRequests(String studentId) {

@@ -125,7 +125,11 @@ public class AdminService {
     }
 
     @Transactional
-    public void reviewCourseSelectionRequest(Long requestId, CourseSelectionRequestReviewRequest request, String adminUsername) {
+    public void reviewCourseSelectionRequest(
+        Long requestId,
+        CourseSelectionRequestReviewRequest request,
+        String adminUsername
+    ) {
         Map<String, Object> selectionRequest = adminMapper.selectCourseSelectionRequestById(requestId);
         if (selectionRequest == null) {
             throw new BusinessException("补选申请不存在");
@@ -152,22 +156,12 @@ public class AdminService {
             }
             adminMapper.insertCourseSelectionByAdmin(studentId, teachingClassId);
             adminMapper.increaseSelectedCount(teachingClassId);
-            adminMapper.updateCourseSelectionRequestStatus(
-                requestId,
-                "已通过",
-                request.getReviewComment(),
-                reviewedBy
-            );
+            adminMapper.updateCourseSelectionRequestStatus(requestId, "已通过", request.getReviewComment(), reviewedBy);
             return;
         }
 
         if ("REJECT".equalsIgnoreCase(action)) {
-            adminMapper.updateCourseSelectionRequestStatus(
-                requestId,
-                "已驳回",
-                request.getReviewComment(),
-                reviewedBy
-            );
+            adminMapper.updateCourseSelectionRequestStatus(requestId, "已驳回", request.getReviewComment(), reviewedBy);
             return;
         }
 

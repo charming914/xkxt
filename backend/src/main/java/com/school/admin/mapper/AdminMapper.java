@@ -3,8 +3,8 @@ package com.school.admin.mapper;
 import com.school.admin.dto.AdminCourseRequest;
 import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
-import com.school.admin.dto.CourseSelectionSettingRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
+import com.school.admin.dto.CourseSelectionSettingRequest;
 import java.util.List;
 import java.util.Map;
 import org.apache.ibatis.annotations.Delete;
@@ -143,7 +143,10 @@ public interface AdminMapper {
             status = #{request.status}
         WHERE student_id = #{studentId}
         """)
-    int updateStudent(@Param("studentId") String studentId, @Param("request") AdminStudentRequest request);
+    int updateStudent(
+        @Param("studentId") String studentId,
+        @Param("request") AdminStudentRequest request
+    );
 
     @Delete("DELETE FROM student WHERE student_id = #{studentId}")
     int deleteStudent(@Param("studentId") String studentId);
@@ -172,7 +175,10 @@ public interface AdminMapper {
             status = #{request.status}
         WHERE teacher_id = #{teacherId}
         """)
-    int updateTeacher(@Param("teacherId") String teacherId, @Param("request") AdminTeacherRequest request);
+    int updateTeacher(
+        @Param("teacherId") String teacherId,
+        @Param("request") AdminTeacherRequest request
+    );
 
     @Delete("DELETE FROM teacher WHERE teacher_id = #{teacherId}")
     int deleteTeacher(@Param("teacherId") String teacherId);
@@ -200,7 +206,10 @@ public interface AdminMapper {
             description = #{request.description}
         WHERE course_id = #{courseId}
         """)
-    int updateCourse(@Param("courseId") String courseId, @Param("request") AdminCourseRequest request);
+    int updateCourse(
+        @Param("courseId") String courseId,
+        @Param("request") AdminCourseRequest request
+    );
 
     @Delete("DELETE FROM course WHERE course_id = #{courseId}")
     int deleteCourse(@Param("courseId") String courseId);
@@ -231,7 +240,10 @@ public interface AdminMapper {
         SET real_name = #{realName}
         WHERE ref_id = #{refId}
         """)
-    int updateSysUserRealName(@Param("refId") String refId, @Param("realName") String realName);
+    int updateSysUserRealName(
+        @Param("refId") String refId,
+        @Param("realName") String realName
+    );
 
     @Delete("""
         DELETE ur FROM sys_user_role ur
@@ -279,7 +291,10 @@ public interface AdminMapper {
         SET status = #{status}
         WHERE semester_id = #{semesterId}
         """)
-    int updateTeachingClassStatusBySemesterId(@Param("semesterId") Integer semesterId, @Param("status") String status);
+    int updateTeachingClassStatusBySemesterId(
+        @Param("semesterId") Integer semesterId,
+        @Param("status") String status
+    );
 
     @Select("""
         SELECT
@@ -328,7 +343,10 @@ public interface AdminMapper {
           AND t1.section_desc = t2.section_desc
           AND cs.teaching_class_id <> #{teachingClassId}
         """)
-    int countStudentTimeConflict(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
+    int countStudentTimeConflict(
+        @Param("studentId") String studentId,
+        @Param("teachingClassId") Integer teachingClassId
+    );
 
     @Select("""
         SELECT COUNT(*)
@@ -337,13 +355,19 @@ public interface AdminMapper {
           AND teaching_class_id = #{teachingClassId}
           AND selection_status = '已选'
         """)
-    int countSelectedCourse(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
+    int countSelectedCourse(
+        @Param("studentId") String studentId,
+        @Param("teachingClassId") Integer teachingClassId
+    );
 
     @Insert("""
         INSERT INTO course_selection (student_id, teaching_class_id, selection_status)
         VALUES (#{studentId}, #{teachingClassId}, '已选')
         """)
-    int insertCourseSelectionByAdmin(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
+    int insertCourseSelectionByAdmin(
+        @Param("studentId") String studentId,
+        @Param("teachingClassId") Integer teachingClassId
+    );
 
     @Update("""
         UPDATE teaching_class
