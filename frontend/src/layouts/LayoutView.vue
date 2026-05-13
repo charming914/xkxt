@@ -17,6 +17,7 @@
         <RouterLink v-if="canViewAdmin" to="/admin/students">学生管理</RouterLink>
         <RouterLink v-if="canViewAdmin" to="/admin/teachers">教师管理</RouterLink>
         <RouterLink v-if="canViewAdmin" to="/admin/courses">课程管理</RouterLink>
+        <RouterLink v-if="canViewAdmin" to="/admin/course-selection-requests">补选审核</RouterLink>
         <RouterLink v-if="canViewAdmin" to="/admin/statistics">统计分析</RouterLink>
       </nav>
       <el-button class="logout-btn" plain @click="handleLogout">退出登录</el-button>

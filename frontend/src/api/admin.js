@@ -132,3 +132,18 @@ export function getClassOptions() {
     method: 'get'
   })
 }
+
+export function getAdminCourseSelectionRequests() {
+  return request({
+    url: '/admin/course-selection-requests',
+    method: 'get'
+  })
+}
+
+export function reviewAdminCourseSelectionRequest(requestId, data) {
+  return request({
+    url: `/admin/course-selection-requests/${requestId}/review`,
+    method: 'put',
+    data
+  })
+}

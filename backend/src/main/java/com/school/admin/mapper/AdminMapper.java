@@ -4,6 +4,7 @@ import com.school.admin.dto.AdminCourseRequest;
 import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
+import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import java.util.List;
 import java.util.Map;
 import org.apache.ibatis.annotations.Delete;
@@ -279,4 +280,90 @@ public interface AdminMapper {
         WHERE semester_id = #{semesterId}
         """)
     int updateTeachingClassStatusBySemesterId(@Param("semesterId") Integer semesterId, @Param("status") String status);
+
+    @Select("""
+        SELECT
+            csr.request_id AS requestId,
+            csr.student_id AS studentId,
+            s.student_name AS studentName,
+            csr.teaching_class_id AS teachingClassId,
+            sem.semester_name AS semesterName,
+            c.course_name AS courseName,
+            t.teacher_name AS teacherName,
+            tc.week_day AS weekDay,
+            tc.section_desc AS sectionDesc,
+            tc.week_range AS weekRange,
+            csr.request_reason AS requestReason,
+            csr.request_status AS requestStatus,
+            csr.review_comment AS reviewComment,
+            csr.created_at AS createdAt,
+            csr.reviewed_at AS reviewedAt
+        FROM course_selection_request csr
+        JOIN student s ON csr.student_id = s.student_id
+        JOIN teaching_class tc ON csr.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        ORDER BY CASE csr.request_status WHEN '待审核' THEN 1 WHEN '已通过' THEN 2 ELSE 3 END, csr.created_at DESC
+        """)
+    List<Map<String, Object>> selectCourseSelectionRequests();
+
+    @Select("""
+        SELECT request_id AS requestId, student_id AS studentId, teaching_class_id AS teachingClassId, request_status AS requestStatus
+        FROM course_selection_request
+        WHERE request_id = #{requestId}
+        LIMIT 1
+        """)
+    Map<String, Object> selectCourseSelectionRequestById(@Param("requestId") Long requestId);
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM course_selection cs
+        JOIN teaching_class t1 ON cs.teaching_class_id = t1.teaching_class_id
+        JOIN teaching_class t2 ON t2.teaching_class_id = #{teachingClassId}
+        WHERE cs.student_id = #{studentId}
+          AND cs.selection_status = '已选'
+          AND t1.semester_id = t2.semester_id
+          AND t1.week_day = t2.week_day
+          AND t1.section_desc = t2.section_desc
+          AND cs.teaching_class_id <> #{teachingClassId}
+        """)
+    int countStudentTimeConflict(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM course_selection
+        WHERE student_id = #{studentId}
+          AND teaching_class_id = #{teachingClassId}
+          AND selection_status = '已选'
+        """)
+    int countSelectedCourse(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
+
+    @Insert("""
+        INSERT INTO course_selection (student_id, teaching_class_id, selection_status)
+        VALUES (#{studentId}, #{teachingClassId}, '已选')
+        """)
+    int insertCourseSelectionByAdmin(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
+
+    @Update("""
+        UPDATE teaching_class
+        SET selected_count = selected_count + 1
+        WHERE teaching_class_id = #{teachingClassId}
+        """)
+    int increaseSelectedCount(@Param("teachingClassId") Integer teachingClassId);
+
+    @Update("""
+        UPDATE course_selection_request
+        SET request_status = #{status},
+            review_comment = #{reviewComment},
+            reviewed_by = #{reviewedBy},
+            reviewed_at = NOW()
+        WHERE request_id = #{requestId}
+        """)
+    int updateCourseSelectionRequestStatus(
+        @Param("requestId") Long requestId,
+        @Param("status") String status,
+        @Param("reviewComment") String reviewComment,
+        @Param("reviewedBy") Integer reviewedBy
+    );
 }

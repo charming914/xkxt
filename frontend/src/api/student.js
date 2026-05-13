@@ -28,3 +28,18 @@ export function getStudentScores() {
     method: 'get'
   })
 }
+
+export function createCourseSelectionRequest(data) {
+  return request({
+    url: '/student/course-selection-requests',
+    method: 'post',
+    data
+  })
+}
+
+export function getCourseSelectionRequests() {
+  return request({
+    url: '/student/course-selection-requests',
+    method: 'get'
+  })
+}

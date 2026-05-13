@@ -4,6 +4,7 @@ import com.school.admin.dto.AdminCourseRequest;
 import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
+import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.mapper.AdminMapper;
 import com.school.common.exception.BusinessException;
 import java.util.List;
@@ -117,6 +118,60 @@ public class AdminService {
         Integer semesterId = ((Number) setting.get("semesterId")).intValue();
         adminMapper.updateCourseSelectionTime(semesterId, request);
         adminMapper.updateTeachingClassStatusBySemesterId(semesterId, request.getTeachingClassStatus());
+    }
+
+    public List<Map<String, Object>> courseSelectionRequests() {
+        return adminMapper.selectCourseSelectionRequests();
+    }
+
+    @Transactional
+    public void reviewCourseSelectionRequest(Long requestId, CourseSelectionRequestReviewRequest request, String adminUsername) {
+        Map<String, Object> selectionRequest = adminMapper.selectCourseSelectionRequestById(requestId);
+        if (selectionRequest == null) {
+            throw new BusinessException("补选申请不存在");
+        }
+        String requestStatus = (String) selectionRequest.get("requestStatus");
+        if (!"待审核".equals(requestStatus)) {
+            throw new BusinessException("该补选申请已处理，请勿重复审核");
+        }
+
+        Integer reviewedBy = adminMapper.selectUserIdByUsername(adminUsername);
+        if (reviewedBy == null) {
+            throw new BusinessException("管理员账号不存在");
+        }
+
+        String action = request.getAction();
+        if ("APPROVE".equalsIgnoreCase(action)) {
+            String studentId = (String) selectionRequest.get("studentId");
+            Integer teachingClassId = ((Number) selectionRequest.get("teachingClassId")).intValue();
+            if (adminMapper.countSelectedCourse(studentId, teachingClassId) > 0) {
+                throw new BusinessException("该学生已选上此课程");
+            }
+            if (adminMapper.countStudentTimeConflict(studentId, teachingClassId) > 0) {
+                throw new BusinessException("审核失败：该课程与学生当前课表存在时间冲突");
+            }
+            adminMapper.insertCourseSelectionByAdmin(studentId, teachingClassId);
+            adminMapper.increaseSelectedCount(teachingClassId);
+            adminMapper.updateCourseSelectionRequestStatus(
+                requestId,
+                "已通过",
+                request.getReviewComment(),
+                reviewedBy
+            );
+            return;
+        }
+
+        if ("REJECT".equalsIgnoreCase(action)) {
+            adminMapper.updateCourseSelectionRequestStatus(
+                requestId,
+                "已驳回",
+                request.getReviewComment(),
+                reviewedBy
+            );
+            return;
+        }
+
+        throw new BusinessException("不支持的审核动作");
     }
 
     private void createUserIfNecessary(String username, String realName, String userType, String roleCode) {

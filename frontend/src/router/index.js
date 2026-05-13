@@ -12,6 +12,7 @@ import AdminStudentView from '../views/admin/AdminStudentView.vue'
 import AdminTeacherView from '../views/admin/AdminTeacherView.vue'
 import AdminCourseView from '../views/admin/AdminCourseView.vue'
 import AdminStatisticsView from '../views/admin/AdminStatisticsView.vue'
+import AdminSelectionRequestView from '../views/admin/AdminSelectionRequestView.vue'
 import PasswordView from '../views/PasswordView.vue'
 
 const routes = [
@@ -84,6 +85,12 @@ const routes = [
         path: 'admin/courses',
         name: 'admin-courses',
         component: AdminCourseView,
+        meta: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'admin/course-selection-requests',
+        name: 'admin-course-selection-requests',
+        component: AdminSelectionRequestView,
         meta: { roles: ['ADMIN'] }
       },
       {

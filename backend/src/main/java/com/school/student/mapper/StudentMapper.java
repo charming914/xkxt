@@ -2,6 +2,7 @@ package com.school.student.mapper;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -69,4 +70,56 @@ public interface StudentMapper {
         ORDER BY semester_name, course_name
         """)
     List<Map<String, Object>> selectScores(@Param("studentId") String studentId);
+
+    @Insert("""
+        INSERT INTO course_selection_request (student_id, teaching_class_id, request_reason)
+        VALUES (#{studentId}, #{teachingClassId}, #{requestReason})
+        """)
+    int insertCourseSelectionRequest(
+        @Param("studentId") String studentId,
+        @Param("teachingClassId") Integer teachingClassId,
+        @Param("requestReason") String requestReason
+    );
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM course_selection_request
+        WHERE student_id = #{studentId}
+          AND teaching_class_id = #{teachingClassId}
+          AND request_status = '待审核'
+        """)
+    int countPendingRequest(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM course_selection
+        WHERE student_id = #{studentId}
+          AND teaching_class_id = #{teachingClassId}
+          AND selection_status = '已选'
+        """)
+    int countSelectedCourse(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
+
+    @Select("""
+        SELECT
+            csr.request_id AS requestId,
+            sem.semester_name AS semesterName,
+            c.course_name AS courseName,
+            t.teacher_name AS teacherName,
+            tc.week_day AS weekDay,
+            tc.section_desc AS sectionDesc,
+            tc.week_range AS weekRange,
+            csr.request_reason AS requestReason,
+            csr.request_status AS requestStatus,
+            csr.review_comment AS reviewComment,
+            csr.created_at AS createdAt,
+            csr.reviewed_at AS reviewedAt
+        FROM course_selection_request csr
+        JOIN teaching_class tc ON csr.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        WHERE csr.student_id = #{studentId}
+        ORDER BY csr.created_at DESC
+        """)
+    List<Map<String, Object>> selectCourseSelectionRequests(@Param("studentId") String studentId);
 }

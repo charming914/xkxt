@@ -1,6 +1,7 @@
 package com.school.student.controller;
 
 import com.school.common.api.ApiResponse;
+import com.school.student.dto.CourseSelectionRequestCreateRequest;
 import com.school.student.dto.SelectCourseRequest;
 import com.school.student.service.StudentService;
 import jakarta.validation.Valid;
@@ -44,5 +45,18 @@ public class StudentController {
         @RequestHeader(value = "X-Student-Id", defaultValue = "20240001") String studentId
     ) {
         return ApiResponse.success(studentService.scores(studentId));
+    }
+
+    @PostMapping("/course-selection-requests")
+    public ApiResponse<Void> createCourseSelectionRequest(@Valid @RequestBody CourseSelectionRequestCreateRequest request) {
+        studentService.createCourseSelectionRequest(request);
+        return ApiResponse.success("补选申请已提交", null);
+    }
+
+    @GetMapping("/course-selection-requests")
+    public ApiResponse<List<Map<String, Object>>> courseSelectionRequests(
+        @RequestHeader(value = "X-Student-Id", defaultValue = "20240001") String studentId
+    ) {
+        return ApiResponse.success(studentService.courseSelectionRequests(studentId));
     }
 }

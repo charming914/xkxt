@@ -4,6 +4,7 @@ import com.school.admin.dto.AdminCourseRequest;
 import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
+import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.service.AdminService;
 import com.school.common.api.ApiResponse;
 import jakarta.validation.Valid;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -124,5 +126,20 @@ public class AdminController {
     public ApiResponse<Void> updateCourseSelectionSetting(@Valid @RequestBody CourseSelectionSettingRequest request) {
         adminService.updateCourseSelectionSetting(request);
         return ApiResponse.success("选课设置更新成功", null);
+    }
+
+    @GetMapping("/course-selection-requests")
+    public ApiResponse<List<Map<String, Object>>> courseSelectionRequests() {
+        return ApiResponse.success(adminService.courseSelectionRequests());
+    }
+
+    @PutMapping("/course-selection-requests/{requestId}/review")
+    public ApiResponse<Void> reviewCourseSelectionRequest(
+        @PathVariable Long requestId,
+        @Valid @RequestBody CourseSelectionRequestReviewRequest request,
+        @RequestHeader(value = "X-Username", defaultValue = "admin") String username
+    ) {
+        adminService.reviewCourseSelectionRequest(requestId, request, username);
+        return ApiResponse.success("补选申请处理成功", null);
     }
 }

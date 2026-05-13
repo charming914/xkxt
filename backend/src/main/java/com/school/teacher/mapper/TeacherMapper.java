@@ -19,10 +19,13 @@ public interface TeacherMapper {
             tc.week_day AS weekDay,
             tc.section_desc AS sectionDesc,
             tc.week_range AS weekRange,
-            tc.selected_count AS selectedCount
+            tc.selected_count AS selectedCount,
+            cl.building_name AS buildingName,
+            cl.room_name AS roomName
         FROM teaching_class tc
         JOIN semester sem ON tc.semester_id = sem.semester_id
         JOIN course c ON tc.course_id = c.course_id
+        LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
         WHERE tc.teacher_id = #{teacherId}
         ORDER BY sem.semester_name, tc.week_day, tc.section_desc
         """)
