@@ -67,6 +67,20 @@ export function getAdminCourses() {
   })
 }
 
+export function getAdminTeachingClasses() {
+  return request({
+    url: '/admin/teaching-classes',
+    method: 'get'
+  })
+}
+
+export function getAdminTeachingClassStudents(teachingClassId) {
+  return request({
+    url: `/admin/teaching-classes/${teachingClassId}/students`,
+    method: 'get'
+  })
+}
+
 export function createAdminCourse(data) {
   return request({
     url: '/admin/courses',
@@ -86,6 +100,29 @@ export function updateAdminCourse(courseId, data) {
 export function deleteAdminCourse(courseId) {
   return request({
     url: `/admin/courses/${courseId}`,
+    method: 'delete'
+  })
+}
+
+export function createAdminTeachingClass(data) {
+  return request({
+    url: '/admin/teaching-classes',
+    method: 'post',
+    data
+  })
+}
+
+export function updateAdminTeachingClass(teachingClassId, data) {
+  return request({
+    url: `/admin/teaching-classes/${teachingClassId}`,
+    method: 'put',
+    data
+  })
+}
+
+export function deleteAdminTeachingClass(teachingClassId) {
+  return request({
+    url: `/admin/teaching-classes/${teachingClassId}`,
     method: 'delete'
   })
 }
@@ -115,6 +152,34 @@ export function updateCourseSelectionSetting(data) {
 export function getDepartmentOptions() {
   return request({
     url: '/admin/departments',
+    method: 'get'
+  })
+}
+
+export function getSemesterOptions() {
+  return request({
+    url: '/admin/semesters',
+    method: 'get'
+  })
+}
+
+export function getTeacherOptions() {
+  return request({
+    url: '/admin/teacher-options',
+    method: 'get'
+  })
+}
+
+export function getClassroomOptions() {
+  return request({
+    url: '/admin/classrooms',
+    method: 'get'
+  })
+}
+
+export function getCourseOptions() {
+  return request({
+    url: '/admin/course-options',
     method: 'get'
   })
 }

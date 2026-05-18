@@ -357,6 +357,30 @@ cd D:\xkxt\frontend
 npm run dev
 ```
 
+## 一键启动
+
+项目根目录已经提供了 Windows 一键启动脚本：
+
+- [start-backend.bat](../xkxt/start-backend.bat)：一键启动后端
+- [start-frontend.bat](../xkxt/start-frontend.bat)：一键启动前端
+- [start-all.bat](../xkxt/start-all.bat)：一键同时启动前后端
+
+推荐使用方式：
+
+1. 先确认数据库已经准备好
+2. 双击 `start-all.bat`
+3. 等待两个新窗口分别启动后端和前端
+4. 浏览器打开：
+
+```text
+http://localhost:5173
+```
+
+说明：
+- `start-frontend.bat` 会在 `frontend/node_modules` 不存在时自动执行 `npm install`
+- `start-backend.bat` 会先检查 `java` 和 `mvn` 是否已经配置好
+- 如果后端端口不是 `8080`，需要同步修改 `frontend/vite.config.js`
+
 ## 常见问题
 
 ### 1. `mvn` 命令无法识别
@@ -404,13 +428,13 @@ npm config set cache "C:\Users\你的用户名\.npm-cache" --global
 - 教师授课与成绩录入
 - 管理员基础数据管理
 - 管理员选课设置与统计分析
+- 又加了点其他功能，详细可运行见
 
 AI建议如果后续继续扩展，可以增加：
 - 更完整的分页查询
 - 更细致的权限校验
 - 管理员教学班管理
 - 成绩图表分析
-- 学生界面课表日历格式显示
 - 老师成绩录入可通过excel文件录入
 - 页面美化
 - 其他功能可根据难度按之前选课网站硬抄

@@ -3,6 +3,7 @@ package com.school.admin.mapper;
 import com.school.admin.dto.AdminCourseRequest;
 import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
+import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
 import java.util.List;
@@ -81,6 +82,50 @@ public interface AdminMapper {
 
     @Select("""
         SELECT
+            tc.teaching_class_id AS teachingClassId,
+            sem.semester_name AS semesterName,
+            tc.semester_id AS semesterId,
+            c.course_name AS courseName,
+            tc.course_id AS courseId,
+            t.teacher_name AS teacherName,
+            tc.teacher_id AS teacherId,
+            cl.building_name AS buildingName,
+            cl.room_name AS roomName,
+            tc.classroom_id AS classroomId,
+            tc.week_day AS weekDay,
+            tc.section_desc AS sectionDesc,
+            tc.week_range AS weekRange,
+            tc.max_students AS maxStudents,
+            tc.selected_count AS selectedCount,
+            tc.status AS status
+        FROM teaching_class tc
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
+        ORDER BY sem.semester_name DESC, tc.week_day, tc.section_desc, tc.teaching_class_id
+        """)
+    List<Map<String, Object>> selectTeachingClasses();
+
+    @Select("""
+        SELECT
+            s.student_id AS studentId,
+            s.student_name AS studentName,
+            ci.class_name AS className,
+            s.phone AS phone,
+            cs.selection_time AS selectionTime,
+            cs.selection_status AS selectionStatus
+        FROM course_selection cs
+        JOIN student s ON cs.student_id = s.student_id
+        JOIN class_info ci ON s.class_id = ci.class_id
+        WHERE cs.teaching_class_id = #{teachingClassId}
+          AND cs.selection_status = '已选'
+        ORDER BY s.student_id
+        """)
+    List<Map<String, Object>> selectTeachingClassStudents(@Param("teachingClassId") Integer teachingClassId);
+
+    @Select("""
+        SELECT
             sem.semester_name AS semesterName,
             c.course_name AS courseName,
             tc.teaching_class_id AS teachingClassId,
@@ -115,6 +160,35 @@ public interface AdminMapper {
         ORDER BY class_id
         """)
     List<Map<String, Object>> selectClassOptions();
+
+    @Select("""
+        SELECT semester_id AS value, semester_name AS label
+        FROM semester
+        ORDER BY semester_id DESC
+        """)
+    List<Map<String, Object>> selectSemesterOptions();
+
+    @Select("""
+        SELECT teacher_id AS value, teacher_name AS label
+        FROM teacher
+        ORDER BY teacher_id
+        """)
+    List<Map<String, Object>> selectTeacherOptions();
+
+    @Select("""
+        SELECT classroom_id AS value,
+               CONCAT(building_name, '-', room_name) AS label
+        FROM classroom
+        ORDER BY classroom_id
+        """)
+    List<Map<String, Object>> selectClassroomOptions();
+
+    @Select("""
+        SELECT course_id AS value, course_name AS label
+        FROM course
+        ORDER BY course_id
+        """)
+    List<Map<String, Object>> selectCourseOptions();
 
     @Insert("""
         INSERT INTO student (
@@ -213,6 +287,38 @@ public interface AdminMapper {
 
     @Delete("DELETE FROM course WHERE course_id = #{courseId}")
     int deleteCourse(@Param("courseId") String courseId);
+
+    @Insert("""
+        INSERT INTO teaching_class (
+            semester_id, course_id, teacher_id, classroom_id,
+            week_day, section_desc, week_range, max_students, selected_count, status
+        ) VALUES (
+            #{request.semesterId}, #{request.courseId}, #{request.teacherId}, NULLIF(#{request.classroomId}, ''),
+            #{request.weekDay}, #{request.sectionDesc}, #{request.weekRange}, #{request.maxStudents}, 0, #{request.status}
+        )
+        """)
+    int insertTeachingClass(@Param("request") AdminTeachingClassRequest request);
+
+    @Update("""
+        UPDATE teaching_class
+        SET semester_id = #{request.semesterId},
+            course_id = #{request.courseId},
+            teacher_id = #{request.teacherId},
+            classroom_id = NULLIF(#{request.classroomId}, ''),
+            week_day = #{request.weekDay},
+            section_desc = #{request.sectionDesc},
+            week_range = #{request.weekRange},
+            max_students = #{request.maxStudents},
+            status = #{request.status}
+        WHERE teaching_class_id = #{teachingClassId}
+        """)
+    int updateTeachingClass(
+        @Param("teachingClassId") Integer teachingClassId,
+        @Param("request") AdminTeachingClassRequest request
+    );
+
+    @Delete("DELETE FROM teaching_class WHERE teaching_class_id = #{teachingClassId}")
+    int deleteTeachingClass(@Param("teachingClassId") Integer teachingClassId);
 
     @Select("SELECT role_id FROM sys_role WHERE role_code = #{roleCode} LIMIT 1")
     Integer selectRoleIdByCode(@Param("roleCode") String roleCode);

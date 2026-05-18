@@ -3,6 +3,7 @@ package com.school.admin.controller;
 import com.school.admin.dto.AdminCourseRequest;
 import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
+import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.service.AdminService;
@@ -79,6 +80,16 @@ public class AdminController {
         return ApiResponse.success(adminService.courses());
     }
 
+    @GetMapping("/teaching-classes")
+    public ApiResponse<List<Map<String, Object>>> teachingClasses() {
+        return ApiResponse.success(adminService.teachingClasses());
+    }
+
+    @GetMapping("/teaching-classes/{teachingClassId}/students")
+    public ApiResponse<List<Map<String, Object>>> teachingClassStudents(@PathVariable Integer teachingClassId) {
+        return ApiResponse.success(adminService.teachingClassStudents(teachingClassId));
+    }
+
     @PostMapping("/courses")
     public ApiResponse<Void> createCourse(@Valid @RequestBody AdminCourseRequest request) {
         adminService.createCourse(request);
@@ -95,6 +106,27 @@ public class AdminController {
     public ApiResponse<Void> deleteCourse(@PathVariable String courseId) {
         adminService.deleteCourse(courseId);
         return ApiResponse.success("课程删除成功", null);
+    }
+
+    @PostMapping("/teaching-classes")
+    public ApiResponse<Void> createTeachingClass(@Valid @RequestBody AdminTeachingClassRequest request) {
+        adminService.createTeachingClass(request);
+        return ApiResponse.success("教学班新增成功", null);
+    }
+
+    @PutMapping("/teaching-classes/{teachingClassId}")
+    public ApiResponse<Void> updateTeachingClass(
+        @PathVariable Integer teachingClassId,
+        @Valid @RequestBody AdminTeachingClassRequest request
+    ) {
+        adminService.updateTeachingClass(teachingClassId, request);
+        return ApiResponse.success("教学班修改成功", null);
+    }
+
+    @DeleteMapping("/teaching-classes/{teachingClassId}")
+    public ApiResponse<Void> deleteTeachingClass(@PathVariable Integer teachingClassId) {
+        adminService.deleteTeachingClass(teachingClassId);
+        return ApiResponse.success("教学班删除成功", null);
     }
 
     @GetMapping("/statistics/course-selection")
@@ -115,6 +147,26 @@ public class AdminController {
     @GetMapping("/classes")
     public ApiResponse<List<Map<String, Object>>> classes() {
         return ApiResponse.success(adminService.classes());
+    }
+
+    @GetMapping("/semesters")
+    public ApiResponse<List<Map<String, Object>>> semesters() {
+        return ApiResponse.success(adminService.semesters());
+    }
+
+    @GetMapping("/teacher-options")
+    public ApiResponse<List<Map<String, Object>>> teacherOptions() {
+        return ApiResponse.success(adminService.teacherOptions());
+    }
+
+    @GetMapping("/classrooms")
+    public ApiResponse<List<Map<String, Object>>> classrooms() {
+        return ApiResponse.success(adminService.classroomOptions());
+    }
+
+    @GetMapping("/course-options")
+    public ApiResponse<List<Map<String, Object>>> courseOptions() {
+        return ApiResponse.success(adminService.courseOptions());
     }
 
     @GetMapping("/course-selection-setting")

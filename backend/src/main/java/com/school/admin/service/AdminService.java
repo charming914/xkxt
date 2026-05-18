@@ -3,6 +3,7 @@ package com.school.admin.service;
 import com.school.admin.dto.AdminCourseRequest;
 import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
+import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.mapper.AdminMapper;
@@ -33,6 +34,14 @@ public class AdminService {
         return adminMapper.selectCourses();
     }
 
+    public List<Map<String, Object>> teachingClasses() {
+        return adminMapper.selectTeachingClasses();
+    }
+
+    public List<Map<String, Object>> teachingClassStudents(Integer teachingClassId) {
+        return adminMapper.selectTeachingClassStudents(teachingClassId);
+    }
+
     public List<Map<String, Object>> courseSelectionStatistics() {
         return adminMapper.selectCourseSelectionStatistics();
     }
@@ -47,6 +56,22 @@ public class AdminService {
 
     public List<Map<String, Object>> classes() {
         return adminMapper.selectClassOptions();
+    }
+
+    public List<Map<String, Object>> semesters() {
+        return adminMapper.selectSemesterOptions();
+    }
+
+    public List<Map<String, Object>> teacherOptions() {
+        return adminMapper.selectTeacherOptions();
+    }
+
+    public List<Map<String, Object>> classroomOptions() {
+        return adminMapper.selectClassroomOptions();
+    }
+
+    public List<Map<String, Object>> courseOptions() {
+        return adminMapper.selectCourseOptions();
     }
 
     @Transactional
@@ -97,6 +122,18 @@ public class AdminService {
 
     public void deleteCourse(String courseId) {
         adminMapper.deleteCourse(courseId);
+    }
+
+    public void createTeachingClass(AdminTeachingClassRequest request) {
+        adminMapper.insertTeachingClass(request);
+    }
+
+    public void updateTeachingClass(Integer teachingClassId, AdminTeachingClassRequest request) {
+        adminMapper.updateTeachingClass(teachingClassId, request);
+    }
+
+    public void deleteTeachingClass(Integer teachingClassId) {
+        adminMapper.deleteTeachingClass(teachingClassId);
     }
 
     public Map<String, Object> currentSemesterSetting() {
