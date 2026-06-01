@@ -496,4 +496,91 @@ public interface AdminMapper {
         @Param("reviewComment") String reviewComment,
         @Param("reviewedBy") Integer reviewedBy
     );
+
+    @Select("""
+        SELECT
+            cdr.drop_request_id AS dropRequestId,
+            cdr.student_id AS studentId,
+            s.student_name AS studentName,
+            cdr.teaching_class_id AS teachingClassId,
+            sem.semester_name AS semesterName,
+            c.course_id AS courseId,
+            c.course_name AS courseName,
+            t.teacher_name AS teacherName,
+            tc.week_day AS weekDay,
+            tc.section_desc AS sectionDesc,
+            tc.week_range AS weekRange,
+            cdr.request_reason AS requestReason,
+            cdr.request_status AS requestStatus,
+            cdr.teacher_status AS teacherStatus,
+            cdr.teacher_comment AS teacherComment,
+            cdr.admin_status AS adminStatus,
+            cdr.admin_comment AS adminComment,
+            cdr.created_at AS createdAt,
+            cdr.updated_at AS updatedAt
+        FROM course_drop_request cdr
+        JOIN student s ON cdr.student_id = s.student_id
+        JOIN teaching_class tc ON cdr.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        ORDER BY CASE cdr.request_status WHEN '待审核' THEN 1 WHEN '已通过' THEN 2 ELSE 3 END, cdr.created_at DESC
+        """)
+    List<Map<String, Object>> selectCourseDropRequests();
+
+    @Select("""
+        SELECT
+            drop_request_id AS dropRequestId,
+            student_id AS studentId,
+            teaching_class_id AS teachingClassId,
+            request_status AS requestStatus,
+            teacher_status AS teacherStatus,
+            admin_status AS adminStatus
+        FROM course_drop_request
+        WHERE drop_request_id = #{dropRequestId}
+        LIMIT 1
+        """)
+    Map<String, Object> selectCourseDropRequestById(@Param("dropRequestId") Long dropRequestId);
+
+    @Update("""
+        UPDATE course_drop_request
+        SET admin_status = #{adminStatus},
+            admin_comment = #{adminComment},
+            admin_reviewed_by = #{adminUserId},
+            admin_reviewed_at = NOW(),
+            request_status = CASE
+                WHEN #{adminStatus} = '已驳回' THEN '已驳回'
+                WHEN teacher_status = '已驳回' THEN '已驳回'
+                WHEN #{adminStatus} = '已通过' AND teacher_status = '已通过' THEN '已通过'
+                ELSE '待审核'
+            END,
+            updated_at = NOW()
+        WHERE drop_request_id = #{dropRequestId}
+        """)
+    int updateAdminDropReview(
+        @Param("dropRequestId") Long dropRequestId,
+        @Param("adminStatus") String adminStatus,
+        @Param("adminComment") String adminComment,
+        @Param("adminUserId") Integer adminUserId
+    );
+
+    @Select("""
+        SELECT request_status AS requestStatus
+        FROM course_drop_request
+        WHERE drop_request_id = #{dropRequestId}
+        LIMIT 1
+        """)
+    String selectDropRequestStatus(@Param("dropRequestId") Long dropRequestId);
+
+    @Update("""
+        UPDATE course_selection
+        SET selection_status = '已退'
+        WHERE student_id = #{studentId}
+          AND teaching_class_id = #{teachingClassId}
+          AND selection_status = '已选'
+        """)
+    int dropSelectedCourse(
+        @Param("studentId") String studentId,
+        @Param("teachingClassId") Integer teachingClassId
+    );
 }
