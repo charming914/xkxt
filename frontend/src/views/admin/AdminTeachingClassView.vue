@@ -30,6 +30,7 @@
       <el-table-column prop="teachingClassId" label="教学班编号" width="120" />
       <el-table-column prop="semesterName" label="学期" min-width="120" />
       <el-table-column prop="courseName" label="课程名称" min-width="150" />
+      <el-table-column prop="courseStartDate" label="开课日期" width="120" />
       <el-table-column prop="teacherName" label="任课教师" width="110" />
       <el-table-column label="上课时间" min-width="170">
         <template #default="{ row }">
@@ -69,6 +70,14 @@
           <el-select v-model="form.courseId">
             <el-option v-for="item in courses" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="开课日期">
+          <el-date-picker
+            v-model="form.courseStartDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="选择开课日期"
+          />
         </el-form-item>
         <el-form-item label="任课教师">
           <el-select v-model="form.teacherId">
@@ -174,6 +183,7 @@ const sectionOptions = ['1-2节', '1-4节', '3-4节', '5-6节', '5-8节', '7-8�
 
 const form = reactive({
   semesterId: null,
+  courseStartDate: '',
   courseId: '',
   teacherId: '',
   classroomId: '',
@@ -224,6 +234,7 @@ async function loadOptions() {
 function resetForm() {
   Object.assign(form, {
     semesterId: semesters.value[0]?.value ?? null,
+    courseStartDate: '',
     courseId: courses.value[0]?.value || '',
     teacherId: teachers.value[0]?.value || '',
     classroomId: '',
@@ -253,6 +264,7 @@ function openEditDialog(row) {
   currentId.value = row.teachingClassId
   Object.assign(form, {
     semesterId: row.semesterId,
+    courseStartDate: row.courseStartDate || '',
     courseId: row.courseId,
     teacherId: row.teacherId,
     classroomId: row.classroomId || '',
@@ -266,6 +278,11 @@ function openEditDialog(row) {
 }
 
 async function handleSave() {
+  if (!form.courseStartDate) {
+    ElMessage.warning('请选择开课日期')
+    return
+  }
+
   if (isEdit.value) {
     await updateAdminTeachingClass(currentId.value, form)
     ElMessage.success('教学班修改成功')

@@ -148,6 +148,7 @@ CREATE TABLE teaching_class (
     course_id VARCHAR(12) NOT NULL COMMENT '课程编号',
     teacher_id VARCHAR(12) NOT NULL COMMENT '任课教师工号',
     classroom_id VARCHAR(10) NULL COMMENT '教室编号',
+    course_start_date DATE NULL COMMENT '课程实际开课日期',
     week_day TINYINT NOT NULL COMMENT '星期几',
     section_desc VARCHAR(20) NOT NULL COMMENT '节次',
     week_range VARCHAR(30) NOT NULL COMMENT '周次范围',
@@ -310,12 +311,12 @@ INSERT INTO classroom (classroom_id, building_name, room_name, capacity) VALUES
 
 INSERT INTO teaching_class (
     semester_id, course_id, teacher_id, classroom_id,
-    week_day, section_desc, week_range, max_students, selected_count, status
+    course_start_date, week_day, section_desc, week_range, max_students, selected_count, status
 ) VALUES
-(2, '08305002', 'T0101', 'LAB1', 3, '1-4节', '1-16周', 50, 0, '选课中'),
-(2, '08305003', 'T0102', 'R102', 5, '5-8节', '1-16周', 60, 0, '选课中'),
-(2, '08302001', 'T0201', 'R201', 1, '5-8节', '1-16周', 80, 0, '选课中'),
-(2, '08305001', 'T0103', 'R101', 2, '1-4节', '1-16周', 60, 0, '选课中');
+(2, '08305002', 'T0101', 'LAB1', '2026-03-01', 3, '1-4节', '1-16周', 50, 0, '选课中'),
+(2, '08305003', 'T0102', 'R102', '2026-03-01', 5, '5-8节', '1-16周', 60, 0, '选课中'),
+(2, '08302001', 'T0201', 'R201', '2026-03-01', 1, '5-8节', '1-16周', 80, 0, '选课中'),
+(2, '08305001', 'T0103', 'R101', '2026-03-01', 2, '1-4节', '1-16周', 60, 0, '选课中');
 
 INSERT INTO course_selection (student_id, teaching_class_id, selection_time, selection_status) VALUES
 ('20240001', 3, NOW(), '已选'),

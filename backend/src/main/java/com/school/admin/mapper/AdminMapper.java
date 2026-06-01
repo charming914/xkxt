@@ -92,6 +92,7 @@ public interface AdminMapper {
             cl.building_name AS buildingName,
             cl.room_name AS roomName,
             tc.classroom_id AS classroomId,
+            tc.course_start_date AS courseStartDate,
             tc.week_day AS weekDay,
             tc.section_desc AS sectionDesc,
             tc.week_range AS weekRange,
@@ -291,10 +292,10 @@ public interface AdminMapper {
     @Insert("""
         INSERT INTO teaching_class (
             semester_id, course_id, teacher_id, classroom_id,
-            week_day, section_desc, week_range, max_students, selected_count, status
+            course_start_date, week_day, section_desc, week_range, max_students, selected_count, status
         ) VALUES (
             #{request.semesterId}, #{request.courseId}, #{request.teacherId}, NULLIF(#{request.classroomId}, ''),
-            #{request.weekDay}, #{request.sectionDesc}, #{request.weekRange}, #{request.maxStudents}, 0, #{request.status}
+            #{request.courseStartDate}, #{request.weekDay}, #{request.sectionDesc}, #{request.weekRange}, #{request.maxStudents}, 0, #{request.status}
         )
         """)
     int insertTeachingClass(@Param("request") AdminTeachingClassRequest request);
@@ -305,6 +306,7 @@ public interface AdminMapper {
             course_id = #{request.courseId},
             teacher_id = #{request.teacherId},
             classroom_id = NULLIF(#{request.classroomId}, ''),
+            course_start_date = #{request.courseStartDate},
             week_day = #{request.weekDay},
             section_desc = #{request.sectionDesc},
             week_range = #{request.weekRange},
