@@ -5,10 +5,10 @@ import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
-import com.school.admin.dto.CourseDropRequestAdminReviewRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.service.AdminService;
 import com.school.common.api.ApiResponse;
+import com.school.common.dto.CourseDropReviewRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -204,7 +204,7 @@ public class AdminController {
     @PutMapping("/course-drop-requests/{dropRequestId}/review")
     public ApiResponse<Void> reviewCourseDropRequest(
         @PathVariable Long dropRequestId,
-        @Valid @RequestBody CourseDropRequestAdminReviewRequest request,
+        @Valid @RequestBody CourseDropReviewRequest request,
         @RequestHeader(value = "X-Username", defaultValue = "admin") String username
     ) {
         adminService.reviewCourseDropRequest(dropRequestId, request, username);

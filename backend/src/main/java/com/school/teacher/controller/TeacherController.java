@@ -1,7 +1,7 @@
 package com.school.teacher.controller;
 
 import com.school.common.api.ApiResponse;
-import com.school.teacher.dto.CourseDropRequestTeacherReviewRequest;
+import com.school.common.dto.CourseDropReviewRequest;
 import com.school.teacher.dto.ScoreInputRequest;
 import com.school.teacher.service.TeacherService;
 import jakarta.validation.Valid;
@@ -54,7 +54,7 @@ public class TeacherController {
     @PutMapping("/course-drop-requests/{dropRequestId}/review")
     public ApiResponse<Void> reviewCourseDropRequest(
         @PathVariable Long dropRequestId,
-        @Valid @RequestBody CourseDropRequestTeacherReviewRequest request,
+        @Valid @RequestBody CourseDropReviewRequest request,
         @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
     ) {
         teacherService.reviewCourseDropRequest(dropRequestId, request, teacherId);

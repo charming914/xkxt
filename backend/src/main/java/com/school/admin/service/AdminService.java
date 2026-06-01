@@ -5,7 +5,10 @@ import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
-import com.school.admin.dto.CourseDropRequestAdminReviewRequest;
+import static com.school.common.support.CourseDropReviewSupport.resolveDropCourseMessage;
+import static com.school.common.support.CourseDropReviewSupport.resolveReviewStatus;
+
+import com.school.common.dto.CourseDropReviewRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.mapper.AdminMapper;
 import com.school.common.exception.BusinessException;
@@ -213,7 +216,7 @@ public class AdminService {
     @Transactional(rollbackFor = Exception.class)
     public void reviewCourseDropRequest(
         Long dropRequestId,
-        CourseDropRequestAdminReviewRequest request,
+        CourseDropReviewRequest request,
         String adminUsername
     ) {
         Map<String, Object> dropRequest = adminMapper.selectCourseDropRequestById(dropRequestId);
@@ -242,16 +245,6 @@ public class AdminService {
         dropCourseIfFullyApproved(dropRequestId, dropRequest);
     }
 
-    private String resolveReviewStatus(String action) {
-        if ("APPROVE".equalsIgnoreCase(action)) {
-            return "已通过";
-        }
-        if ("REJECT".equalsIgnoreCase(action)) {
-            return "已驳回";
-        }
-        throw new BusinessException("不支持的审核动作");
-    }
-
     private void dropCourseIfFullyApproved(Long dropRequestId, Map<String, Object> dropRequest) {
         String requestStatus = adminMapper.selectDropRequestStatus(dropRequestId);
         if (!"已通过".equals(requestStatus)) {
@@ -264,22 +257,6 @@ public class AdminService {
         } catch (RuntimeException e) {
             throw new BusinessException(resolveDropCourseMessage(e.getMessage()));
         }
-    }
-
-    private String resolveDropCourseMessage(String rawMessage) {
-        if (rawMessage == null || rawMessage.isBlank()) {
-            return "退课审核通过，但执行退课失败";
-        }
-        if (rawMessage.contains("课程开课日期未设置")) {
-            return "退课失败：课程开课日期未设置";
-        }
-        if (rawMessage.contains("已超过开课三周")) {
-            return "退课失败：已超过开课三周，且没有合法双审核通过记录";
-        }
-        if (rawMessage.contains("开课超过一周")) {
-            return "退课失败：开课超过一周，需教师和管理员均同意后才能退课";
-        }
-        return "退课失败：" + rawMessage;
     }
 
     private void createUserIfNecessary(String username, String realName, String userType, String roleCode) {

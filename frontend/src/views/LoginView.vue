@@ -12,8 +12,6 @@
         </el-form-item>
         <el-button type="primary" class="full-width" :loading="loading" @click="handleLogin">登录</el-button>
       </el-form>
-      <div class="tips">
-      </div>
     </div>
   </div>
 </template>
@@ -81,13 +79,5 @@ async function handleLogin() {
 
 .full-width {
   width: 100%;
-}
-
-.tips {
-  display: grid;
-  gap: 6px;
-  margin-top: 16px;
-  color: #5b6d68;
-  font-size: 13px;
 }
 </style>

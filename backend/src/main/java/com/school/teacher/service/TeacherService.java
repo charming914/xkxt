@@ -1,7 +1,10 @@
 package com.school.teacher.service;
 
+import static com.school.common.support.CourseDropReviewSupport.resolveDropCourseMessage;
+import static com.school.common.support.CourseDropReviewSupport.resolveReviewStatus;
+
+import com.school.common.dto.CourseDropReviewRequest;
 import com.school.common.exception.BusinessException;
-import com.school.teacher.dto.CourseDropRequestTeacherReviewRequest;
 import com.school.teacher.dto.ScoreInputRequest;
 import com.school.teacher.mapper.TeacherMapper;
 import java.util.List;
@@ -35,7 +38,7 @@ public class TeacherService {
     @Transactional(rollbackFor = Exception.class)
     public void reviewCourseDropRequest(
         Long dropRequestId,
-        CourseDropRequestTeacherReviewRequest request,
+        CourseDropReviewRequest request,
         String teacherId
     ) {
         Map<String, Object> dropRequest = teacherMapper.selectCourseDropRequestById(dropRequestId);
@@ -62,16 +65,6 @@ public class TeacherService {
         dropCourseIfFullyApproved(dropRequestId, dropRequest);
     }
 
-    private String resolveReviewStatus(String action) {
-        if ("APPROVE".equalsIgnoreCase(action)) {
-            return "已通过";
-        }
-        if ("REJECT".equalsIgnoreCase(action)) {
-            return "已驳回";
-        }
-        throw new BusinessException("不支持的审核动作");
-    }
-
     private void dropCourseIfFullyApproved(Long dropRequestId, Map<String, Object> dropRequest) {
         String requestStatus = teacherMapper.selectDropRequestStatus(dropRequestId);
         if (!"已通过".equals(requestStatus)) {
@@ -86,19 +79,4 @@ public class TeacherService {
         }
     }
 
-    private String resolveDropCourseMessage(String rawMessage) {
-        if (rawMessage == null || rawMessage.isBlank()) {
-            return "退课审核通过，但执行退课失败";
-        }
-        if (rawMessage.contains("课程开课日期未设置")) {
-            return "退课失败：课程开课日期未设置";
-        }
-        if (rawMessage.contains("已超过开课三周")) {
-            return "退课失败：已超过开课三周，且没有合法双审核通过记录";
-        }
-        if (rawMessage.contains("开课超过一周")) {
-            return "退课失败：开课超过一周，需教师和管理员均同意后才能退课";
-        }
-        return "退课失败：" + rawMessage;
-    }
 }
