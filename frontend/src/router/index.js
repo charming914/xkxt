@@ -4,16 +4,20 @@ import LoginView from '../views/LoginView.vue'
 import LayoutView from '../layouts/LayoutView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import StudentCourseView from '../views/student/StudentCourseView.vue'
+import StudentSelectedCourseView from '../views/student/StudentSelectedCourseView.vue'
+import StudentDropCourseView from '../views/student/StudentDropCourseView.vue'
 import StudentTimetableView from '../views/student/StudentTimetableView.vue'
 import StudentScoreView from '../views/student/StudentScoreView.vue'
 import TeacherClassView from '../views/teacher/TeacherClassView.vue'
 import TeacherScoreView from '../views/teacher/TeacherScoreView.vue'
+import TeacherDropRequestView from '../views/teacher/TeacherDropRequestView.vue'
 import AdminStudentView from '../views/admin/AdminStudentView.vue'
 import AdminTeacherView from '../views/admin/AdminTeacherView.vue'
 import AdminCourseView from '../views/admin/AdminCourseView.vue'
 import AdminTeachingClassView from '../views/admin/AdminTeachingClassView.vue'
 import AdminStatisticsView from '../views/admin/AdminStatisticsView.vue'
 import AdminSelectionRequestView from '../views/admin/AdminSelectionRequestView.vue'
+import AdminDropRequestView from '../views/admin/AdminDropRequestView.vue'
 import PasswordView from '../views/PasswordView.vue'
 
 const routes = [
@@ -47,6 +51,18 @@ const routes = [
         meta: { roles: ['STUDENT'] }
       },
       {
+        path: 'student/selected-courses',
+        name: 'student-selected-courses',
+        component: StudentSelectedCourseView,
+        meta: { roles: ['STUDENT'] }
+      },
+      {
+        path: 'student/drop-courses',
+        name: 'student-drop-courses',
+        component: StudentDropCourseView,
+        meta: { roles: ['STUDENT'] }
+      },
+      {
         path: 'student/timetable',
         name: 'student-timetable',
         component: StudentTimetableView,
@@ -68,6 +84,12 @@ const routes = [
         path: 'teacher/scores',
         name: 'teacher-scores',
         component: TeacherScoreView,
+        meta: { roles: ['TEACHER'] }
+      },
+      {
+        path: 'teacher/course-drop-requests',
+        name: 'teacher-course-drop-requests',
+        component: TeacherDropRequestView,
         meta: { roles: ['TEACHER'] }
       },
       {
@@ -98,6 +120,12 @@ const routes = [
         path: 'admin/course-selection-requests',
         name: 'admin-course-selection-requests',
         component: AdminSelectionRequestView,
+        meta: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'admin/course-drop-requests',
+        name: 'admin-course-drop-requests',
+        component: AdminDropRequestView,
         meta: { roles: ['ADMIN'] }
       },
       {

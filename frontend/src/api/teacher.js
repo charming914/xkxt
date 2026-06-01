@@ -21,3 +21,18 @@ export function saveTeacherScore(data) {
     data
   })
 }
+
+export function getTeacherCourseDropRequests() {
+  return request({
+    url: '/teacher/course-drop-requests',
+    method: 'get'
+  })
+}
+
+export function reviewTeacherCourseDropRequest(dropRequestId, data) {
+  return request({
+    url: `/teacher/course-drop-requests/${dropRequestId}/review`,
+    method: 'put',
+    data
+  })
+}

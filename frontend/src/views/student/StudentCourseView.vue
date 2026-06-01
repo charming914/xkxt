@@ -23,9 +23,49 @@
       class="tip-alert"
     />
 
+    <el-form :model="queryForm" label-width="88px" class="query-panel">
+      <div class="query-grid">
+        <el-form-item label="老师名称">
+          <el-input v-model="queryForm.teacherName" clearable placeholder="按老师名称查询" />
+        </el-form-item>
+        <el-form-item label="课程名">
+          <el-input v-model="queryForm.courseName" clearable placeholder="按课程名查询" />
+        </el-form-item>
+        <el-form-item label="课程号">
+          <el-input v-model="queryForm.courseId" clearable placeholder="按课程号查询" />
+        </el-form-item>
+        <el-form-item label="课程种类">
+          <el-select v-model="queryForm.courseType" clearable placeholder="选择课程种类">
+            <el-option v-for="item in courseTypeOptions" :key="item" :label="item" :value="item" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="学分数">
+          <el-select v-model="queryForm.credit" clearable placeholder="选择学分">
+            <el-option v-for="item in creditOptions" :key="item" :label="`${item} 学分`" :value="item" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="星期">
+          <el-select v-model="queryForm.weekDay" clearable placeholder="选择星期">
+            <el-option v-for="item in weekDayOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="节次">
+          <el-select v-model="queryForm.sectionDesc" clearable placeholder="选择节次">
+            <el-option v-for="item in sectionOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
+      </div>
+      <div class="query-actions">
+        <el-button type="primary" @click="loadCourses">查询</el-button>
+        <el-button @click="resetQuery">重置</el-button>
+      </div>
+    </el-form>
+
     <el-table v-loading="loading" :data="courses" border>
       <el-table-column prop="teachingClassId" label="教学班编号" width="120" />
+      <el-table-column prop="courseId" label="课程号" width="120" />
       <el-table-column prop="courseName" label="课程名称" min-width="160" />
+      <el-table-column prop="courseType" label="课程种类" width="120" />
       <el-table-column prop="teacherName" label="任课教师" width="120" />
       <el-table-column prop="credit" label="学分" width="80" />
       <el-table-column prop="totalHours" label="学时" width="80" />
@@ -104,7 +144,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   createCourseSelectionRequest,
@@ -124,6 +164,35 @@ const requestLoading = ref(false)
 const dialogVisible = ref(false)
 const selectedCourse = ref(null)
 const requestReason = ref('')
+const queryForm = reactive({
+  teacherName: '',
+  courseName: '',
+  courseId: '',
+  courseType: '',
+  credit: '',
+  weekDay: '',
+  sectionDesc: ''
+})
+
+const courseTypeOptions = ['专业基础课', '专业核心课', '专业选修课']
+const creditOptions = [1, 2, 3, 4, 5]
+const weekDayOptions = [
+  { label: '周一', value: 1 },
+  { label: '周二', value: 2 },
+  { label: '周三', value: 3 },
+  { label: '周四', value: 4 },
+  { label: '周五', value: 5 },
+  { label: '周六', value: 6 },
+  { label: '周日', value: 7 }
+]
+const sectionOptions = [
+  { label: '1-2节 08:00-09:40', value: '1-2节', time: '08:00-09:40' },
+  { label: '3-4节 10:00-11:40', value: '3-4节', time: '10:00-11:40' },
+  { label: '5-6节 13:00-14:40', value: '5-6节', time: '13:00-14:40' },
+  { label: '7-8节 15:00-16:40', value: '7-8节', time: '15:00-16:40' },
+  { label: '9-10节 18:00-19:40', value: '9-10节', time: '18:00-19:40' },
+  { label: '11-12节 20:00-21:40', value: '11-12节', time: '20:00-21:40' }
+]
 
 const selectedCourseLabel = computed(() => {
   if (!selectedCourse.value) return ''
@@ -146,11 +215,30 @@ function weekLabel(weekDay) {
 async function loadCourses() {
   loading.value = true
   try {
-    const response = await getAvailableCourses()
+    const response = await getAvailableCourses(buildQueryParams())
     courses.value = response.data || []
   } finally {
     loading.value = false
   }
+}
+
+function buildQueryParams() {
+  return Object.fromEntries(
+    Object.entries(queryForm).filter(([, value]) => value !== '' && value !== null && value !== undefined)
+  )
+}
+
+function resetQuery() {
+  Object.assign(queryForm, {
+    teacherName: '',
+    courseName: '',
+    courseId: '',
+    courseType: '',
+    credit: '',
+    weekDay: '',
+    sectionDesc: ''
+  })
+  loadCourses()
 }
 
 async function loadRequests() {
@@ -236,6 +324,34 @@ onMounted(() => {
 
 .tip-alert {
   margin-bottom: 16px;
+}
+
+.query-panel {
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid #dce6df;
+  border-radius: 8px;
+  background: #f8fbfd;
+}
+
+.query-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px 14px;
+}
+
+.query-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.query-panel :deep(.el-form-item) {
+  margin-bottom: 14px;
+}
+
+.query-panel :deep(.el-select) {
+  width: 100%;
 }
 
 .action-row {
