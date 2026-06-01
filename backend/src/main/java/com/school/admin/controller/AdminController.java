@@ -5,6 +5,7 @@ import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
+import com.school.admin.dto.CourseDropRequestAdminReviewRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.service.AdminService;
 import com.school.common.api.ApiResponse;
@@ -185,6 +186,11 @@ public class AdminController {
         return ApiResponse.success(adminService.courseSelectionRequests());
     }
 
+    @GetMapping("/course-drop-requests")
+    public ApiResponse<List<Map<String, Object>>> courseDropRequests() {
+        return ApiResponse.success(adminService.courseDropRequests());
+    }
+
     @PutMapping("/course-selection-requests/{requestId}/review")
     public ApiResponse<Void> reviewCourseSelectionRequest(
         @PathVariable Long requestId,
@@ -193,5 +199,15 @@ public class AdminController {
     ) {
         adminService.reviewCourseSelectionRequest(requestId, request, username);
         return ApiResponse.success("补选申请处理成功", null);
+    }
+
+    @PutMapping("/course-drop-requests/{dropRequestId}/review")
+    public ApiResponse<Void> reviewCourseDropRequest(
+        @PathVariable Long dropRequestId,
+        @Valid @RequestBody CourseDropRequestAdminReviewRequest request,
+        @RequestHeader(value = "X-Username", defaultValue = "admin") String username
+    ) {
+        adminService.reviewCourseDropRequest(dropRequestId, request, username);
+        return ApiResponse.success("退课申请处理成功", null);
     }
 }

@@ -10,15 +10,19 @@
         <RouterLink to="/">首页</RouterLink>
         <RouterLink to="/password">修改密码</RouterLink>
         <RouterLink v-if="canViewStudent" to="/student/courses">学生选课</RouterLink>
+        <RouterLink v-if="canViewStudent" to="/student/selected-courses">已选课程</RouterLink>
+        <RouterLink v-if="canViewStudent" to="/student/drop-courses">退课</RouterLink>
         <RouterLink v-if="canViewStudent" to="/student/timetable">学生课表</RouterLink>
         <RouterLink v-if="canViewStudent" to="/student/scores">学生成绩</RouterLink>
         <RouterLink v-if="canViewTeacher" to="/teacher/classes">教师授课</RouterLink>
         <RouterLink v-if="canViewTeacher" to="/teacher/scores">教师成绩录入</RouterLink>
+        <RouterLink v-if="canViewTeacher" to="/teacher/course-drop-requests">退课审核</RouterLink>
         <RouterLink v-if="canViewAdmin" to="/admin/students">学生管理</RouterLink>
         <RouterLink v-if="canViewAdmin" to="/admin/teachers">教师管理</RouterLink>
         <RouterLink v-if="canViewAdmin" to="/admin/courses">课程管理</RouterLink>
         <RouterLink v-if="canViewAdmin" to="/admin/teaching-classes">教学班管理</RouterLink>
         <RouterLink v-if="canViewAdmin" to="/admin/course-selection-requests">补选审核</RouterLink>
+        <RouterLink v-if="canViewAdmin" to="/admin/course-drop-requests">退课审核</RouterLink>
         <RouterLink v-if="canViewAdmin" to="/admin/statistics">统计分析</RouterLink>
       </nav>
       <el-button class="logout-btn" plain @click="handleLogout">退出登录</el-button>

@@ -212,3 +212,18 @@ export function reviewAdminCourseSelectionRequest(requestId, data) {
     data
   })
 }
+
+export function getAdminCourseDropRequests() {
+  return request({
+    url: '/admin/course-drop-requests',
+    method: 'get'
+  })
+}
+
+export function reviewAdminCourseDropRequest(dropRequestId, data) {
+  return request({
+    url: `/admin/course-drop-requests/${dropRequestId}/review`,
+    method: 'put',
+    data
+  })
+}

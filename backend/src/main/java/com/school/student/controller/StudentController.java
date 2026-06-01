@@ -1,14 +1,18 @@
 package com.school.student.controller;
 
 import com.school.common.api.ApiResponse;
+import com.school.student.dto.CourseDropRequestCreateRequest;
 import com.school.student.dto.CourseSelectionRequestCreateRequest;
 import com.school.student.dto.SelectCourseRequest;
+import com.school.student.dto.StudentCourseQueryRequest;
 import com.school.student.service.StudentService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,14 +27,37 @@ public class StudentController {
     private final StudentService studentService;
 
     @GetMapping("/courses/available")
-    public ApiResponse<List<Map<String, Object>>> availableCourses() {
-        return ApiResponse.success(studentService.availableCourses());
+    public ApiResponse<List<Map<String, Object>>> availableCourses(StudentCourseQueryRequest query) {
+        return ApiResponse.success(studentService.availableCourses(query));
+    }
+
+    @GetMapping("/course-selections")
+    public ApiResponse<List<Map<String, Object>>> selectedCourses(
+        @RequestHeader(value = "X-Student-Id", defaultValue = "20240001") String studentId
+    ) {
+        return ApiResponse.success(studentService.selectedCourses(studentId));
+    }
+
+    @GetMapping("/selected-courses")
+    public ApiResponse<List<Map<String, Object>>> selectedCoursesAlias(
+        @RequestHeader(value = "X-Student-Id", defaultValue = "20240001") String studentId
+    ) {
+        return ApiResponse.success(studentService.selectedCourses(studentId));
     }
 
     @PostMapping("/course-selections")
     public ApiResponse<Void> selectCourse(@Valid @RequestBody SelectCourseRequest request) {
         studentService.selectCourse(request);
         return ApiResponse.success("选课成功", null);
+    }
+
+    @DeleteMapping("/course-selections/{teachingClassId}")
+    public ApiResponse<Void> dropCourse(
+        @PathVariable Integer teachingClassId,
+        @RequestHeader(value = "X-Student-Id", defaultValue = "20240001") String studentId
+    ) {
+        studentService.dropCourse(studentId, teachingClassId);
+        return ApiResponse.success("退课成功", null);
     }
 
     @GetMapping("/timetable")
@@ -58,5 +85,44 @@ public class StudentController {
         @RequestHeader(value = "X-Student-Id", defaultValue = "20240001") String studentId
     ) {
         return ApiResponse.success(studentService.courseSelectionRequests(studentId));
+    }
+
+    @GetMapping("/drop-courses")
+    public ApiResponse<List<Map<String, Object>>> dropCourses(
+        @RequestHeader(value = "X-Student-Id", defaultValue = "20240001") String studentId
+    ) {
+        return ApiResponse.success(studentService.dropCourses(studentId));
+    }
+
+    @PostMapping("/course-drop-requests")
+    public ApiResponse<Void> createCourseDropRequest(
+        @RequestHeader(value = "X-Student-Id", defaultValue = "20240001") String studentId,
+        @Valid @RequestBody CourseDropRequestCreateRequest request
+    ) {
+        studentService.createCourseDropRequest(studentId, request);
+        return ApiResponse.success("退课申请已提交", null);
+    }
+
+    @PostMapping("/drop-requests")
+    public ApiResponse<Void> createCourseDropRequestAlias(
+        @RequestHeader(value = "X-Student-Id", defaultValue = "20240001") String studentId,
+        @Valid @RequestBody CourseDropRequestCreateRequest request
+    ) {
+        studentService.createCourseDropRequest(studentId, request);
+        return ApiResponse.success("退课申请已提交", null);
+    }
+
+    @GetMapping("/course-drop-requests")
+    public ApiResponse<List<Map<String, Object>>> courseDropRequests(
+        @RequestHeader(value = "X-Student-Id", defaultValue = "20240001") String studentId
+    ) {
+        return ApiResponse.success(studentService.courseDropRequests(studentId));
+    }
+
+    @GetMapping("/drop-requests")
+    public ApiResponse<List<Map<String, Object>>> courseDropRequestsAlias(
+        @RequestHeader(value = "X-Student-Id", defaultValue = "20240001") String studentId
+    ) {
+        return ApiResponse.success(studentService.courseDropRequests(studentId));
     }
 }
