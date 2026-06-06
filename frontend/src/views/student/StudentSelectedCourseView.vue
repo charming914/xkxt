@@ -166,7 +166,7 @@ onMounted(() => {
 }
 
 .calendar-head {
-  background: #edf7f1;
+  background: var(--sky-100);
   font-weight: 600;
   text-align: center;
 }
@@ -184,7 +184,7 @@ onMounted(() => {
 }
 
 .section-label span {
-  color: #6b7b76;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -200,13 +200,13 @@ onMounted(() => {
   gap: 4px;
   padding: 10px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #e9f6ef 0%, #f8fbfd 100%);
+  background: linear-gradient(135deg, #e7f8ff 0%, #f8fdff 100%);
   border: 1px solid #d6e9dc;
   font-size: 13px;
 }
 
 .course-card strong {
-  color: #173f35;
+  color: var(--sky-700);
 }
 
 .selected-section {

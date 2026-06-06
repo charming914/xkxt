@@ -1,32 +1,26 @@
 <template>
   <div class="layout-shell">
-    <aside class="sidebar">
-      <h2>教务系统</h2>
-      <div class="user-panel">
-        <div class="user-name">{{ userStore.realName || '未登录' }}</div>
-        <div class="user-role">{{ roleLabel }}</div>
+    <header class="topbar">
+      <div class="brand-area">
+        <img class="brand-mark" :src="shuLogo" alt="上海大学校徽" />
+        <div>
+          <h2>教务系统</h2>
+          <p>Teaching Affairs</p>
+        </div>
       </div>
-      <nav>
-        <RouterLink to="/">首页</RouterLink>
-        <RouterLink to="/password">修改密码</RouterLink>
-        <RouterLink v-if="canViewStudent" to="/student/courses">学生选课</RouterLink>
-        <RouterLink v-if="canViewStudent" to="/student/selected-courses">已选课程</RouterLink>
-        <RouterLink v-if="canViewStudent" to="/student/drop-courses">退课</RouterLink>
-        <RouterLink v-if="canViewStudent" to="/student/timetable">学生课表</RouterLink>
-        <RouterLink v-if="canViewStudent" to="/student/scores">学生成绩</RouterLink>
-        <RouterLink v-if="canViewTeacher" to="/teacher/classes">教师授课</RouterLink>
-        <RouterLink v-if="canViewTeacher" to="/teacher/scores">教师成绩录入</RouterLink>
-        <RouterLink v-if="canViewTeacher" to="/teacher/course-drop-requests">退课审核</RouterLink>
-        <RouterLink v-if="canViewAdmin" to="/admin/students">学生管理</RouterLink>
-        <RouterLink v-if="canViewAdmin" to="/admin/teachers">教师管理</RouterLink>
-        <RouterLink v-if="canViewAdmin" to="/admin/courses">课程管理</RouterLink>
-        <RouterLink v-if="canViewAdmin" to="/admin/teaching-classes">教学班管理</RouterLink>
-        <RouterLink v-if="canViewAdmin" to="/admin/course-selection-requests">补选审核</RouterLink>
-        <RouterLink v-if="canViewAdmin" to="/admin/course-drop-requests">退课审核</RouterLink>
-        <RouterLink v-if="canViewAdmin" to="/admin/statistics">统计分析</RouterLink>
+      <nav class="top-nav">
+        <RouterLink v-for="item in navItems" :key="item.path" :to="item.path">
+          {{ item.label }}
+        </RouterLink>
       </nav>
-      <el-button class="logout-btn" plain @click="handleLogout">退出登录</el-button>
-    </aside>
+      <div class="user-panel">
+        <div>
+          <div class="user-name">{{ userStore.realName || '未登录' }}</div>
+          <div class="user-role">{{ roleLabel }}</div>
+        </div>
+        <el-button class="logout-btn" plain @click="handleLogout">退出登录</el-button>
+      </div>
+    </header>
     <main class="content">
       <router-view />
     </main>
@@ -37,6 +31,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
+import shuLogo from '../assets/shu-logo.png'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -54,6 +49,41 @@ const canViewStudent = computed(() => userStore.roleCode === 'STUDENT')
 const canViewTeacher = computed(() => userStore.roleCode === 'TEACHER')
 const canViewAdmin = computed(() => userStore.roleCode === 'ADMIN')
 
+const navItems = computed(() => {
+  const items = [
+    { path: '/', label: '首页' },
+    { path: '/password', label: '修改密码' }
+  ]
+  if (canViewStudent.value) {
+    items.push(
+      { path: '/student/courses', label: '学生选课' },
+      { path: '/student/selected-courses', label: '已选课程' },
+      { path: '/student/drop-courses', label: '退课' },
+      { path: '/student/timetable', label: '学生课表' },
+      { path: '/student/scores', label: '学生成绩' }
+    )
+  }
+  if (canViewTeacher.value) {
+    items.push(
+      { path: '/teacher/classes', label: '教师授课' },
+      { path: '/teacher/scores', label: '教师成绩录入' },
+      { path: '/teacher/course-drop-requests', label: '退课审核' }
+    )
+  }
+  if (canViewAdmin.value) {
+    items.push(
+      { path: '/admin/students', label: '学生管理' },
+      { path: '/admin/teachers', label: '教师管理' },
+      { path: '/admin/courses', label: '课程管理' },
+      { path: '/admin/teaching-classes', label: '教学班管理' },
+      { path: '/admin/course-selection-requests', label: '补选审核' },
+      { path: '/admin/course-drop-requests', label: '退课审核' },
+      { path: '/admin/statistics', label: '统计分析' }
+    )
+  }
+  return items
+})
+
 function handleLogout() {
   userStore.clearUser()
   router.push('/login')
@@ -62,56 +92,140 @@ function handleLogout() {
 
 <style scoped>
 .layout-shell {
-  display: grid;
-  grid-template-columns: 240px 1fr;
   min-height: 100vh;
-  background: linear-gradient(180deg, #f2f7f2 0%, #f8fbfd 100%);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(2, 132, 199, 0.18), transparent 32%),
+    linear-gradient(180deg, #dff2ff 0%, #f7fcff 48%, #e8f6ff 100%);
 }
 
-.sidebar {
-  padding: 24px;
-  background: #173f35;
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 84px;
+  padding: 16px 28px;
   color: #fff;
-  display: flex;
-  flex-direction: column;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.24), transparent 30%),
+    linear-gradient(135deg, #075985 0%, #0369a1 48%, #0284c7 100%);
+  box-shadow: 0 16px 38px rgba(3, 105, 161, 0.3);
 }
 
-.sidebar nav {
+.brand-area {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 12px;
-  margin-top: 20px;
-  flex: 1;
+  flex: 0 0 auto;
 }
 
-.sidebar a {
-  color: #d9efe7;
+.brand-mark {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 22px rgba(3, 36, 63, 0.18);
+}
+
+.brand-area h2 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: 0.08em;
+}
+
+.brand-area p {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+}
+
+.top-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 6px;
+  scrollbar-width: thin;
+}
+
+.top-nav a {
+  flex: 0 0 auto;
+  padding: 9px 13px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.9);
   text-decoration: none;
+  font-size: 14px;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.top-nav a:hover,
+.top-nav a.router-link-active {
+  color: #075985;
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateY(-1px);
 }
 
 .user-panel {
-  margin-top: 16px;
-  padding: 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
 
 .user-name {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .user-role {
-  margin-top: 6px;
-  font-size: 13px;
-  color: #b5d6cb;
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .logout-btn {
-  margin-top: 20px;
+  --el-button-bg-color: rgba(255, 255, 255, 0.92);
+  --el-button-border-color: rgba(255, 255, 255, 0.7);
+  --el-button-text-color: #075985;
 }
 
 .content {
-  padding: 24px;
+  padding: 28px;
+}
+
+@media (max-width: 960px) {
+  .topbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .top-nav {
+    width: 100%;
+  }
+
+  .user-panel {
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    padding: 14px 16px;
+  }
+
+  .content {
+    padding: 18px 14px;
+  }
 }
 </style>

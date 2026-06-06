@@ -1,7 +1,27 @@
+html {
+  --sky-50: #f1fbff;
+  --sky-100: #d9efff;
+  --sky-200: #a9ddff;
+  --sky-400: #0f91d2;
+  --sky-500: #0369a1;
+  --sky-600: #075985;
+  --sky-700: #0c4a6e;
+  --text-main: #12364a;
+  --text-muted: #5d7890;
+  --card-shadow: 0 22px 55px rgba(3, 105, 161, 0.14);
+  --el-color-primary: var(--sky-500);
+  --el-color-primary-light-3: #1684bf;
+  --el-color-primary-light-5: #58a9d6;
+  --el-color-primary-light-7: #9bd0ea;
+  --el-color-primary-light-8: #c8e6f5;
+  --el-color-primary-light-9: #eaf7fd;
+  --el-color-primary-dark-2: var(--sky-700);
+}
+
 body {
   margin: 0;
   font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
-  color: #1f2d2a;
+  color: var(--text-main);
 }
 
 * {
@@ -12,5 +32,6 @@ body {
   padding: 24px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 20px 50px rgba(22, 48, 41, 0.08);
+  border: 1px solid rgba(125, 211, 252, 0.32);
+  box-shadow: var(--card-shadow);
 }

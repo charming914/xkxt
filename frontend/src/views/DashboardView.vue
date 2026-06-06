@@ -77,10 +77,10 @@ const actionList = computed(() => {
   padding: 28px;
   border-radius: 24px;
   background:
-    radial-gradient(circle at top right, rgba(100, 166, 135, 0.25), transparent 28%),
-    linear-gradient(135deg, #173f35 0%, #27594b 100%);
+    radial-gradient(circle at top right, rgba(224, 247, 255, 0.24), transparent 30%),
+    linear-gradient(135deg, #075985 0%, #0369a1 54%, #0284c7 100%);
   color: #fff;
-  box-shadow: 0 20px 50px rgba(23, 63, 53, 0.18);
+  box-shadow: 0 22px 55px rgba(3, 105, 161, 0.26);
 }
 
 .hero-card h1 {
@@ -90,7 +90,7 @@ const actionList = computed(() => {
 
 .hero-card p {
   margin: 0;
-  color: #d9efe7;
+  color: rgba(255, 255, 255, 0.84);
 }
 
 .hero-tag {
@@ -111,7 +111,8 @@ const actionList = computed(() => {
   padding: 24px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 20px 50px rgba(22, 48, 41, 0.08);
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  box-shadow: var(--card-shadow);
 }
 
 .dashboard-card h2 {

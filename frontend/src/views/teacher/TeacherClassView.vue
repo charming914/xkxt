@@ -140,7 +140,7 @@ onMounted(() => {
 }
 
 .section-label span {
-  color: #6b7b76;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -162,6 +162,6 @@ onMounted(() => {
 }
 
 .course-card strong {
-  color: #173f35;
+  color: var(--sky-700);
 }
 </style>

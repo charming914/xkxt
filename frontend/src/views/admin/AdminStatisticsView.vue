@@ -184,8 +184,8 @@ onMounted(() => {
   margin-bottom: 24px;
   padding: 20px;
   border-radius: 18px;
-  background: linear-gradient(135deg, #f2f8f2 0%, #f8fbfd 100%);
-  border: 1px solid #dce9de;
+  background: linear-gradient(135deg, #eefaff 0%, #f8fdff 100%);
+  border: 1px solid #c8ecff;
 }
 
 .setting-header {
@@ -209,7 +209,7 @@ onMounted(() => {
 }
 
 .setting-label {
-  color: #5b6d68;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -236,19 +236,19 @@ onMounted(() => {
 .summary-card {
   padding: 18px 20px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #eef5fc 0%, #f8fbfd 100%);
-  border: 1px solid #dce6f4;
+  background: linear-gradient(135deg, #e7f8ff 0%, #f8fdff 100%);
+  border: 1px solid #c8ecff;
 }
 
 .summary-card strong {
   display: block;
   margin-top: 8px;
   font-size: 26px;
-  color: #173f35;
+  color: var(--sky-700);
 }
 
 .summary-label {
-  color: #5b6d68;
+  color: var(--text-muted);
   font-size: 13px;
 }
 </style>
