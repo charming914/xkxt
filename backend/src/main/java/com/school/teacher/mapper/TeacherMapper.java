@@ -1,5 +1,6 @@
 package com.school.teacher.mapper;
 
+import com.school.teacher.dto.ExamChangeRequestCreateRequest;
 import com.school.teacher.dto.ScheduleAdjustRequestCreateRequest;
 import com.school.teacher.dto.ScoreChangeRequestCreateRequest;
 import com.school.teacher.dto.ScoreInputRequest;
@@ -527,4 +528,107 @@ public interface TeacherMapper {
           AND teaching_class_id = #{teachingClassId}
         """)
     int deleteScore(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
+
+    @Select("""
+        SELECT
+            ea.exam_id AS examId,
+            ea.teaching_class_id AS teachingClassId,
+            sem.semester_name AS semesterName,
+            c.course_id AS courseId,
+            c.course_name AS courseName,
+            ea.exam_date AS examDate,
+            ea.start_time AS startTime,
+            ea.end_time AS endTime,
+            ea.classroom_id AS classroomId,
+            cl.building_name AS buildingName,
+            cl.room_name AS roomName,
+            ea.exam_status AS examStatus
+        FROM exam_arrangement ea
+        JOIN teaching_class tc ON ea.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        LEFT JOIN classroom cl ON ea.classroom_id = cl.classroom_id
+        WHERE tc.teacher_id = #{teacherId}
+          AND sem.is_current = 1
+        ORDER BY ea.exam_date, ea.start_time, c.course_name
+        """)
+    List<Map<String, Object>> selectExams(@Param("teacherId") String teacherId);
+
+    @Select("""
+        SELECT
+            ecr.exam_change_request_id AS examChangeRequestId,
+            ecr.exam_id AS examId,
+            ecr.teaching_class_id AS teachingClassId,
+            sem.semester_name AS semesterName,
+            c.course_name AS courseName,
+            ecr.original_exam_date AS originalExamDate,
+            ecr.original_start_time AS originalStartTime,
+            ecr.original_end_time AS originalEndTime,
+            ecr.original_classroom_id AS originalClassroomId,
+            old_cl.building_name AS originalBuildingName,
+            old_cl.room_name AS originalRoomName,
+            ecr.requested_exam_date AS requestedExamDate,
+            ecr.requested_start_time AS requestedStartTime,
+            ecr.requested_end_time AS requestedEndTime,
+            ecr.requested_classroom_id AS requestedClassroomId,
+            new_cl.building_name AS requestedBuildingName,
+            new_cl.room_name AS requestedRoomName,
+            ecr.request_reason AS requestReason,
+            ecr.request_status AS requestStatus,
+            ecr.review_comment AS reviewComment,
+            ecr.created_at AS createdAt,
+            ecr.reviewed_at AS reviewedAt
+        FROM exam_change_request ecr
+        JOIN teaching_class tc ON ecr.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        LEFT JOIN classroom old_cl ON ecr.original_classroom_id = old_cl.classroom_id
+        LEFT JOIN classroom new_cl ON ecr.requested_classroom_id = new_cl.classroom_id
+        WHERE ecr.teacher_id = #{teacherId}
+        ORDER BY CASE ecr.request_status WHEN '待审核' THEN 1 WHEN '已通过' THEN 2 ELSE 3 END, ecr.created_at DESC
+        """)
+    List<Map<String, Object>> selectExamChangeRequests(@Param("teacherId") String teacherId);
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM exam_change_request
+        WHERE exam_id = #{examId}
+          AND request_status = '待审核'
+        """)
+    int countPendingExamChangeRequest(@Param("examId") Long examId);
+
+    @Select("""
+        SELECT
+            ea.exam_id AS examId,
+            ea.teaching_class_id AS teachingClassId,
+            tc.teacher_id AS teacherId
+        FROM exam_arrangement ea
+        JOIN teaching_class tc ON ea.teaching_class_id = tc.teaching_class_id
+        WHERE ea.exam_id = #{examId}
+        LIMIT 1
+        """)
+    Map<String, Object> selectExamOwner(@Param("examId") Long examId);
+
+    @Insert("""
+        INSERT INTO exam_change_request (
+            exam_id, teaching_class_id, teacher_id,
+            original_exam_date, original_start_time, original_end_time, original_classroom_id,
+            requested_exam_date, requested_start_time, requested_end_time, requested_classroom_id,
+            request_reason, request_status, created_at, updated_at
+        )
+        SELECT
+            ea.exam_id, ea.teaching_class_id, tc.teacher_id,
+            ea.exam_date, ea.start_time, ea.end_time, ea.classroom_id,
+            #{request.requestedExamDate}, #{request.requestedStartTime}, #{request.requestedEndTime},
+            NULLIF(#{request.requestedClassroomId}, ''),
+            #{request.requestReason}, '待审核', NOW(), NOW()
+        FROM exam_arrangement ea
+        JOIN teaching_class tc ON ea.teaching_class_id = tc.teaching_class_id
+        WHERE ea.exam_id = #{request.examId}
+          AND tc.teacher_id = #{teacherId}
+        """)
+    int insertExamChangeRequest(
+        @Param("teacherId") String teacherId,
+        @Param("request") ExamChangeRequestCreateRequest request
+    );
 }

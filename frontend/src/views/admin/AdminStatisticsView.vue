@@ -223,8 +223,8 @@ const courseSelectionStatus = computed(() => {
     return '未设置'
   }
   const now = Date.now()
-  const start = new Date(setting.courseSelectStart.replace(/-/g, '/')).getTime()
-  const end = new Date(setting.courseSelectEnd.replace(/-/g, '/')).getTime()
+  const start = new Date(setting.courseSelectStart.replace('T', ' ').replace(/-/g, '/')).getTime()
+  const end = new Date(setting.courseSelectEnd.replace('T', ' ').replace(/-/g, '/')).getTime()
   if (now < start) return '未开始'
   if (now > end) return '已结束'
   return '选课中'

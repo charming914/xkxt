@@ -5,6 +5,7 @@ import static com.school.common.support.CourseDropReviewSupport.resolveReviewSta
 
 import com.school.common.dto.CourseDropReviewRequest;
 import com.school.common.exception.BusinessException;
+import com.school.teacher.dto.ExamChangeRequestCreateRequest;
 import com.school.teacher.dto.ScheduleAdjustRequestCreateRequest;
 import com.school.teacher.dto.ScoreChangeRequestCreateRequest;
 import com.school.teacher.dto.ScoreInputRequest;
@@ -189,6 +190,34 @@ public class TeacherService {
     private void ensureTeachingClassOwner(String teacherId, Integer teachingClassId) {
         if (teacherMapper.countTeachingClassOwner(teacherId, teachingClassId) == 0) {
             throw new BusinessException("教学班不存在或不属于当前教师");
+        }
+    }
+
+    public List<Map<String, Object>> exams(String teacherId) {
+        return teacherMapper.selectExams(teacherId);
+    }
+
+    public List<Map<String, Object>> examChangeRequests(String teacherId) {
+        return teacherMapper.selectExamChangeRequests(teacherId);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void createExamChangeRequest(String teacherId, ExamChangeRequestCreateRequest request) {
+        Map<String, Object> exam = teacherMapper.selectExamOwner(request.getExamId());
+        if (exam == null) {
+            throw new BusinessException("考试安排不存在");
+        }
+        if (!teacherId.equals(exam.get("teacherId"))) {
+            throw new BusinessException("只能对本人授课课程提出考试修改申请");
+        }
+        if (request.getRequestedStartTime().compareTo(request.getRequestedEndTime()) >= 0) {
+            throw new BusinessException("开始时间必须早于结束时间");
+        }
+        if (teacherMapper.countPendingExamChangeRequest(request.getExamId()) > 0) {
+            throw new BusinessException("该考试已有待审核修改申请");
+        }
+        if (teacherMapper.insertExamChangeRequest(teacherId, request) == 0) {
+            throw new BusinessException("考试修改申请提交失败");
         }
     }
 

@@ -91,6 +91,7 @@ const navItems = computed(() => {
       { path: '/student/selected-courses', label: '已选课程' },
       { path: '/student/drop-courses', label: '退课' },
       { path: '/student/timetable', label: '学生课表' },
+      { path: '/student/exams', label: '考试安排' },
       { path: '/student/scores', label: '学生成绩' }
     )
   }
@@ -99,6 +100,7 @@ const navItems = computed(() => {
       { path: '/teacher/profile', label: '个人信息' },
       { path: '/teacher/classes', label: '教师授课' },
       { path: '/teacher/scores', label: '学生成绩录入' },
+      { path: '/teacher/exams', label: '考试安排' },
       {
         label: '审核处理',
         children: [
@@ -117,7 +119,8 @@ const navItems = computed(() => {
           { path: '/admin/teachers', label: '教师管理' },
           { path: '/admin/courses', label: '课程管理' },
           { path: '/admin/semesters', label: '学期管理' },
-          { path: '/admin/teaching-classes', label: '教学班管理' }
+          { path: '/admin/teaching-classes', label: '教学班管理' },
+          { path: '/admin/exams', label: '考试管理' }
         ]
       },
       {
@@ -126,6 +129,7 @@ const navItems = computed(() => {
           { path: '/admin/course-selection-requests', label: '补选审核' },
           { path: '/admin/course-drop-requests', label: '退课审核' },
           { path: '/admin/schedule-adjust-requests', label: '调课审核' },
+          { path: '/admin/exam-change-requests', label: '考试修改审核' },
           { path: '/admin/score-change-requests', label: '成绩修改审核' },
           { path: '/admin/score-review-requests', label: '成绩复核审核' }
         ]

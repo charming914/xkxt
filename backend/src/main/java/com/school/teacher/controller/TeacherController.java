@@ -2,6 +2,7 @@ package com.school.teacher.controller;
 
 import com.school.common.api.ApiResponse;
 import com.school.common.dto.CourseDropReviewRequest;
+import com.school.teacher.dto.ExamChangeRequestCreateRequest;
 import com.school.teacher.dto.ScheduleAdjustRequestCreateRequest;
 import com.school.teacher.dto.ScoreChangeRequestCreateRequest;
 import com.school.teacher.dto.ScoreBatchSaveRequest;
@@ -170,5 +171,28 @@ public class TeacherController {
     ) {
         teacherService.reviewCourseDropRequest(dropRequestId, request, teacherId);
         return ApiResponse.success("退课申请审核成功", null);
+    }
+
+    @GetMapping("/exams")
+    public ApiResponse<List<Map<String, Object>>> exams(
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        return ApiResponse.success(teacherService.exams(teacherId));
+    }
+
+    @GetMapping("/exam-change-requests")
+    public ApiResponse<List<Map<String, Object>>> examChangeRequests(
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        return ApiResponse.success(teacherService.examChangeRequests(teacherId));
+    }
+
+    @PostMapping("/exam-change-requests")
+    public ApiResponse<Void> createExamChangeRequest(
+        @Valid @RequestBody ExamChangeRequestCreateRequest request,
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        teacherService.createExamChangeRequest(teacherId, request);
+        return ApiResponse.success("考试修改申请提交成功", null);
     }
 }

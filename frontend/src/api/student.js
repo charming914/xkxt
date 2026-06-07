@@ -95,3 +95,10 @@ export function getCourseDropRequests() {
     method: 'get'
   })
 }
+
+export function getStudentExams() {
+  return request({
+    url: '/student/exams',
+    method: 'get'
+  })
+}

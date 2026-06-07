@@ -8,11 +8,13 @@ import StudentSelectedCourseView from '../views/student/StudentSelectedCourseVie
 import StudentDropCourseView from '../views/student/StudentDropCourseView.vue'
 import StudentTimetableView from '../views/student/StudentTimetableView.vue'
 import StudentScoreView from '../views/student/StudentScoreView.vue'
+import StudentExamView from '../views/student/StudentExamView.vue'
 import TeacherClassView from '../views/teacher/TeacherClassView.vue'
 import TeacherScoreView from '../views/teacher/TeacherScoreView.vue'
 import TeacherDropRequestView from '../views/teacher/TeacherDropRequestView.vue'
 import TeacherProfileView from '../views/teacher/TeacherProfileView.vue'
 import TeacherScheduleRequestView from '../views/teacher/TeacherScheduleRequestView.vue'
+import TeacherExamView from '../views/teacher/TeacherExamView.vue'
 import AdminStudentView from '../views/admin/AdminStudentView.vue'
 import AdminTeacherView from '../views/admin/AdminTeacherView.vue'
 import AdminCourseView from '../views/admin/AdminCourseView.vue'
@@ -26,6 +28,8 @@ import AdminDropRequestView from '../views/admin/AdminDropRequestView.vue'
 import AdminScheduleRequestView from '../views/admin/AdminScheduleRequestView.vue'
 import AdminScoreChangeRequestView from '../views/admin/AdminScoreChangeRequestView.vue'
 import AdminScoreReviewRequestView from '../views/admin/AdminScoreReviewRequestView.vue'
+import AdminExamView from '../views/admin/AdminExamView.vue'
+import AdminExamChangeRequestView from '../views/admin/AdminExamChangeRequestView.vue'
 import PasswordView from '../views/PasswordView.vue'
 
 const routes = [
@@ -83,6 +87,12 @@ const routes = [
         meta: { roles: ['STUDENT'] }
       },
       {
+        path: 'student/exams',
+        name: 'student-exams',
+        component: StudentExamView,
+        meta: { roles: ['STUDENT'] }
+      },
+      {
         path: 'teacher/profile',
         name: 'teacher-profile',
         component: TeacherProfileView,
@@ -110,6 +120,12 @@ const routes = [
         path: 'teacher/schedule-adjust-requests',
         name: 'teacher-schedule-adjust-requests',
         component: TeacherScheduleRequestView,
+        meta: { roles: ['TEACHER'] }
+      },
+      {
+        path: 'teacher/exams',
+        name: 'teacher-exams',
+        component: TeacherExamView,
         meta: { roles: ['TEACHER'] }
       },
       {
@@ -143,6 +159,12 @@ const routes = [
         meta: { roles: ['ADMIN'] }
       },
       {
+        path: 'admin/exams',
+        name: 'admin-exams',
+        component: AdminExamView,
+        meta: { roles: ['ADMIN'] }
+      },
+      {
         path: 'admin/course-selection-requests',
         name: 'admin-course-selection-requests',
         component: AdminSelectionRequestView,
@@ -158,6 +180,12 @@ const routes = [
         path: 'admin/schedule-adjust-requests',
         name: 'admin-schedule-adjust-requests',
         component: AdminScheduleRequestView,
+        meta: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'admin/exam-change-requests',
+        name: 'admin-exam-change-requests',
+        component: AdminExamChangeRequestView,
         meta: { roles: ['ADMIN'] }
       },
       {

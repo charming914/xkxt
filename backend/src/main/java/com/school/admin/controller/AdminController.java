@@ -6,6 +6,7 @@ import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
+import com.school.admin.dto.ExamUpdateRequest;
 import com.school.admin.dto.ScoreReviewRequestReviewRequest;
 import com.school.admin.dto.ScoreSubmitSettingRequest;
 import com.school.admin.dto.SemesterRequest;
@@ -333,5 +334,54 @@ public class AdminController {
     ) {
         adminService.reviewScoreReviewRequest(requestId, request, username);
         return ApiResponse.success("成绩复核申请处理成功", null);
+    }
+
+    // ==================== 考试管理 ====================
+
+    @GetMapping("/exams")
+    public ApiResponse<List<Map<String, Object>>> exams() {
+        return ApiResponse.success(adminService.exams());
+    }
+
+    @PostMapping("/exams/generate")
+    @OperationLog(type = "考试管理", action = "生成考试安排")
+    public ApiResponse<Integer> generateExams(
+        @RequestHeader(value = "X-Username", defaultValue = "admin") String username
+    ) {
+        int created = adminService.generateExams(username);
+        return ApiResponse.success("已生成 " + created + " 场考试安排", created);
+    }
+
+    @PutMapping("/exams/{examId}")
+    @OperationLog(type = "考试管理", action = "修改考试安排")
+    public ApiResponse<Void> updateExam(
+        @PathVariable Long examId,
+        @Valid @RequestBody ExamUpdateRequest request
+    ) {
+        adminService.updateExam(examId, request);
+        return ApiResponse.success("考试安排修改成功", null);
+    }
+
+    @DeleteMapping("/exams/{examId}")
+    @OperationLog(type = "考试管理", action = "删除考试安排")
+    public ApiResponse<Void> deleteExam(@PathVariable Long examId) {
+        adminService.deleteExam(examId);
+        return ApiResponse.success("考试安排删除成功", null);
+    }
+
+    @GetMapping("/exam-change-requests")
+    public ApiResponse<List<Map<String, Object>>> examChangeRequests() {
+        return ApiResponse.success(adminService.examChangeRequests());
+    }
+
+    @PutMapping("/exam-change-requests/{examChangeRequestId}/review")
+    @OperationLog(type = "考试修改审核", action = "审核考试修改申请")
+    public ApiResponse<Void> reviewExamChangeRequest(
+        @PathVariable Long examChangeRequestId,
+        @Valid @RequestBody CourseSelectionRequestReviewRequest request,
+        @RequestHeader(value = "X-Username", defaultValue = "admin") String username
+    ) {
+        adminService.reviewExamChangeRequest(examChangeRequestId, request, username);
+        return ApiResponse.success("考试修改申请处理成功", null);
     }
 }

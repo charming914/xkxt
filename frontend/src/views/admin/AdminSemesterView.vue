@@ -25,7 +25,7 @@
         </el-table-column>
         <el-table-column label="选课时间" min-width="320">
           <template #default="{ row }">
-            {{ row.courseSelectStart }} ~ {{ row.courseSelectEnd }}
+            {{ formatTime(row.courseSelectStart) }} ~ {{ formatTime(row.courseSelectEnd) }}
           </template>
         </el-table-column>
         <el-table-column label="选课状态" width="100">
@@ -175,11 +175,21 @@ function statusTagType(status) {
   return 'warning'
 }
 
+function parseTime(str) {
+  if (!str) return NaN
+  return new Date(String(str).replace('T', ' ').replace(/-/g, '/')).getTime()
+}
+
+function formatTime(str) {
+  if (!str) return '-'
+  return String(str).replace('T', ' ')
+}
+
 function selectionStatus(row) {
   if (!row.courseSelectStart || !row.courseSelectEnd) return '未设置'
   const now = Date.now()
-  const start = new Date(String(row.courseSelectStart).replace(/-/g, '/')).getTime()
-  const end = new Date(String(row.courseSelectEnd).replace(/-/g, '/')).getTime()
+  const start = parseTime(row.courseSelectStart)
+  const end = parseTime(row.courseSelectEnd)
   if (now < start) return '未开始'
   if (now > end) return '已结束'
   return '选课中'

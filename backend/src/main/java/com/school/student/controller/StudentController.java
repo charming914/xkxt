@@ -72,6 +72,14 @@ public class StudentController {
         return ApiResponse.success(studentService.timetable(username, studentId));
     }
 
+    @GetMapping("/exams")
+    public ApiResponse<List<Map<String, Object>>> exams(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
+    ) {
+        return ApiResponse.success(studentService.exams(username, studentId));
+    }
+
     @GetMapping("/scores")
     public ApiResponse<List<Map<String, Object>>> scores(
         @RequestHeader(value = "X-Username", required = false) String username,

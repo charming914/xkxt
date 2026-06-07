@@ -5,6 +5,7 @@ import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
+import com.school.admin.dto.ExamUpdateRequest;
 import com.school.admin.dto.ScoreReviewRequestReviewRequest;
 import com.school.admin.dto.ScoreSubmitSettingRequest;
 import com.school.admin.dto.SemesterRequest;
@@ -15,6 +16,8 @@ import com.school.common.dto.CourseDropReviewRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.mapper.AdminMapper;
 import com.school.common.exception.BusinessException;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -480,5 +483,163 @@ public class AdminService {
             throw new BusinessException("创建系统用户失败");
         }
         adminMapper.insertSysUserRole(userId, roleId);
+    }
+
+    // ==================== 考试管理 ====================
+
+    public List<Map<String, Object>> exams() {
+        return adminMapper.selectExams();
+    }
+
+    /**
+     * 为当前学期所有尚未排考的教学班自动生成考试安排。
+     * 考试周为学期结束日次日起的两周内工作日，每天两场（09:00-11:00、14:00-16:00），
+     * 复用教学班原上课教室，并贪心避开同教室同场次冲突。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public int generateExams(String adminUsername) {
+        Map<String, Object> semester = adminMapper.selectCurrentSemesterEndDate();
+        if (semester == null || semester.get("endDate") == null) {
+            throw new BusinessException("未设置当前学期或学期结束日期，无法生成考试安排");
+        }
+        LocalDate endDate = LocalDate.parse(semester.get("endDate").toString().substring(0, 10));
+
+        List<Map<String, Object>> pending = adminMapper.selectTeachingClassesWithoutExam();
+        if (pending.isEmpty()) {
+            throw new BusinessException("当前学期没有需要排考的教学班（可能均已排定）");
+        }
+
+        // 考试周：学期结束日次日起两周内的工作日
+        List<LocalDate> examDays = new java.util.ArrayList<>();
+        LocalDate cursor = endDate.plusDays(1);
+        LocalDate limit = endDate.plusDays(14);
+        while (!cursor.isAfter(limit)) {
+            DayOfWeek dow = cursor.getDayOfWeek();
+            if (dow != DayOfWeek.SATURDAY && dow != DayOfWeek.SUNDAY) {
+                examDays.add(cursor);
+            }
+            cursor = cursor.plusDays(1);
+        }
+        if (examDays.isEmpty()) {
+            throw new BusinessException("考试周内没有可用工作日，无法生成考试安排");
+        }
+
+        String[][] sessions = {{"09:00:00", "11:00:00"}, {"14:00:00", "16:00:00"}};
+        // 记录已占用的 (日期|场次|教室) 以避免同教室同场次冲突
+        java.util.Set<String> occupied = new java.util.HashSet<>();
+        int created = 0;
+        int idx = 0;
+        for (Map<String, Object> tc : pending) {
+            Integer teachingClassId = ((Number) tc.get("teachingClassId")).intValue();
+            String classroomId = (String) tc.get("classroomId");
+
+            boolean placed = false;
+            // 从当前轮转位置开始为该教学班寻找不冲突的时段
+            for (int attempt = 0; attempt < examDays.size() * sessions.length && !placed; attempt++) {
+                int slot = (idx + attempt);
+                LocalDate day = examDays.get((slot / sessions.length) % examDays.size());
+                String[] session = sessions[slot % sessions.length];
+                String key = day + "|" + session[0] + "|" + (classroomId == null ? "" : classroomId);
+                if (classroomId != null && occupied.contains(key)) {
+                    continue;
+                }
+                adminMapper.insertExam(teachingClassId, day.toString(), session[0], session[1], classroomId);
+                if (classroomId != null) {
+                    occupied.add(key);
+                }
+                placed = true;
+                created++;
+                idx = slot + 1;
+            }
+            if (!placed) {
+                // 时段全部占满则不限制教室冲突，顺延排入
+                LocalDate day = examDays.get((idx / sessions.length) % examDays.size());
+                String[] session = sessions[idx % sessions.length];
+                adminMapper.insertExam(teachingClassId, day.toString(), session[0], session[1], classroomId);
+                created++;
+                idx++;
+            }
+        }
+
+        Integer adminUserId = adminMapper.selectUserIdByUsername(adminUsername);
+        if (adminUserId != null) {
+            adminMapper.insertOperationLog(adminUserId, "考试管理", "生成本学期考试安排，共 " + created + " 场");
+        }
+        return created;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void updateExam(Long examId, ExamUpdateRequest request) {
+        Map<String, Object> exam = adminMapper.selectExamById(examId);
+        if (exam == null) {
+            throw new BusinessException("考试安排不存在");
+        }
+        if (request.getStartTime().compareTo(request.getEndTime()) >= 0) {
+            throw new BusinessException("结束时间必须晚于开始时间");
+        }
+        if (request.getClassroomId() != null && !request.getClassroomId().isBlank()
+            && adminMapper.countExamRoomConflict(examId, request.getExamDate(),
+                request.getStartTime(), request.getEndTime(), request.getClassroomId()) > 0) {
+            throw new BusinessException("修改失败：目标教室在该时段已被占用");
+        }
+        adminMapper.updateExam(examId, request.getExamDate(), request.getStartTime(),
+            request.getEndTime(), request.getClassroomId());
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteExam(Long examId) {
+        Map<String, Object> exam = adminMapper.selectExamById(examId);
+        if (exam == null) {
+            throw new BusinessException("考试安排不存在");
+        }
+        adminMapper.deleteExamChangeRequestsByExam(examId);
+        adminMapper.deleteExam(examId);
+    }
+
+    public List<Map<String, Object>> examChangeRequests() {
+        return adminMapper.selectExamChangeRequests();
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void reviewExamChangeRequest(
+        Long examChangeRequestId,
+        CourseSelectionRequestReviewRequest request,
+        String adminUsername
+    ) {
+        Map<String, Object> changeRequest = adminMapper.selectExamChangeRequestById(examChangeRequestId);
+        if (changeRequest == null) {
+            throw new BusinessException("考试修改申请不存在");
+        }
+        if (!"待审核".equals(changeRequest.get("requestStatus"))) {
+            throw new BusinessException("该考试修改申请已处理，请勿重复审核");
+        }
+
+        Integer adminUserId = adminMapper.selectUserIdByUsername(adminUsername);
+        if (adminUserId == null) {
+            throw new BusinessException("管理员账号不存在");
+        }
+
+        String action = request.getAction();
+        if ("APPROVE".equalsIgnoreCase(action)) {
+            Long examId = ((Number) changeRequest.get("examId")).longValue();
+            String examDate = changeRequest.get("requestedExamDate").toString().substring(0, 10);
+            String startTime = changeRequest.get("requestedStartTime").toString();
+            String endTime = changeRequest.get("requestedEndTime").toString();
+            String classroomId = (String) changeRequest.get("requestedClassroomId");
+            if (classroomId != null && !classroomId.isBlank()
+                && adminMapper.countExamRoomConflict(examId, examDate, startTime, endTime, classroomId) > 0) {
+                throw new BusinessException("审核失败：目标教室在该时段已被占用");
+            }
+            adminMapper.updateExam(examId, examDate, startTime, endTime, classroomId);
+            adminMapper.updateExamChangeRequestStatus(examChangeRequestId, "已通过", request.getReviewComment(), adminUserId);
+            return;
+        }
+
+        if ("REJECT".equalsIgnoreCase(action)) {
+            adminMapper.updateExamChangeRequestStatus(examChangeRequestId, "已驳回", request.getReviewComment(), adminUserId);
+            return;
+        }
+
+        throw new BusinessException("不支持的审核动作");
     }
 }

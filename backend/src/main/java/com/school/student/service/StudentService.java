@@ -73,6 +73,11 @@ public class StudentService {
         return studentMapper.selectTimetable(studentId);
     }
 
+    public List<Map<String, Object>> exams(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
+        return studentMapper.selectExams(studentId);
+    }
+
     public List<Map<String, Object>> scores(String username, String fallbackStudentId) {
         String studentId = resolveStudentId(username, fallbackStudentId);
         try {

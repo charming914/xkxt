@@ -132,3 +132,25 @@ export function reviewTeacherCourseDropRequest(dropRequestId, data) {
     data
   })
 }
+
+export function getTeacherExams() {
+  return request({
+    url: '/teacher/exams',
+    method: 'get'
+  })
+}
+
+export function getTeacherExamChangeRequests() {
+  return request({
+    url: '/teacher/exam-change-requests',
+    method: 'get'
+  })
+}
+
+export function createTeacherExamChangeRequest(data) {
+  return request({
+    url: '/teacher/exam-change-requests',
+    method: 'post',
+    data
+  })
+}

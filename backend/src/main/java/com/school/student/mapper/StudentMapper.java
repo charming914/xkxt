@@ -94,8 +94,7 @@ public interface StudentMapper {
         JOIN course c ON tc.course_id = c.course_id
         JOIN teacher t ON tc.teacher_id = t.teacher_id
         LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
-        WHERE sem.is_current = 1
-          AND NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+        WHERE NOW() BETWEEN sem.course_select_start AND sem.course_select_end
           <if test="query.teacherName != null and query.teacherName != ''">
             AND t.teacher_name LIKE CONCAT('%', #{query.teacherName}, '%')
           </if>
@@ -156,7 +155,7 @@ public interface StudentMapper {
         LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
         WHERE cs.student_id = #{studentId}
           AND cs.selection_status = '已选'
-          AND sem.is_current = 1
+          AND (sem.is_current = 1 OR sem.end_date >= CURDATE())
         ORDER BY tc.week_day, tc.section_desc
         """)
     List<Map<String, Object>> selectSelectedCourses(@Param("studentId") String studentId);
@@ -408,7 +407,6 @@ public interface StudentMapper {
         FROM teaching_class tc
         JOIN semester sem ON tc.semester_id = sem.semester_id
         WHERE tc.teaching_class_id = #{teachingClassId}
-          AND sem.is_current = 1
           AND NOW() BETWEEN sem.course_select_start AND sem.course_select_end
         """)
     int countSelectableTeachingClass(@Param("teachingClassId") Integer teachingClassId);
@@ -621,4 +619,35 @@ public interface StudentMapper {
         ORDER BY csr.created_at DESC
         """)
     List<Map<String, Object>> selectCourseSelectionRequests(@Param("studentId") String studentId);
+
+    @Select("""
+        SELECT
+            ea.exam_id AS examId,
+            ea.teaching_class_id AS teachingClassId,
+            sem.semester_name AS semesterName,
+            c.course_id AS courseId,
+            c.course_name AS courseName,
+            c.course_type AS courseType,
+            c.credit AS credit,
+            t.teacher_name AS teacherName,
+            ea.exam_date AS examDate,
+            ea.start_time AS startTime,
+            ea.end_time AS endTime,
+            ea.classroom_id AS classroomId,
+            cl.building_name AS buildingName,
+            cl.room_name AS roomName,
+            ea.exam_status AS examStatus
+        FROM course_selection cs
+        JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+        JOIN exam_arrangement ea ON ea.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        LEFT JOIN classroom cl ON ea.classroom_id = cl.classroom_id
+        WHERE cs.student_id = #{studentId}
+          AND cs.selection_status = '已选'
+          AND sem.is_current = 1
+        ORDER BY ea.exam_date, ea.start_time, c.course_name
+        """)
+    List<Map<String, Object>> selectExams(@Param("studentId") String studentId);
 }

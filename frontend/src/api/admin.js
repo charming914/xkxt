@@ -359,3 +359,47 @@ export function reviewAdminScheduleAdjustRequest(adjustRequestId, data) {
     data
   })
 }
+
+export function getAdminExams() {
+  return request({
+    url: '/admin/exams',
+    method: 'get'
+  })
+}
+
+export function generateAdminExams() {
+  return request({
+    url: '/admin/exams/generate',
+    method: 'post'
+  })
+}
+
+export function updateAdminExam(examId, data) {
+  return request({
+    url: `/admin/exams/${examId}`,
+    method: 'put',
+    data
+  })
+}
+
+export function deleteAdminExam(examId) {
+  return request({
+    url: `/admin/exams/${examId}`,
+    method: 'delete'
+  })
+}
+
+export function getAdminExamChangeRequests() {
+  return request({
+    url: '/admin/exam-change-requests',
+    method: 'get'
+  })
+}
+
+export function reviewAdminExamChangeRequest(examChangeRequestId, data) {
+  return request({
+    url: `/admin/exam-change-requests/${examChangeRequestId}/review`,
+    method: 'put',
+    data
+  })
+}
