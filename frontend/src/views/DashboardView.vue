@@ -95,25 +95,74 @@
         </div>
         <div class="todo-subtitle">
           <span>待办审批</span>
-          <el-tag v-if="pendingTotal > 0" type="warning" effect="dark" round>共 {{ pendingTotal }} 条待处理</el-tag>
+          <el-tag v-if="pendingTotal > 0" type="warning" effect="dark" round>
+            共 {{ pendingTotal }} 条待处理
+          </el-tag>
           <el-tag v-else type="success" effect="plain" round>暂无待办</el-tag>
         </div>
         <div class="todo-grid overview-grid">
           <RouterLink class="todo-item link-item" to="/admin/course-selection-requests">
             <span>补选待审核</span>
-            <strong :class="{ pending: adminOverview.pendingSelectionRequests > 0 }">{{ adminOverview.pendingSelectionRequests || 0 }}</strong>
+            <strong :class="{ pending: adminOverview.pendingSelectionRequests > 0 }">
+              {{ adminOverview.pendingSelectionRequests || 0 }}
+            </strong>
           </RouterLink>
           <RouterLink class="todo-item link-item" to="/admin/course-drop-requests">
             <span>退课待审核</span>
-            <strong :class="{ pending: adminOverview.pendingDropRequests > 0 }">{{ adminOverview.pendingDropRequests || 0 }}</strong>
+            <strong :class="{ pending: adminOverview.pendingDropRequests > 0 }">
+              {{ adminOverview.pendingDropRequests || 0 }}
+            </strong>
           </RouterLink>
           <RouterLink class="todo-item link-item" to="/admin/schedule-adjust-requests">
             <span>调课待审核</span>
-            <strong :class="{ pending: adminOverview.pendingScheduleRequests > 0 }">{{ adminOverview.pendingScheduleRequests || 0 }}</strong>
+            <strong :class="{ pending: adminOverview.pendingScheduleRequests > 0 }">
+              {{ adminOverview.pendingScheduleRequests || 0 }}
+            </strong>
           </RouterLink>
           <RouterLink class="todo-item link-item" to="/admin/score-change-requests">
             <span>成绩修改待审核</span>
-            <strong :class="{ pending: adminOverview.pendingScoreChangeRequests > 0 }">{{ adminOverview.pendingScoreChangeRequests || 0 }}</strong>
+            <strong :class="{ pending: adminOverview.pendingScoreChangeRequests > 0 }">
+              {{ adminOverview.pendingScoreChangeRequests || 0 }}
+            </strong>
+          </RouterLink>
+        </div>
+      </article>
+
+      <article v-if="userStore.roleCode === 'STUDENT'" class="dashboard-card span-2">
+        <div class="todo-header">
+          <h2>学生待办</h2>
+          <el-button size="small" @click="loadStudentTodos">刷新</el-button>
+        </div>
+        <div v-loading="studentTodoLoading" class="todo-grid student-todo-grid">
+          <RouterLink to="/student/timetable" class="todo-item todo-link">
+            <span>今日课程</span>
+            <strong>{{ studentTodos.todayCourseCount || 0 }}</strong>
+            <small>{{ studentTodos.nextCourseLabel || '暂无课程' }}</small>
+          </RouterLink>
+          <RouterLink to="/student/courses" class="todo-item todo-link">
+            <span>补选待审核</span>
+            <strong>{{ studentTodos.pendingSelectionRequests || 0 }}</strong>
+            <small>{{ studentTodos.currentSemesterName || '当前学期' }}</small>
+          </RouterLink>
+          <RouterLink to="/student/drop-courses" class="todo-item todo-link">
+            <span>退课待审核</span>
+            <strong>{{ studentTodos.pendingDropRequests || 0 }}</strong>
+            <small>查看退课申请</small>
+          </RouterLink>
+          <RouterLink to="/student/scores" class="todo-item todo-link">
+            <span>成绩复核待审核</span>
+            <strong>{{ studentTodos.pendingScoreReviewRequests || 0 }}</strong>
+            <small>查看复核进度</small>
+          </RouterLink>
+          <RouterLink to="/student/selected-courses" class="todo-item todo-link">
+            <span>已选课程</span>
+            <strong>{{ studentTodos.selectedCourseCount || 0 }}</strong>
+            <small>查看课程安排</small>
+          </RouterLink>
+          <RouterLink to="/student/scores" class="todo-item todo-link">
+            <span>平均绩点</span>
+            <strong>{{ studentWeightedGpa }}</strong>
+            <small>不及格 {{ studentTodos.failedScoreCount || 0 }} 门</small>
           </RouterLink>
         </div>
       </article>
@@ -131,8 +180,9 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import { getTeacherTodos } from '../api/teacher'
 import { getAdminDashboardOverview } from '../api/admin'
+import { getStudentTodos } from '../api/student'
+import { getTeacherTodos } from '../api/teacher'
 import { useUserStore } from '../stores/user'
 
 const userStore = useUserStore()
@@ -140,6 +190,8 @@ const todoLoading = ref(false)
 const teacherTodos = ref({})
 const overviewLoading = ref(false)
 const adminOverview = ref({})
+const studentTodoLoading = ref(false)
+const studentTodos = ref({})
 
 const pendingTotal = computed(() => {
   const o = adminOverview.value
@@ -152,6 +204,14 @@ const pendingTotal = computed(() => {
 })
 
 const scoreSubmitWindowOpen = computed(() => Number(teacherTodos.value.scoreSubmitWindowOpen || 0) > 0)
+
+const studentWeightedGpa = computed(() => {
+  const gpa = studentTodos.value.weightedGpa
+  if (gpa === null || gpa === undefined || gpa === '') {
+    return '0.00'
+  }
+  return Number(gpa).toFixed(2)
+})
 
 const scoreTodoTotal = computed(() => {
   return Number(teacherTodos.value.missingScores || 0) + Number(teacherTodos.value.unsubmittedScores || 0)
@@ -198,6 +258,32 @@ async function loadTeacherTodos() {
   }
 }
 
+async function loadAdminOverview() {
+  if (userStore.roleCode !== 'ADMIN') {
+    return
+  }
+  overviewLoading.value = true
+  try {
+    const response = await getAdminDashboardOverview()
+    adminOverview.value = response.data || {}
+  } finally {
+    overviewLoading.value = false
+  }
+}
+
+async function loadStudentTodos() {
+  if (userStore.roleCode !== 'STUDENT') {
+    return
+  }
+  studentTodoLoading.value = true
+  try {
+    const response = await getStudentTodos()
+    studentTodos.value = response.data || {}
+  } finally {
+    studentTodoLoading.value = false
+  }
+}
+
 function showScoreSubmitReminder() {
   if (!scoreSubmitWindowOpen.value) {
     return
@@ -218,22 +304,10 @@ function showScoreSubmitReminder() {
   })
 }
 
-async function loadAdminOverview() {
-  if (userStore.roleCode !== 'ADMIN') {
-    return
-  }
-  overviewLoading.value = true
-  try {
-    const response = await getAdminDashboardOverview()
-    adminOverview.value = response.data || {}
-  } finally {
-    overviewLoading.value = false
-  }
-}
-
 onMounted(() => {
   loadTeacherTodos()
   loadAdminOverview()
+  loadStudentTodos()
 })
 </script>
 
@@ -338,17 +412,28 @@ onMounted(() => {
   font-size: 24px;
 }
 
+.todo-item small {
+  display: block;
+  min-height: 18px;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .overview-grid {
   margin-bottom: 8px;
 }
 
-.link-item {
-  display: block;
+.link-item,
+.todo-link {
+  color: inherit;
   text-decoration: none;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
-.link-item:hover {
+.link-item:hover,
+.todo-link:hover {
+  border-color: #7dd3fc;
   transform: translateY(-2px);
   box-shadow: 0 10px 24px rgba(3, 105, 161, 0.16);
 }
@@ -364,6 +449,10 @@ onMounted(() => {
   margin: 18px 0 12px;
   font-weight: 600;
   color: var(--text-muted);
+}
+
+.student-todo-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .plain-list {

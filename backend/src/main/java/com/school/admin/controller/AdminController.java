@@ -1,5 +1,6 @@
 package com.school.admin.controller;
 
+import com.school.admin.dto.AcademicRequestReviewRequest;
 import com.school.admin.dto.AdminCourseRequest;
 import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
@@ -26,7 +27,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -167,6 +170,18 @@ public class AdminController {
         return ApiResponse.success(adminService.scoreDistribution(teachingClassId));
     }
 
+    @GetMapping("/cultivation-plan")
+    public ApiResponse<List<Map<String, Object>>> cultivationPlanRequirements() {
+        return ApiResponse.success(adminService.cultivationPlanRequirements());
+    }
+
+    @PostMapping("/cultivation-plan/import")
+    @OperationLog(type = "培养方案", action = "导入培养方案")
+    public ApiResponse<Integer> importCultivationPlan(@RequestParam("file") MultipartFile file) {
+        int imported = adminService.importCultivationPlan(file);
+        return ApiResponse.success("培养方案导入成功", imported);
+    }
+
     @GetMapping("/departments")
     public ApiResponse<List<Map<String, Object>>> departments() {
         return ApiResponse.success(adminService.departments());
@@ -258,6 +273,48 @@ public class AdminController {
     @GetMapping("/score-review-requests")
     public ApiResponse<List<Map<String, Object>>> scoreReviewRequests() {
         return ApiResponse.success(adminService.scoreReviewRequests());
+    }
+
+    @GetMapping("/makeup-requests")
+    public ApiResponse<List<Map<String, Object>>> makeupExamRequests() {
+        return ApiResponse.success(adminService.makeupExamRequests());
+    }
+
+    @PutMapping("/makeup-requests/{requestId}/review")
+    @OperationLog(type = "补考审核", action = "审核补考申请")
+    public ApiResponse<Void> reviewMakeupExamRequest(
+        @PathVariable Long requestId,
+        @Valid @RequestBody AcademicRequestReviewRequest request,
+        @RequestHeader(value = "X-Username", defaultValue = "admin") String username
+    ) {
+        adminService.reviewMakeupExamRequest(requestId, request, username);
+        return ApiResponse.success("补考申请处理成功", null);
+    }
+
+    @PutMapping("/makeup-requests/{requestId}/result")
+    @OperationLog(type = "补考管理", action = "登记补考结果")
+    public ApiResponse<Void> updateMakeupExamResult(
+        @PathVariable Long requestId,
+        @Valid @RequestBody AcademicRequestReviewRequest request
+    ) {
+        adminService.updateMakeupExamResult(requestId, request);
+        return ApiResponse.success("补考结果登记成功", null);
+    }
+
+    @GetMapping("/retake-requests")
+    public ApiResponse<List<Map<String, Object>>> retakeRequests() {
+        return ApiResponse.success(adminService.retakeRequests());
+    }
+
+    @PutMapping("/retake-requests/{requestId}/review")
+    @OperationLog(type = "重修审核", action = "审核重修申请")
+    public ApiResponse<Void> reviewRetakeRequest(
+        @PathVariable Long requestId,
+        @Valid @RequestBody AcademicRequestReviewRequest request,
+        @RequestHeader(value = "X-Username", defaultValue = "admin") String username
+    ) {
+        adminService.reviewRetakeRequest(requestId, request, username);
+        return ApiResponse.success("重修申请处理成功", null);
     }
 
     @PutMapping("/scores/{scoreId}/rollback")

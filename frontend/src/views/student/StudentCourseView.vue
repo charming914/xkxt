@@ -61,7 +61,7 @@
       </div>
     </el-form>
 
-    <el-empty v-if="!loading && courses.length === 0" description="暂无可选课程" />
+    <el-empty v-if="!loading && courses.length === 0" :description="courseEmptyDescription" />
 
     <template v-else>
       <el-table v-loading="loading" :data="pagedData" border>
@@ -87,21 +87,27 @@
             {{ row.selectedCount }}/{{ row.maxStudents }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="320" fixed="right">
           <template #default="{ row }">
-            <div class="action-row">
-              <el-button
-                type="primary"
-                size="small"
-                :loading="submittingId === row.teachingClassId"
-                :disabled="!canSelect(row)"
-                @click="handleSelect(row)"
-              >
-                选课
-              </el-button>
-              <el-button size="small" :disabled="!canRequestSelection(row)" @click="openRequestDialog(row)">
-                申请补选
-              </el-button>
+            <div class="action-cell">
+              <div class="action-row">
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="submittingId === row.teachingClassId"
+                  :disabled="!canSelect(row)"
+                  @click="handleSelect(row)"
+                >
+                  选课
+                </el-button>
+                <el-button size="small" :disabled="!canRequestSelection(row)" @click="openRequestDialog(row)">
+                  申请补选
+                </el-button>
+                <el-button size="small" :disabled="!canAddPlan(row)" @click="handleCreatePlan(row)">
+                  加入计划
+                </el-button>
+              </div>
+              <span class="reason-text" :class="reasonClass(row)">{{ selectionReason(row) }}</span>
             </div>
           </template>
         </el-table-column>
@@ -125,7 +131,10 @@
         <h2>我的补选申请</h2>
         <el-button @click="loadRequests">刷新申请记录</el-button>
       </div>
-      <el-empty v-if="!requestLoading && requests.length === 0" description="暂无补选申请记录" />
+      <el-empty
+        v-if="!requestLoading && requests.length === 0"
+        description="暂无补选申请记录；课程人数已满或不在选课时间时，可在上方提交补选申请"
+      />
       <el-table v-else v-loading="requestLoading" :data="requests" border>
         <el-table-column prop="semesterName" label="学期" min-width="120" />
         <el-table-column prop="courseName" label="课程名称" min-width="150" />
@@ -166,13 +175,14 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
+  createCoursePlan,
   createCourseSelectionRequest,
   getAvailableCourses,
   getCourseSelectionRequests,
   selectCourse
 } from '../../api/student'
-import { useUserStore } from '../../stores/user'
 import { useClientPagination } from '../../composables/useClientPagination'
+import { useUserStore } from '../../stores/user'
 
 const userStore = useUserStore()
 const loading = ref(false)
@@ -225,6 +235,22 @@ const sectionOptions = [
 const selectedCourseLabel = computed(() => {
   if (!selectedCourse.value) return ''
   return `${selectedCourse.value.courseName}（教学班 ${selectedCourse.value.teachingClassId}）`
+})
+
+const courseEmptyDescription = computed(() => {
+  if (queryForm.teacherName && (queryForm.courseName || queryForm.courseId)) {
+    return '未找到匹配的教师或课程，请检查教师名称、课程名称或课程号'
+  }
+  if (queryForm.teacherName) {
+    return '未找到该教师的可选课程，请检查教师名称是否正确'
+  }
+  if (queryForm.courseName || queryForm.courseId) {
+    return '未找到该课程的可选教学班，请检查课程名称或课程号'
+  }
+  if (queryForm.courseType || queryForm.credit || queryForm.weekDay || queryForm.sectionDesc) {
+    return '暂无符合筛选条件的可选课程，请调整课程种类、学分、星期或节次'
+  }
+  return '当前暂无可选课程，可能选课时间未到、已结束，或当前学期没有开放教学班'
 })
 
 function weekLabel(weekDay) {
@@ -293,6 +319,39 @@ function canRequestSelection(row) {
   return Boolean(row.canRequestSelection) && !row.alreadySelected && !row.hasPendingSelectionRequest
 }
 
+function canAddPlan(row) {
+  return !row.alreadySelected && Number(row.hasCoursePlan) !== 1
+}
+
+function selectionReason(row) {
+  if (row.selectionActionReason) {
+    return row.selectionActionReason
+  }
+  if (row.alreadySelected) {
+    return '已选该教学班'
+  }
+  if (row.hasPendingSelectionRequest) {
+    return '补选申请待审核'
+  }
+  if (canSelect(row)) {
+    return '可直接选课'
+  }
+  if (canRequestSelection(row)) {
+    return '可提交补选申请'
+  }
+  return '当前不可选'
+}
+
+function reasonClass(row) {
+  if (canSelect(row)) {
+    return 'reason-success'
+  }
+  if (canRequestSelection(row)) {
+    return 'reason-warning'
+  }
+  return 'reason-muted'
+}
+
 async function handleSelect(row) {
   if (!canSelect(row)) {
     ElMessage.warning('该课程当前不能直接选课，可在符合条件时提交补选申请')
@@ -321,6 +380,19 @@ async function handleSelect(row) {
   } finally {
     submittingId.value = null
   }
+}
+
+async function handleCreatePlan(row) {
+  if (!canAddPlan(row)) {
+    ElMessage.warning('该课程已选或已在选课计划中')
+    return
+  }
+  const response = await createCoursePlan({
+    studentId: userStore.refId,
+    teachingClassId: row.teachingClassId
+  })
+  ElMessage.success(response.message || '已加入选课计划')
+  await loadCourses()
 }
 
 function openRequestDialog(row) {
@@ -400,7 +472,31 @@ onMounted(() => {
 
 .action-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.action-cell {
+  display: grid;
+  gap: 6px;
+}
+
+.reason-text {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.reason-success {
+  color: #047857;
+}
+
+.reason-warning {
+  color: #b45309;
+}
+
+.reason-muted {
+  color: var(--text-muted);
 }
 
 .request-section {

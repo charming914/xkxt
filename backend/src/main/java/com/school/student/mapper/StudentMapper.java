@@ -24,6 +24,155 @@ public interface StudentMapper {
     String selectStudentIdByUsername(@Param("username") String username);
 
     @Select("""
+        SELECT
+            s.student_id AS studentId,
+            s.student_name AS studentName,
+            s.gender AS gender,
+            s.birth_date AS birthDate,
+            s.hometown AS hometown,
+            s.phone AS phone,
+            s.email AS email,
+            s.enrollment_year AS enrollmentYear,
+            s.status AS status,
+            d.department_id AS departmentId,
+            d.department_name AS departmentName,
+            m.major_id AS majorId,
+            m.major_name AS majorName,
+            ci.class_id AS classId,
+            ci.class_name AS className
+        FROM student s
+        LEFT JOIN department d ON s.department_id = d.department_id
+        LEFT JOIN major m ON s.major_id = m.major_id
+        LEFT JOIN class_info ci ON s.class_id = ci.class_id
+        WHERE s.student_id = #{studentId}
+        LIMIT 1
+        """)
+    Map<String, Object> selectStudentProfile(@Param("studentId") String studentId);
+
+    @Update("""
+        UPDATE student
+        SET phone = #{phone},
+            email = #{email}
+        WHERE student_id = #{studentId}
+        """)
+    int updateStudentProfile(
+        @Param("studentId") String studentId,
+        @Param("phone") String phone,
+        @Param("email") String email
+    );
+
+    @Select("""
+        SELECT
+            (SELECT COUNT(*)
+             FROM course_selection cs
+             WHERE cs.student_id = #{studentId}
+               AND cs.selection_status = '已选') AS selectedCourseCount,
+            (SELECT COUNT(*)
+             FROM course_selection cs
+             JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+             WHERE cs.student_id = #{studentId}
+               AND cs.selection_status = '已选'
+               AND tc.week_day = WEEKDAY(CURDATE()) + 1) AS todayCourseCount,
+            (SELECT COUNT(*)
+             FROM course_selection_request csr
+             WHERE csr.student_id = #{studentId}
+               AND csr.request_status = '待审核') AS pendingSelectionRequests,
+            (SELECT COUNT(*)
+             FROM course_drop_request cdr
+             WHERE cdr.student_id = #{studentId}
+               AND cdr.request_status = '待审核') AS pendingDropRequests,
+            (SELECT COUNT(*)
+             FROM score_review_request srr
+             WHERE srr.student_id = #{studentId}
+               AND srr.request_status = '待审核') AS pendingScoreReviewRequests,
+            (SELECT COUNT(*)
+             FROM score sc
+             WHERE sc.student_id = #{studentId}
+               AND sc.is_submitted = 1) AS submittedScoreCount,
+            (SELECT COUNT(*)
+             FROM score sc
+             WHERE sc.student_id = #{studentId}
+               AND sc.is_submitted = 1
+               AND sc.final_score < 60) AS failedScoreCount,
+            (SELECT ROUND(SUM(c.credit * sc.gpa_point) / NULLIF(SUM(c.credit), 0), 2)
+             FROM score sc
+             JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+             JOIN course c ON tc.course_id = c.course_id
+             WHERE sc.student_id = #{studentId}
+               AND sc.is_submitted = 1
+               AND sc.gpa_point IS NOT NULL) AS weightedGpa,
+            (SELECT sem.semester_name
+             FROM semester sem
+             WHERE sem.is_current = 1
+             LIMIT 1) AS currentSemesterName,
+            (SELECT CONCAT(c.course_name, '（', t.teacher_name, '，', tc.section_desc, '）')
+             FROM course_selection cs
+             JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+             JOIN course c ON tc.course_id = c.course_id
+             JOIN teacher t ON tc.teacher_id = t.teacher_id
+             WHERE cs.student_id = #{studentId}
+               AND cs.selection_status = '已选'
+               AND tc.week_day = WEEKDAY(CURDATE()) + 1
+             ORDER BY CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
+             LIMIT 1) AS nextCourseLabel
+        """)
+    Map<String, Object> selectTodoSummary(@Param("studentId") String studentId);
+
+    @Select("""
+        SELECT
+            (SELECT COUNT(*)
+             FROM course_selection cs
+             WHERE cs.student_id = #{studentId}
+               AND cs.selection_status = '已选') AS selectedCourseCount,
+            (SELECT COUNT(*)
+             FROM course_selection cs
+             JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+             WHERE cs.student_id = #{studentId}
+               AND cs.selection_status = '已选'
+               AND tc.week_day = WEEKDAY(CURDATE()) + 1) AS todayCourseCount,
+            (SELECT COUNT(*)
+             FROM course_selection_request csr
+             WHERE csr.student_id = #{studentId}
+               AND csr.request_status = '待审核') AS pendingSelectionRequests,
+            (SELECT COUNT(*)
+             FROM course_drop_request cdr
+             WHERE cdr.student_id = #{studentId}
+               AND cdr.request_status = '待审核') AS pendingDropRequests,
+            0 AS pendingScoreReviewRequests,
+            (SELECT COUNT(*)
+             FROM score sc
+             WHERE sc.student_id = #{studentId}
+               AND sc.is_submitted = 1) AS submittedScoreCount,
+            (SELECT COUNT(*)
+             FROM score sc
+             WHERE sc.student_id = #{studentId}
+               AND sc.is_submitted = 1
+               AND sc.final_score < 60) AS failedScoreCount,
+            (SELECT ROUND(SUM(c.credit * sc.gpa_point) / NULLIF(SUM(c.credit), 0), 2)
+             FROM score sc
+             JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+             JOIN course c ON tc.course_id = c.course_id
+             WHERE sc.student_id = #{studentId}
+               AND sc.is_submitted = 1
+               AND sc.gpa_point IS NOT NULL) AS weightedGpa,
+            (SELECT sem.semester_name
+             FROM semester sem
+             WHERE sem.is_current = 1
+             LIMIT 1) AS currentSemesterName,
+            (SELECT CONCAT(c.course_name, '（', t.teacher_name, '，', tc.section_desc, '）')
+             FROM course_selection cs
+             JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+             JOIN course c ON tc.course_id = c.course_id
+             JOIN teacher t ON tc.teacher_id = t.teacher_id
+             WHERE cs.student_id = #{studentId}
+               AND cs.selection_status = '已选'
+               AND tc.week_day = WEEKDAY(CURDATE()) + 1
+             ORDER BY CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
+             LIMIT 1) AS nextCourseLabel
+        """)
+    Map<String, Object> selectTodoSummaryWithoutReview(@Param("studentId") String studentId);
+
+    @Select("""
         <script>
         SELECT
             tc.teaching_class_id AS teachingClassId,
@@ -34,6 +183,8 @@ public interface StudentMapper {
             c.credit AS credit,
             c.total_hours AS totalHours,
             t.teacher_name AS teacherName,
+            sem.course_select_start AS courseSelectStart,
+            sem.course_select_end AS courseSelectEnd,
             tc.week_day AS weekDay,
             tc.section_desc AS sectionDesc,
             tc.week_range AS weekRange,
@@ -49,6 +200,22 @@ public interface StudentMapper {
                     WHERE selected.student_id = #{studentId}
                       AND selected.teaching_class_id = tc.teaching_class_id
                       AND selected.selection_status = '已选'
+                 )
+                 AND NOT EXISTS (
+                    SELECT 1
+                    FROM course_selection selected
+                    JOIN teaching_class selected_tc ON selected.teaching_class_id = selected_tc.teaching_class_id
+                    WHERE selected.student_id = #{studentId}
+                      AND selected.selection_status = '已选'
+                      AND selected_tc.semester_id = tc.semester_id
+                      AND selected_tc.week_day = tc.week_day
+                      AND selected_tc.teaching_class_id != tc.teaching_class_id
+                      AND NOT (
+                          CAST(REPLACE(SUBSTRING_INDEX(selected_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                              &lt; CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
+                          OR CAST(SUBSTRING_INDEX(selected_tc.section_desc, '-', 1) AS UNSIGNED)
+                              > CAST(REPLACE(SUBSTRING_INDEX(tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                      )
                  )
                 THEN 1 ELSE 0
             END AS canSelectDirectly,
@@ -88,7 +255,49 @@ public interface StudentMapper {
                       AND pending.request_status = '待审核'
                 )
                 THEN 1 ELSE 0
-            END AS hasPendingSelectionRequest
+            END AS hasPendingSelectionRequest,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1 FROM student_course_plan plan
+                    WHERE plan.student_id = #{studentId}
+                      AND plan.teaching_class_id = tc.teaching_class_id
+                )
+                THEN 1 ELSE 0
+            END AS hasCoursePlan,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1 FROM course_selection selected
+                    WHERE selected.student_id = #{studentId}
+                      AND selected.teaching_class_id = tc.teaching_class_id
+                      AND selected.selection_status = '已选'
+                ) THEN '已选该教学班'
+                WHEN EXISTS (
+                    SELECT 1 FROM course_selection_request pending
+                    WHERE pending.student_id = #{studentId}
+                      AND pending.teaching_class_id = tc.teaching_class_id
+                      AND pending.request_status = '待审核'
+                ) THEN '补选申请待审核'
+                WHEN NOW() &lt; sem.course_select_start THEN '选课时间未到'
+                WHEN NOW() > sem.course_select_end THEN '选课时间已结束'
+                WHEN tc.selected_count >= tc.max_students THEN '教学班人数已满，可提交补选申请'
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM course_selection selected
+                    JOIN teaching_class selected_tc ON selected.teaching_class_id = selected_tc.teaching_class_id
+                    WHERE selected.student_id = #{studentId}
+                      AND selected.selection_status = '已选'
+                      AND selected_tc.semester_id = tc.semester_id
+                      AND selected_tc.week_day = tc.week_day
+                      AND selected_tc.teaching_class_id != tc.teaching_class_id
+                      AND NOT (
+                          CAST(REPLACE(SUBSTRING_INDEX(selected_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                              &lt; CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
+                          OR CAST(SUBSTRING_INDEX(selected_tc.section_desc, '-', 1) AS UNSIGNED)
+                              > CAST(REPLACE(SUBSTRING_INDEX(tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                      )
+                ) THEN '与已选课程时间冲突'
+                ELSE '可直接选课'
+            END AS selectionActionReason
         FROM teaching_class tc
         JOIN semester sem ON tc.semester_id = sem.semester_id
         JOIN course c ON tc.course_id = c.course_id
@@ -428,11 +637,13 @@ public interface StudentMapper {
           AND cs.selection_status = '已选'
           AND t1.semester_id = t2.semester_id
           AND t1.week_day = t2.week_day
-          AND CAST(SUBSTRING_INDEX(t1.section_desc, '-', 1) AS UNSIGNED)
-              <= CAST(REPLACE(SUBSTRING_INDEX(t2.section_desc, '-', -1), '节', '') AS UNSIGNED)
-          AND CAST(SUBSTRING_INDEX(t2.section_desc, '-', 1) AS UNSIGNED)
-              <= CAST(REPLACE(SUBSTRING_INDEX(t1.section_desc, '-', -1), '节', '') AS UNSIGNED)
           AND cs.teaching_class_id <> #{teachingClassId}
+          AND NOT (
+              CAST(REPLACE(SUBSTRING_INDEX(t1.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                  < CAST(SUBSTRING_INDEX(t2.section_desc, '-', 1) AS UNSIGNED)
+              OR CAST(SUBSTRING_INDEX(t1.section_desc, '-', 1) AS UNSIGNED)
+                  > CAST(REPLACE(SUBSTRING_INDEX(t2.section_desc, '-', -1), '节', '') AS UNSIGNED)
+          )
         """)
     int countStudentTimeConflict(
         @Param("studentId") String studentId,
@@ -619,6 +830,272 @@ public interface StudentMapper {
         ORDER BY csr.created_at DESC
         """)
     List<Map<String, Object>> selectCourseSelectionRequests(@Param("studentId") String studentId);
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM student_course_plan
+        WHERE student_id = #{studentId}
+          AND teaching_class_id = #{teachingClassId}
+        """)
+    int countCoursePlan(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
+
+    @Insert("""
+        INSERT INTO student_course_plan (student_id, teaching_class_id)
+        VALUES (#{studentId}, #{teachingClassId})
+        """)
+    int insertCoursePlan(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
+
+    @Delete("""
+        DELETE FROM student_course_plan
+        WHERE plan_id = #{planId}
+          AND student_id = #{studentId}
+        """)
+    int deleteCoursePlan(@Param("studentId") String studentId, @Param("planId") Long planId);
+
+    @Select("""
+        SELECT
+            plan.plan_id AS planId,
+            plan.created_at AS createdAt,
+            tc.teaching_class_id AS teachingClassId,
+            sem.semester_name AS semesterName,
+            c.course_id AS courseId,
+            c.course_name AS courseName,
+            c.course_type AS courseType,
+            c.credit AS credit,
+            c.total_hours AS totalHours,
+            t.teacher_name AS teacherName,
+            tc.week_day AS weekDay,
+            tc.section_desc AS sectionDesc,
+            tc.week_range AS weekRange,
+            tc.max_students AS maxStudents,
+            tc.selected_count AS selectedCount,
+            cl.building_name AS buildingName,
+            cl.room_name AS roomName,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM course_selection cs
+                    WHERE cs.student_id = plan.student_id
+                      AND cs.teaching_class_id = plan.teaching_class_id
+                      AND cs.selection_status = '已选'
+                ) THEN 1 ELSE 0
+            END AS alreadySelected,
+            CASE
+                WHEN tc.selected_count >= tc.max_students THEN 1 ELSE 0
+            END AS isFull
+        FROM student_course_plan plan
+        JOIN teaching_class tc ON plan.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
+        WHERE plan.student_id = #{studentId}
+        ORDER BY plan.created_at DESC, sem.semester_name DESC, tc.week_day, tc.section_desc
+        """)
+    List<Map<String, Object>> selectCoursePlans(@Param("studentId") String studentId);
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM score
+        WHERE student_id = #{studentId}
+          AND score_id = #{scoreId}
+          AND is_submitted = 1
+          AND final_score < 60
+        """)
+    int countFailedSubmittedScore(@Param("studentId") String studentId, @Param("scoreId") Long scoreId);
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM makeup_exam_request
+        WHERE student_id = #{studentId}
+          AND score_id = #{scoreId}
+          AND request_status IN ('待审核', '已通过')
+        """)
+    int countActiveMakeupRequest(@Param("studentId") String studentId, @Param("scoreId") Long scoreId);
+
+    @Insert("""
+        INSERT INTO makeup_exam_request (student_id, score_id, request_reason)
+        VALUES (#{studentId}, #{scoreId}, #{requestReason})
+        """)
+    int insertMakeupExamRequest(
+        @Param("studentId") String studentId,
+        @Param("scoreId") Long scoreId,
+        @Param("requestReason") String requestReason
+    );
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM makeup_exam_request
+        WHERE student_id = #{studentId}
+          AND score_id = #{scoreId}
+          AND request_status = '已通过'
+          AND result_status = '未通过'
+        """)
+    int countFailedMakeupResult(@Param("studentId") String studentId, @Param("scoreId") Long scoreId);
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM course_retake_request
+        WHERE student_id = #{studentId}
+          AND score_id = #{scoreId}
+          AND request_status IN ('待审核', '已通过')
+        """)
+    int countActiveRetakeRequest(@Param("studentId") String studentId, @Param("scoreId") Long scoreId);
+
+    @Insert("""
+        INSERT INTO course_retake_request (student_id, score_id, request_reason)
+        VALUES (#{studentId}, #{scoreId}, #{requestReason})
+        """)
+    int insertRetakeRequest(
+        @Param("studentId") String studentId,
+        @Param("scoreId") Long scoreId,
+        @Param("requestReason") String requestReason
+    );
+
+    @Select("""
+        SELECT
+            sc.score_id AS scoreId,
+            sem.semester_name AS semesterName,
+            c.course_id AS courseId,
+            c.course_name AS courseName,
+            c.course_type AS courseType,
+            c.credit AS credit,
+            t.teacher_name AS teacherName,
+            sc.final_score AS finalScore,
+            makeup.request_status AS makeupStatus,
+            makeup.result_status AS makeupResultStatus,
+            retake.request_status AS retakeStatus,
+            CASE
+                WHEN makeup.request_id IS NULL OR makeup.request_status = '已驳回' THEN 1
+                ELSE 0
+            END AS canApplyMakeup,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM makeup_exam_request mer
+                    WHERE mer.student_id = sc.student_id
+                      AND mer.score_id = sc.score_id
+                      AND mer.request_status = '已通过'
+                      AND mer.result_status = '未通过'
+                )
+                 AND (retake.request_id IS NULL OR retake.request_status = '已驳回')
+                THEN 1 ELSE 0
+            END AS canApplyRetake
+        FROM score sc
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        LEFT JOIN makeup_exam_request makeup
+          ON makeup.request_id = (
+            SELECT mer.request_id
+            FROM makeup_exam_request mer
+            WHERE mer.student_id = sc.student_id
+              AND mer.score_id = sc.score_id
+            ORDER BY mer.created_at DESC, mer.request_id DESC
+            LIMIT 1
+          )
+        LEFT JOIN course_retake_request retake
+          ON retake.request_id = (
+            SELECT crr.request_id
+            FROM course_retake_request crr
+            WHERE crr.student_id = sc.student_id
+              AND crr.score_id = sc.score_id
+            ORDER BY crr.created_at DESC, crr.request_id DESC
+            LIMIT 1
+          )
+        WHERE sc.student_id = #{studentId}
+          AND sc.is_submitted = 1
+          AND sc.final_score < 60
+        ORDER BY sem.semester_name DESC, c.course_name
+        """)
+    List<Map<String, Object>> selectAcademicRemediationScores(@Param("studentId") String studentId);
+
+    @Select("""
+        SELECT
+            mer.request_id AS requestId,
+            mer.score_id AS scoreId,
+            mer.request_reason AS requestReason,
+            mer.request_status AS requestStatus,
+            mer.result_status AS resultStatus,
+            mer.review_comment AS reviewComment,
+            mer.created_at AS createdAt,
+            mer.reviewed_at AS reviewedAt,
+            sem.semester_name AS semesterName,
+            c.course_id AS courseId,
+            c.course_name AS courseName,
+            sc.final_score AS finalScore
+        FROM makeup_exam_request mer
+        JOIN score sc ON mer.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        WHERE mer.student_id = #{studentId}
+        ORDER BY mer.created_at DESC, mer.request_id DESC
+        """)
+    List<Map<String, Object>> selectMakeupExamRequests(@Param("studentId") String studentId);
+
+    @Select("""
+        SELECT
+            crr.request_id AS requestId,
+            crr.score_id AS scoreId,
+            crr.request_reason AS requestReason,
+            crr.request_status AS requestStatus,
+            crr.review_comment AS reviewComment,
+            crr.created_at AS createdAt,
+            crr.reviewed_at AS reviewedAt,
+            sem.semester_name AS semesterName,
+            c.course_id AS courseId,
+            c.course_name AS courseName,
+            sc.final_score AS finalScore
+        FROM course_retake_request crr
+        JOIN score sc ON crr.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        WHERE crr.student_id = #{studentId}
+        ORDER BY crr.created_at DESC, crr.request_id DESC
+        """)
+    List<Map<String, Object>> selectRetakeRequests(@Param("studentId") String studentId);
+
+    @Select("""
+        SELECT
+            req.requirement_id AS requirementId,
+            req.enrollment_year AS enrollmentYear,
+            req.major_id AS majorId,
+            m.major_name AS majorName,
+            req.course_type AS courseType,
+            req.required_credit AS requiredCredit,
+            COALESCE(earned.earned_credit, 0) AS earnedCredit,
+            CASE
+                WHEN req.required_credit - COALESCE(earned.earned_credit, 0) > 0
+                THEN req.required_credit - COALESCE(earned.earned_credit, 0)
+                ELSE 0
+            END AS remainingCredit,
+            req.remark AS remark
+        FROM student s
+        JOIN cultivation_plan_requirement req
+          ON req.major_id = s.major_id
+         AND req.enrollment_year = s.enrollment_year
+        LEFT JOIN major m ON req.major_id = m.major_id
+        LEFT JOIN (
+            SELECT passed.course_type, SUM(passed.credit) AS earned_credit
+            FROM (
+                SELECT c.course_id, c.course_type, MAX(c.credit) AS credit
+                FROM score sc
+                JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+                JOIN course c ON tc.course_id = c.course_id
+                WHERE sc.student_id = #{studentId}
+                  AND sc.is_submitted = 1
+                  AND sc.final_score >= 60
+                GROUP BY c.course_id, c.course_type
+            ) passed
+            GROUP BY passed.course_type
+        ) earned ON earned.course_type = req.course_type
+        WHERE s.student_id = #{studentId}
+        ORDER BY req.course_type
+        """)
+    List<Map<String, Object>> selectAcademicProgress(@Param("studentId") String studentId);
 
     @Select("""
         SELECT

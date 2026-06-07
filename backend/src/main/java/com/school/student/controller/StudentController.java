@@ -1,11 +1,13 @@
 package com.school.student.controller;
 
 import com.school.common.api.ApiResponse;
+import com.school.student.dto.AcademicRequestCreateRequest;
 import com.school.student.dto.CourseDropRequestCreateRequest;
 import com.school.student.dto.CourseSelectionRequestCreateRequest;
 import com.school.student.dto.ScoreReviewRequestCreateRequest;
 import com.school.student.dto.SelectCourseRequest;
 import com.school.student.dto.StudentCourseQueryRequest;
+import com.school.student.dto.StudentProfileUpdateRequest;
 import com.school.student.service.StudentService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,6 +30,32 @@ public class StudentController {
 
     private final StudentService studentService;
 
+    @GetMapping("/profile")
+    public ApiResponse<Map<String, Object>> profile(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
+    ) {
+        return ApiResponse.success(studentService.profile(username, studentId));
+    }
+
+    @PutMapping("/profile")
+    public ApiResponse<Void> updateProfile(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId,
+        @Valid @RequestBody StudentProfileUpdateRequest request
+    ) {
+        studentService.updateProfile(username, studentId, request);
+        return ApiResponse.success("个人信息保存成功", null);
+    }
+
+    @GetMapping("/todos")
+    public ApiResponse<Map<String, Object>> todos(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
+    ) {
+        return ApiResponse.success(studentService.todoSummary(username, studentId));
+    }
+
     @GetMapping("/courses/available")
     public ApiResponse<List<Map<String, Object>>> availableCourses(
         StudentCourseQueryRequest query,
@@ -34,6 +63,34 @@ public class StudentController {
         @RequestHeader(value = "X-Student-Id", required = false) String studentId
     ) {
         return ApiResponse.success(studentService.availableCourses(query, username, studentId));
+    }
+
+    @GetMapping("/course-plans")
+    public ApiResponse<List<Map<String, Object>>> coursePlans(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
+    ) {
+        return ApiResponse.success(studentService.coursePlans(username, studentId));
+    }
+
+    @PostMapping("/course-plans")
+    public ApiResponse<Void> createCoursePlan(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId,
+        @Valid @RequestBody SelectCourseRequest request
+    ) {
+        studentService.createCoursePlan(username, studentId, request);
+        return ApiResponse.success("已加入选课计划", null);
+    }
+
+    @DeleteMapping("/course-plans/{planId}")
+    public ApiResponse<Void> deleteCoursePlan(
+        @PathVariable Long planId,
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
+    ) {
+        studentService.deleteCoursePlan(username, studentId, planId);
+        return ApiResponse.success("已移出选课计划", null);
     }
 
     @GetMapping("/selected-courses")
@@ -148,5 +205,57 @@ public class StudentController {
         @RequestHeader(value = "X-Student-Id", required = false) String studentId
     ) {
         return ApiResponse.success(studentService.scoreReviewRequests(username, studentId));
+    }
+
+    @GetMapping("/academic-remediation/scores")
+    public ApiResponse<List<Map<String, Object>>> academicRemediationScores(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
+    ) {
+        return ApiResponse.success(studentService.academicRemediationScores(username, studentId));
+    }
+
+    @GetMapping("/makeup-requests")
+    public ApiResponse<List<Map<String, Object>>> makeupExamRequests(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
+    ) {
+        return ApiResponse.success(studentService.makeupExamRequests(username, studentId));
+    }
+
+    @PostMapping("/makeup-requests")
+    public ApiResponse<Void> createMakeupExamRequest(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId,
+        @Valid @RequestBody AcademicRequestCreateRequest request
+    ) {
+        studentService.createMakeupExamRequest(username, studentId, request);
+        return ApiResponse.success("补考申请已提交", null);
+    }
+
+    @GetMapping("/retake-requests")
+    public ApiResponse<List<Map<String, Object>>> retakeRequests(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
+    ) {
+        return ApiResponse.success(studentService.retakeRequests(username, studentId));
+    }
+
+    @PostMapping("/retake-requests")
+    public ApiResponse<Void> createRetakeRequest(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId,
+        @Valid @RequestBody AcademicRequestCreateRequest request
+    ) {
+        studentService.createRetakeRequest(username, studentId, request);
+        return ApiResponse.success("重修申请已提交", null);
+    }
+
+    @GetMapping("/academic-progress")
+    public ApiResponse<List<Map<String, Object>>> academicProgress(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
+    ) {
+        return ApiResponse.success(studentService.academicProgress(username, studentId));
     }
 }
