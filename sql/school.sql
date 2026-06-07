@@ -113,6 +113,8 @@ CREATE TABLE semester (
     end_date DATE NOT NULL COMMENT '结束日期',
     course_select_start DATETIME NOT NULL COMMENT '选课开始时间',
     course_select_end DATETIME NOT NULL COMMENT '选课结束时间',
+    score_submit_start DATETIME NULL COMMENT '成绩提交开始时间',
+    score_submit_end DATETIME NULL COMMENT '成绩提交结束时间',
     is_current TINYINT NOT NULL DEFAULT 0 COMMENT '是否当前学期',
     PRIMARY KEY (semester_id),
     UNIQUE KEY uk_semester_name (semester_name)
@@ -148,6 +150,7 @@ CREATE TABLE teaching_class (
     course_id VARCHAR(12) NOT NULL COMMENT '课程编号',
     teacher_id VARCHAR(12) NOT NULL COMMENT '任课教师工号',
     classroom_id VARCHAR(10) NULL COMMENT '教室编号',
+    course_start_date DATE NULL COMMENT '课程实际开课日期',
     week_day TINYINT NOT NULL COMMENT '星期几',
     section_desc VARCHAR(20) NOT NULL COMMENT '节次',
     week_range VARCHAR(30) NOT NULL COMMENT '周次范围',
@@ -273,7 +276,8 @@ INSERT INTO sys_user (username, password, real_name, user_type, ref_id, is_enabl
 ('20240003', '123456', '张颖', '学生', '20240003', 1),
 ('T0101', '123456', '陈迪茂', '教师', 'T0101', 1),
 ('T0102', '123456', '马小红', '教师', 'T0102', 1),
-('T0201', '123456', '张心颖', '教师', 'T0201', 1);
+('T0201', '123456', '张心颖', '教师', 'T0201', 1),
+('T0103', '123456', '吴宝钢', '教师', 'T0103', 1);
 
 INSERT INTO sys_user_role (user_id, role_id)
 SELECT u.user_id, r.role_id
@@ -286,10 +290,10 @@ JOIN sys_role r ON (
 
 INSERT INTO semester (
     semester_name, school_year, term_code, start_date, end_date,
-    course_select_start, course_select_end, is_current
+    course_select_start, course_select_end, score_submit_start, score_submit_end, is_current
 ) VALUES
-('2025-2026-1', '2025-2026', '1', '2025-09-01', '2026-01-20', '2025-08-20 08:00:00', '2025-09-10 23:59:59', 0),
-('2025-2026-2', '2025-2026', '2', '2026-02-23', '2026-07-10', '2026-02-10 08:00:00', '2026-03-05 23:59:59', 1);
+('2025-2026-1', '2025-2026', '1', '2025-09-01', '2026-01-20', '2025-08-20 08:00:00', '2025-09-10 23:59:59', '2026-01-01 08:00:00', '2026-01-31 23:59:59', 0),
+('2025-2026-2', '2025-2026', '2', '2026-02-23', '2026-07-10', '2026-02-10 08:00:00', '2026-03-05 23:59:59', '2026-06-01 08:00:00', '2026-07-20 23:59:59', 1);
 
 INSERT INTO course (
     course_id, course_name, course_type, credit, total_hours,
@@ -310,12 +314,12 @@ INSERT INTO classroom (classroom_id, building_name, room_name, capacity) VALUES
 
 INSERT INTO teaching_class (
     semester_id, course_id, teacher_id, classroom_id,
-    week_day, section_desc, week_range, max_students, selected_count, status
+    course_start_date, week_day, section_desc, week_range, max_students, selected_count, status
 ) VALUES
-(2, '08305002', 'T0101', 'LAB1', 3, '1-4节', '1-16周', 50, 0, '选课中'),
-(2, '08305003', 'T0102', 'R102', 5, '5-8节', '1-16周', 60, 0, '选课中'),
-(2, '08302001', 'T0201', 'R201', 1, '5-8节', '1-16周', 80, 0, '选课中'),
-(2, '08305001', 'T0103', 'R101', 2, '1-4节', '1-16周', 60, 0, '选课中');
+(2, '08305002', 'T0101', 'LAB1', '2026-03-01', 3, '1-4节', '1-16周', 50, 0, '选课中'),
+(2, '08305003', 'T0102', 'R102', '2026-03-01', 5, '5-8节', '1-16周', 60, 0, '选课中'),
+(2, '08302001', 'T0201', 'R201', '2026-03-01', 1, '5-8节', '1-16周', 80, 0, '选课中'),
+(2, '08305001', 'T0103', 'R101', '2026-03-01', 2, '1-4节', '1-16周', 60, 0, '选课中');
 
 INSERT INTO course_selection (student_id, teaching_class_id, selection_time, selection_status) VALUES
 ('20240001', 3, NOW(), '已选'),
@@ -405,6 +409,7 @@ BEGIN
     DECLARE v_select_start DATETIME;
     DECLARE v_select_end DATETIME;
     DECLARE v_exists_count INT DEFAULT 0;
+    DECLARE v_dropped_count INT DEFAULT 0;
     DECLARE v_conflict_count INT DEFAULT 0;
 
     SELECT tc.max_students, tc.selected_count, tc.semester_id, tc.course_id
@@ -432,6 +437,13 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '该学生已选该课程';
     END IF;
 
+    SELECT COUNT(*)
+    INTO v_dropped_count
+    FROM course_selection
+    WHERE student_id = p_student_id
+      AND teaching_class_id = p_teaching_class_id
+      AND selection_status = '已退';
+
     IF v_selected_count >= v_max_students THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '该教学班人数已满';
     END IF;
@@ -451,8 +463,21 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '选课时间冲突';
     END IF;
 
-    INSERT INTO course_selection (student_id, teaching_class_id, selection_status)
-    VALUES (p_student_id, p_teaching_class_id, '已选');
+    IF v_dropped_count > 0 THEN
+        DELETE FROM score
+        WHERE student_id = p_student_id
+          AND teaching_class_id = p_teaching_class_id;
+
+        UPDATE course_selection
+        SET selection_status = '已选',
+            selection_time = NOW()
+        WHERE student_id = p_student_id
+          AND teaching_class_id = p_teaching_class_id
+          AND selection_status = '已退';
+    ELSE
+        INSERT INTO course_selection (student_id, teaching_class_id, selection_status)
+        VALUES (p_student_id, p_teaching_class_id, '已选');
+    END IF;
 
     UPDATE teaching_class
     SET selected_count = selected_count + 1

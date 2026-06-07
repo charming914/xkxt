@@ -110,7 +110,7 @@ onMounted(() => {
 .summary-card {
   padding: 18px 20px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #edf7f1 0%, #f8fbfd 100%);
+  background: linear-gradient(135deg, #e7f8ff 0%, #f8fdff 100%);
   border: 1px solid #d8e9df;
 }
 
@@ -118,11 +118,11 @@ onMounted(() => {
   display: block;
   margin-top: 8px;
   font-size: 26px;
-  color: #173f35;
+  color: var(--sky-700);
 }
 
 .summary-label {
-  color: #5b6d68;
+  color: var(--text-muted);
   font-size: 13px;
 }
 </style>

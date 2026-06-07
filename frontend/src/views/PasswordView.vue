@@ -89,8 +89,8 @@ async function handleSubmit() {
 .password-panel {
   padding: 24px;
   border-radius: 18px;
-  background: linear-gradient(135deg, #f2f8f2 0%, #f8fbfd 100%);
-  border: 1px solid #dce9de;
+  background: linear-gradient(135deg, #eefaff 0%, #f8fdff 100%);
+  border: 1px solid #c8ecff;
 }
 
 .action-row {

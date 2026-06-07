@@ -10,10 +10,13 @@ export const useUserStore = defineStore('user', {
   }),
   getters: {
     isLoggedIn: (state) => !!state.user,
+    userId: (state) => state.user?.userId || '',
     roleCode: (state) => state.user?.roleCode || '',
     username: (state) => state.user?.username || '',
     realName: (state) => state.user?.realName || '',
-    refId: (state) => state.user?.refId || ''
+    refId: (state) => state.user?.refId || '',
+    loginAt: (state) => state.user?.loginAt || '',
+    isDefaultPassword: (state) => Boolean(state.user?.defaultPassword)
   },
   actions: {
     setUser(user) {

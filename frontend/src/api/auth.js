@@ -8,13 +8,6 @@ export function login(data) {
   })
 }
 
-export function getProfile() {
-  return request({
-    url: '/auth/profile',
-    method: 'get'
-  })
-}
-
 export function updatePassword(data) {
   return request({
     url: '/auth/password',

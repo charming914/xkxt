@@ -91,11 +91,14 @@
               type="primary"
               size="small"
               :loading="submittingId === row.teachingClassId"
+              :disabled="!canSelect(row)"
               @click="handleSelect(row)"
             >
               选课
             </el-button>
-            <el-button size="small" @click="openRequestDialog(row)">申请补选</el-button>
+            <el-button size="small" :disabled="!canRequestSelection(row)" @click="openRequestDialog(row)">
+              申请补选
+            </el-button>
           </div>
         </template>
       </el-table-column>
@@ -257,7 +260,19 @@ function requestStatusType(status) {
   return 'warning'
 }
 
+function canSelect(row) {
+  return Boolean(row.canSelectDirectly) && !row.alreadySelected
+}
+
+function canRequestSelection(row) {
+  return Boolean(row.canRequestSelection) && !row.alreadySelected && !row.hasPendingSelectionRequest
+}
+
 async function handleSelect(row) {
+  if (!canSelect(row)) {
+    ElMessage.warning('该课程当前不能直接选课，可在符合条件时提交补选申请')
+    return
+  }
   if (!userStore.refId) {
     ElMessage.warning('当前未识别学生身份')
     return
@@ -284,6 +299,10 @@ async function handleSelect(row) {
 }
 
 function openRequestDialog(row) {
+  if (!canRequestSelection(row)) {
+    ElMessage.warning('该课程当前不需要或不能提交补选申请')
+    return
+  }
   selectedCourse.value = row
   requestReason.value = ''
   dialogVisible.value = true

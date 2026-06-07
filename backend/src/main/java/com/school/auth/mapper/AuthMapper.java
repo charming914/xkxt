@@ -1,8 +1,6 @@
 package com.school.auth.mapper;
 
 import com.school.auth.vo.LoginUserVO;
-import java.util.List;
-import java.util.Map;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -49,13 +47,4 @@ public interface AuthMapper {
 
     @Update("UPDATE sys_user SET password = #{password} WHERE username = #{username}")
     int updatePassword(@Param("username") String username, @Param("password") String password);
-
-    @Select("""
-        SELECT user_id AS userId, password AS password
-        FROM sys_user
-        """)
-    List<Map<String, Object>> selectAllUserPasswords();
-
-    @Update("UPDATE sys_user SET password = #{password} WHERE user_id = #{userId}")
-    int updatePasswordByUserId(@Param("userId") Integer userId, @Param("password") String password);
 }

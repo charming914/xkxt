@@ -149,6 +149,50 @@ export function updateCourseSelectionSetting(data) {
   })
 }
 
+export function getScoreSubmitSetting() {
+  return request({
+    url: '/admin/score-submit-setting',
+    method: 'get'
+  })
+}
+
+export function updateScoreSubmitSetting(data) {
+  return request({
+    url: '/admin/score-submit-setting',
+    method: 'put',
+    data
+  })
+}
+
+export function getSubmittedScores() {
+  return request({
+    url: '/admin/scores/submitted',
+    method: 'get'
+  })
+}
+
+export function rollbackSubmittedScore(scoreId) {
+  return request({
+    url: `/admin/scores/${scoreId}/rollback`,
+    method: 'put'
+  })
+}
+
+export function getAdminScoreChangeRequests() {
+  return request({
+    url: '/admin/score-change-requests',
+    method: 'get'
+  })
+}
+
+export function reviewAdminScoreChangeRequest(scoreChangeRequestId, data) {
+  return request({
+    url: `/admin/score-change-requests/${scoreChangeRequestId}/review`,
+    method: 'put',
+    data
+  })
+}
+
 export function getDepartmentOptions() {
   return request({
     url: '/admin/departments',
@@ -223,6 +267,21 @@ export function getAdminCourseDropRequests() {
 export function reviewAdminCourseDropRequest(dropRequestId, data) {
   return request({
     url: `/admin/course-drop-requests/${dropRequestId}/review`,
+    method: 'put',
+    data
+  })
+}
+
+export function getAdminScheduleAdjustRequests() {
+  return request({
+    url: '/admin/schedule-adjust-requests',
+    method: 'get'
+  })
+}
+
+export function reviewAdminScheduleAdjustRequest(adjustRequestId, data) {
+  return request({
+    url: `/admin/schedule-adjust-requests/${adjustRequestId}/review`,
     method: 'put',
     data
   })

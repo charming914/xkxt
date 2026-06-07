@@ -15,4 +15,5 @@ public class LoginUserVO {
     private String roleCode;
     private String token;
     private String password;
+    private Boolean defaultPassword;
 }

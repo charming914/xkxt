@@ -135,6 +135,8 @@
 - `end_date`：结束日期
 - `course_select_start`：选课开始时间
 - `course_select_end`：选课结束时间
+- `score_submit_start`：成绩提交开始时间
+- `score_submit_end`：成绩提交结束时间
 - `is_current`：是否当前学期
 
 建议 Java 类名：
@@ -178,6 +180,7 @@
 - `course_id`：课程编号
 - `teacher_id`：任课教师工号
 - `classroom_id`：教室编号
+- `course_start_date`：课程实际开课日期
 - `week_day`：星期几
 - `section_desc`：节次
 - `week_range`：周次范围
@@ -209,6 +212,10 @@
 说明：
 - 这一张表表示“谁选了哪门教学班”
 - 学生课表主要从这张表和 `teaching_class` 联查得到
+- `(student_id, teaching_class_id)` 有唯一约束
+- 退课后记录保留为 `selection_status = '已退'`
+- 学生再次选择同一教学班，或管理员补选审核通过同一教学班时，会恢复原记录为 `已选`，而不是重复插入
+- 退课和恢复已退选课前会清理对应 `score` 记录，避免旧成绩在重新加入课程后继续显示
 
 ## 14. score
 说明：成绩表
@@ -230,12 +237,117 @@
 说明：
 - 录入 `usual_score` 和 `exam_score` 后
 - 触发器自动计算 `final_score`、`gpa_point`
+- 学生退课或重新加入曾退选课程时，对应成绩记录会被删除，重新加入后需要重新录入成绩
 
 常用 DTO：
 - `ScoreInputDTO`
 - `ScoreUpdateDTO`
 
-## 15. operation_log
+## 15. course_selection_request
+说明：补选申请表
+
+字段：
+- `request_id`：补选申请编号，主键
+- `student_id`：学号
+- `teaching_class_id`：教学班编号
+- `request_reason`：申请原因
+- `request_status`：申请状态
+- `review_comment`：审核备注
+- `reviewed_by`：审核管理员
+- `reviewed_at`：审核时间
+- `created_at`：申请时间
+
+建议 Java 类名：
+- `CourseSelectionRequest`
+
+说明：
+- 管理员审核通过时，如果学生曾退选同一教学班，系统恢复原 `course_selection` 记录。
+
+## 16. course_drop_request
+说明：退课申请表
+
+字段：
+- `drop_request_id`：退课申请编号，主键
+- `student_id`：学号
+- `teaching_class_id`：教学班编号
+- `request_reason`：退课原因
+- `request_status`：申请状态
+- `teacher_status`：教师审核状态
+- `teacher_comment`：教师审核备注
+- `teacher_reviewed_by`：审核教师工号
+- `teacher_reviewed_at`：教师审核时间
+- `admin_status`：管理员审核状态
+- `admin_comment`：管理员审核备注
+- `admin_reviewed_by`：审核管理员用户编号
+- `admin_reviewed_at`：管理员审核时间
+- `created_at`：申请时间
+- `updated_at`：更新时间
+
+建议 Java 类名：
+- `CourseDropRequest`
+
+## 17. schedule_adjust_request
+说明：调课申请表
+
+字段：
+- `adjust_request_id`：调课申请编号，主键
+- `teaching_class_id`：教学班编号
+- `teacher_id`：申请教师工号
+- `original_week_day`：原星期
+- `original_section_desc`：原节次
+- `original_week_range`：原周次
+- `original_classroom_id`：原教室
+- `requested_week_day`：申请后星期
+- `requested_section_desc`：申请后节次
+- `requested_week_range`：申请后周次
+- `requested_classroom_id`：申请后教室
+- `request_reason`：申请原因
+- `request_status`：申请状态
+- `review_comment`：审核备注
+- `reviewed_by`：审核管理员用户编号
+- `reviewed_at`：审核时间
+- `created_at`：申请时间
+- `updated_at`：更新时间
+
+建议 Java 类名：
+- `ScheduleAdjustRequest`
+
+说明：
+- 调课申请由教师提交，管理员审核。
+- 当前实现不允许调整周次，`requested_week_range` 必须与原周次一致。
+- `requested_section_desc` 的节次跨度必须与原节次一致。
+- 教室占用不单独建表，来源于 `teaching_class` 的同学期、同星期、节次区间和教室记录；查询空教室时会排除节次重叠的占用。
+- 管理员导出的教室课表同样由 `teaching_class` 的教室、星期、节次、周次和课程安排生成，不新增独立课表实体。
+
+## 18. score_change_request
+说明：成绩修改申请表
+
+字段：
+- `score_change_request_id`：成绩修改申请编号，主键
+- `score_id`：成绩编号
+- `teacher_id`：申请教师工号
+- `student_id`：学号
+- `teaching_class_id`：教学班编号
+- `original_usual_score`：原平时成绩
+- `original_exam_score`：原考试成绩
+- `original_final_score`：原总评成绩
+- `original_gpa_point`：原绩点
+- `request_reason`：申请原因
+- `request_status`：申请状态
+- `review_comment`：审核备注
+- `reviewed_by`：审核管理员用户编号
+- `reviewed_at`：审核时间
+- `created_at`：申请时间
+- `updated_at`：更新时间
+
+建议 Java 类名：
+- `ScoreChangeRequest`
+
+说明：
+- 教师只能对本人授课教学班中已提交的成绩发起修改申请。
+- 管理员审核通过后，系统将对应成绩退回为未提交状态，教师可重新修改并提交。
+
+## 19. operation_log
 说明：操作日志表
 
 字段：
@@ -248,7 +360,7 @@
 建议 Java 类名：
 - `OperationLog`
 
-## 16. 视图
+## 20. 视图
 
 ### `v_student_timetable`
 用途：
@@ -260,7 +372,7 @@
 - 学生查看成绩
 - 管理员查看成绩明细
 
-## 17. 建议的 Java 分层结构
+## 21. 建议的 Java 分层结构
 
 实体类：
 - `entity`
@@ -277,6 +389,10 @@
   - `Classroom`
   - `TeachingClass`
   - `CourseSelection`
+  - `CourseSelectionRequest`
+  - `CourseDropRequest`
+  - `ScheduleAdjustRequest`
+  - `ScoreChangeRequest`
   - `Score`
   - `OperationLog`
 
@@ -293,7 +409,7 @@
 - `dto`
 - `vo`
 
-## 18. 优先开发的核心实体
+## 22. 优先开发的核心实体
 
 如果你先做系统主流程，建议优先写这几个实体：
 - `SysUser`
