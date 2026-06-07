@@ -52,6 +52,23 @@ public class AdminService {
         return adminMapper.selectCourseSelectionStatistics();
     }
 
+    public Map<String, Object> dashboardOverview() {
+        return adminMapper.selectDashboardOverview();
+    }
+
+    public List<Map<String, Object>> scoredTeachingClasses() {
+        return adminMapper.selectScoredTeachingClasses();
+    }
+
+    public Map<String, Object> scoreDistribution(Integer teachingClassId) {
+        Map<String, Object> distribution = adminMapper.selectScoreDistribution(teachingClassId);
+        if (distribution == null || distribution.get("totalCount") == null
+            || ((Number) distribution.get("totalCount")).intValue() == 0) {
+            throw new BusinessException("该教学班暂无已提交成绩");
+        }
+        return distribution;
+    }
+
     public List<Map<String, Object>> departments() {
         return adminMapper.selectDepartmentOptions();
     }

@@ -70,6 +70,54 @@
         </div>
       </article>
 
+      <article v-if="userStore.roleCode === 'ADMIN'" class="dashboard-card span-2">
+        <div class="todo-header">
+          <h2>系统概览</h2>
+          <el-button size="small" @click="loadAdminOverview">刷新</el-button>
+        </div>
+        <div v-loading="overviewLoading" class="todo-grid overview-grid">
+          <RouterLink class="todo-item link-item" to="/admin/students">
+            <span>学生总数</span>
+            <strong>{{ adminOverview.studentCount || 0 }}</strong>
+          </RouterLink>
+          <RouterLink class="todo-item link-item" to="/admin/teachers">
+            <span>教师总数</span>
+            <strong>{{ adminOverview.teacherCount || 0 }}</strong>
+          </RouterLink>
+          <RouterLink class="todo-item link-item" to="/admin/courses">
+            <span>课程总数</span>
+            <strong>{{ adminOverview.courseCount || 0 }}</strong>
+          </RouterLink>
+          <RouterLink class="todo-item link-item" to="/admin/teaching-classes">
+            <span>本学期教学班</span>
+            <strong>{{ adminOverview.teachingClassCount || 0 }}</strong>
+          </RouterLink>
+        </div>
+        <div class="todo-subtitle">
+          <span>待办审批</span>
+          <el-tag v-if="pendingTotal > 0" type="warning" effect="dark" round>共 {{ pendingTotal }} 条待处理</el-tag>
+          <el-tag v-else type="success" effect="plain" round>暂无待办</el-tag>
+        </div>
+        <div class="todo-grid overview-grid">
+          <RouterLink class="todo-item link-item" to="/admin/course-selection-requests">
+            <span>补选待审核</span>
+            <strong :class="{ pending: adminOverview.pendingSelectionRequests > 0 }">{{ adminOverview.pendingSelectionRequests || 0 }}</strong>
+          </RouterLink>
+          <RouterLink class="todo-item link-item" to="/admin/course-drop-requests">
+            <span>退课待审核</span>
+            <strong :class="{ pending: adminOverview.pendingDropRequests > 0 }">{{ adminOverview.pendingDropRequests || 0 }}</strong>
+          </RouterLink>
+          <RouterLink class="todo-item link-item" to="/admin/schedule-adjust-requests">
+            <span>调课待审核</span>
+            <strong :class="{ pending: adminOverview.pendingScheduleRequests > 0 }">{{ adminOverview.pendingScheduleRequests || 0 }}</strong>
+          </RouterLink>
+          <RouterLink class="todo-item link-item" to="/admin/score-change-requests">
+            <span>成绩修改待审核</span>
+            <strong :class="{ pending: adminOverview.pendingScoreChangeRequests > 0 }">{{ adminOverview.pendingScoreChangeRequests || 0 }}</strong>
+          </RouterLink>
+        </div>
+      </article>
+
       <article class="dashboard-card span-2">
         <h2>系统说明</h2>
         <p>
@@ -84,11 +132,24 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { getTeacherTodos } from '../api/teacher'
+import { getAdminDashboardOverview } from '../api/admin'
 import { useUserStore } from '../stores/user'
 
 const userStore = useUserStore()
 const todoLoading = ref(false)
 const teacherTodos = ref({})
+const overviewLoading = ref(false)
+const adminOverview = ref({})
+
+const pendingTotal = computed(() => {
+  const o = adminOverview.value
+  return (
+    Number(o.pendingSelectionRequests || 0) +
+    Number(o.pendingDropRequests || 0) +
+    Number(o.pendingScheduleRequests || 0) +
+    Number(o.pendingScoreChangeRequests || 0)
+  )
+})
 
 const scoreSubmitWindowOpen = computed(() => Number(teacherTodos.value.scoreSubmitWindowOpen || 0) > 0)
 
@@ -157,8 +218,22 @@ function showScoreSubmitReminder() {
   })
 }
 
+async function loadAdminOverview() {
+  if (userStore.roleCode !== 'ADMIN') {
+    return
+  }
+  overviewLoading.value = true
+  try {
+    const response = await getAdminDashboardOverview()
+    adminOverview.value = response.data || {}
+  } finally {
+    overviewLoading.value = false
+  }
+}
+
 onMounted(() => {
   loadTeacherTodos()
+  loadAdminOverview()
 })
 </script>
 
@@ -261,6 +336,34 @@ onMounted(() => {
   margin-top: 8px;
   color: var(--sky-700);
   font-size: 24px;
+}
+
+.overview-grid {
+  margin-bottom: 8px;
+}
+
+.link-item {
+  display: block;
+  text-decoration: none;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.link-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(3, 105, 161, 0.16);
+}
+
+.todo-item strong.pending {
+  color: #e6a23c;
+}
+
+.todo-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 12px;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 .plain-list {

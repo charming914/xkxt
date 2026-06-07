@@ -18,6 +18,8 @@ import AdminTeacherView from '../views/admin/AdminTeacherView.vue'
 import AdminCourseView from '../views/admin/AdminCourseView.vue'
 import AdminTeachingClassView from '../views/admin/AdminTeachingClassView.vue'
 import AdminStatisticsView from '../views/admin/AdminStatisticsView.vue'
+import AdminScoreAnalysisView from '../views/admin/AdminScoreAnalysisView.vue'
+import AdminOperationLogView from '../views/admin/AdminOperationLogView.vue'
 import AdminSelectionRequestView from '../views/admin/AdminSelectionRequestView.vue'
 import AdminDropRequestView from '../views/admin/AdminDropRequestView.vue'
 import AdminScheduleRequestView from '../views/admin/AdminScheduleRequestView.vue'
@@ -167,6 +169,18 @@ const routes = [
         path: 'admin/statistics',
         name: 'admin-statistics',
         component: AdminStatisticsView,
+        meta: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'admin/score-analysis',
+        name: 'admin-score-analysis',
+        component: AdminScoreAnalysisView,
+        meta: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'admin/operation-logs',
+        name: 'admin-operation-logs',
+        component: AdminOperationLogView,
         meta: { roles: ['ADMIN'] }
       }
     ]
