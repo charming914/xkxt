@@ -28,13 +28,13 @@ public class AuthController {
     }
 
     @GetMapping("/profile")
-    public ApiResponse<LoginUserVO> profile(@RequestHeader(value = "X-Username", required = false) String username) {
+    public ApiResponse<LoginUserVO> profile(@RequestHeader(value = "X-Username", defaultValue = "admin") String username) {
         return ApiResponse.success(authService.profile(username));
     }
 
     @PutMapping("/password")
     public ApiResponse<Void> updatePassword(
-        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Username", defaultValue = "admin") String username,
         @Valid @RequestBody PasswordUpdateRequest request
     ) {
         authService.updatePassword(username, request);

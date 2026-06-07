@@ -1,6 +1,8 @@
 -- 0607 成绩复核申请数据库脚本
 -- 功能：学生提交成绩复核申请，管理员审批并记录审核结果
 
+USE school;
+
 CREATE TABLE IF NOT EXISTS score_review_request (
     request_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '成绩复核申请编号',
     student_id VARCHAR(12) NOT NULL COMMENT '学号',

@@ -6,6 +6,7 @@ import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
+import com.school.admin.dto.ScoreSubmitSettingRequest;
 import java.util.List;
 import java.util.Map;
 import org.apache.ibatis.annotations.Delete;
@@ -92,6 +93,7 @@ public interface AdminMapper {
             cl.building_name AS buildingName,
             cl.room_name AS roomName,
             tc.classroom_id AS classroomId,
+            tc.course_start_date AS courseStartDate,
             tc.week_day AS weekDay,
             tc.section_desc AS sectionDesc,
             tc.week_range AS weekRange,
@@ -291,10 +293,10 @@ public interface AdminMapper {
     @Insert("""
         INSERT INTO teaching_class (
             semester_id, course_id, teacher_id, classroom_id,
-            week_day, section_desc, week_range, max_students, selected_count, status
+            course_start_date, week_day, section_desc, week_range, max_students, selected_count, status
         ) VALUES (
             #{request.semesterId}, #{request.courseId}, #{request.teacherId}, NULLIF(#{request.classroomId}, ''),
-            #{request.weekDay}, #{request.sectionDesc}, #{request.weekRange}, #{request.maxStudents}, 0, #{request.status}
+            #{request.courseStartDate}, #{request.weekDay}, #{request.sectionDesc}, #{request.weekRange}, #{request.maxStudents}, 0, #{request.status}
         )
         """)
     int insertTeachingClass(@Param("request") AdminTeachingClassRequest request);
@@ -305,6 +307,7 @@ public interface AdminMapper {
             course_id = #{request.courseId},
             teacher_id = #{request.teacherId},
             classroom_id = NULLIF(#{request.classroomId}, ''),
+            course_start_date = #{request.courseStartDate},
             week_day = #{request.weekDay},
             section_desc = #{request.sectionDesc},
             week_range = #{request.weekRange},
@@ -337,18 +340,6 @@ public interface AdminMapper {
 
     @Select("SELECT user_id FROM sys_user WHERE username = #{username} LIMIT 1")
     Integer selectUserIdByUsername(@Param("username") String username);
-
-    @Select("""
-        SELECT u.user_id
-        FROM sys_user u
-        JOIN sys_user_role ur ON u.user_id = ur.user_id
-        JOIN sys_role r ON ur.role_id = r.role_id
-        WHERE u.username = #{username}
-          AND r.role_code = 'ADMIN'
-          AND u.is_enabled = 1
-        LIMIT 1
-        """)
-    Integer selectAdminUserIdByUsername(@Param("username") String username);
 
     @Insert("INSERT INTO sys_user_role (user_id, role_id) VALUES (#{userId}, #{roleId})")
     int insertSysUserRole(@Param("userId") Integer userId, @Param("roleId") Integer roleId);
@@ -416,6 +407,225 @@ public interface AdminMapper {
 
     @Select("""
         SELECT
+            semester_id AS semesterId,
+            semester_name AS semesterName,
+            score_submit_start AS scoreSubmitStart,
+            score_submit_end AS scoreSubmitEnd
+        FROM semester
+        WHERE is_current = 1
+        LIMIT 1
+        """)
+    Map<String, Object> selectCurrentScoreSubmitSetting();
+
+    @Update("""
+        UPDATE semester
+        SET score_submit_start = #{request.scoreSubmitStart},
+            score_submit_end = #{request.scoreSubmitEnd}
+        WHERE semester_id = #{semesterId}
+        """)
+    int updateScoreSubmitTime(
+        @Param("semesterId") Integer semesterId,
+        @Param("request") ScoreSubmitSettingRequest request
+    );
+
+    @Select("""
+        SELECT
+            sc.score_id AS scoreId,
+            sc.student_id AS studentId,
+            s.student_name AS studentName,
+            tc.teaching_class_id AS teachingClassId,
+            sem.semester_name AS semesterName,
+            c.course_name AS courseName,
+            t.teacher_name AS teacherName,
+            sc.usual_score AS usualScore,
+            sc.exam_score AS examScore,
+            sc.final_score AS finalScore,
+            sc.gpa_point AS gpaPoint,
+            sc.entered_at AS enteredAt
+        FROM score sc
+        JOIN student s ON sc.student_id = s.student_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        WHERE sc.is_submitted = 1
+        ORDER BY sc.entered_at DESC, sc.score_id DESC
+        """)
+    List<Map<String, Object>> selectSubmittedScores();
+
+    @Update("""
+        UPDATE score
+        SET is_submitted = 0
+        WHERE score_id = #{scoreId}
+          AND is_submitted = 1
+        """)
+    int rollbackSubmittedScore(@Param("scoreId") Long scoreId);
+
+    @Select("""
+        SELECT
+            scr.score_change_request_id AS scoreChangeRequestId,
+            scr.score_id AS scoreId,
+            scr.teacher_id AS teacherId,
+            t.teacher_name AS teacherName,
+            scr.student_id AS studentId,
+            s.student_name AS studentName,
+            scr.teaching_class_id AS teachingClassId,
+            sem.semester_name AS semesterName,
+            c.course_name AS courseName,
+            scr.original_usual_score AS originalUsualScore,
+            scr.original_exam_score AS originalExamScore,
+            scr.original_final_score AS originalFinalScore,
+            scr.original_gpa_point AS originalGpaPoint,
+            scr.request_reason AS requestReason,
+            scr.request_status AS requestStatus,
+            scr.review_comment AS reviewComment,
+            scr.created_at AS createdAt,
+            scr.reviewed_at AS reviewedAt
+        FROM score_change_request scr
+        JOIN teacher t ON scr.teacher_id = t.teacher_id
+        JOIN student s ON scr.student_id = s.student_id
+        JOIN teaching_class tc ON scr.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        ORDER BY CASE scr.request_status WHEN '待审核' THEN 1 WHEN '已通过' THEN 2 ELSE 3 END, scr.created_at DESC
+        """)
+    List<Map<String, Object>> selectScoreChangeRequests();
+
+    @Select("""
+        SELECT
+            score_change_request_id AS scoreChangeRequestId,
+            score_id AS scoreId,
+            request_status AS requestStatus
+        FROM score_change_request
+        WHERE score_change_request_id = #{scoreChangeRequestId}
+        LIMIT 1
+        """)
+    Map<String, Object> selectScoreChangeRequestById(@Param("scoreChangeRequestId") Long scoreChangeRequestId);
+
+    @Update("""
+        UPDATE score_change_request
+        SET request_status = #{status},
+            review_comment = #{reviewComment},
+            reviewed_by = #{reviewedBy},
+            reviewed_at = NOW(),
+            updated_at = NOW()
+        WHERE score_change_request_id = #{scoreChangeRequestId}
+        """)
+    int updateScoreChangeRequestStatus(
+        @Param("scoreChangeRequestId") Long scoreChangeRequestId,
+        @Param("status") String status,
+        @Param("reviewComment") String reviewComment,
+        @Param("reviewedBy") Integer reviewedBy
+    );
+
+    @Select("""
+        SELECT
+            sar.adjust_request_id AS adjustRequestId,
+            sar.teacher_id AS teacherId,
+            t.teacher_name AS teacherName,
+            sar.teaching_class_id AS teachingClassId,
+            sem.semester_name AS semesterName,
+            c.course_name AS courseName,
+            sar.original_week_day AS originalWeekDay,
+            sar.original_section_desc AS originalSectionDesc,
+            sar.original_week_range AS originalWeekRange,
+            old_cl.building_name AS originalBuildingName,
+            old_cl.room_name AS originalRoomName,
+            sar.requested_week_day AS requestedWeekDay,
+            sar.requested_section_desc AS requestedSectionDesc,
+            sar.requested_week_range AS requestedWeekRange,
+            sar.requested_classroom_id AS requestedClassroomId,
+            new_cl.building_name AS requestedBuildingName,
+            new_cl.room_name AS requestedRoomName,
+            sar.request_reason AS requestReason,
+            sar.request_status AS requestStatus,
+            sar.review_comment AS reviewComment,
+            sar.created_at AS createdAt,
+            sar.reviewed_at AS reviewedAt
+        FROM schedule_adjust_request sar
+        JOIN teaching_class tc ON sar.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON sar.teacher_id = t.teacher_id
+        LEFT JOIN classroom old_cl ON sar.original_classroom_id = old_cl.classroom_id
+        LEFT JOIN classroom new_cl ON sar.requested_classroom_id = new_cl.classroom_id
+        ORDER BY CASE sar.request_status WHEN '待审核' THEN 1 WHEN '已通过' THEN 2 ELSE 3 END, sar.created_at DESC
+        """)
+    List<Map<String, Object>> selectScheduleAdjustRequests();
+
+    @Select("""
+        SELECT
+            sar.adjust_request_id AS adjustRequestId,
+            sar.teaching_class_id AS teachingClassId,
+            sar.requested_week_day AS requestedWeekDay,
+            sar.requested_section_desc AS requestedSectionDesc,
+            sar.requested_week_range AS requestedWeekRange,
+            sar.requested_classroom_id AS requestedClassroomId,
+            sar.request_status AS requestStatus
+        FROM schedule_adjust_request sar
+        WHERE sar.adjust_request_id = #{adjustRequestId}
+        LIMIT 1
+        """)
+    Map<String, Object> selectScheduleAdjustRequestById(@Param("adjustRequestId") Long adjustRequestId);
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM teaching_class target
+        JOIN teaching_class other_tc
+          ON other_tc.semester_id = target.semester_id
+         AND other_tc.teaching_class_id <> target.teaching_class_id
+         AND other_tc.week_day = #{weekDay}
+         AND other_tc.classroom_id = NULLIF(#{classroomId}, '')
+        WHERE target.teaching_class_id = #{teachingClassId}
+          AND NULLIF(#{classroomId}, '') IS NOT NULL
+          AND NOT (
+              CAST(REPLACE(SUBSTRING_INDEX(other_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                  < CAST(SUBSTRING_INDEX(#{sectionDesc}, '-', 1) AS UNSIGNED)
+              OR CAST(SUBSTRING_INDEX(other_tc.section_desc, '-', 1) AS UNSIGNED)
+                  > CAST(REPLACE(SUBSTRING_INDEX(#{sectionDesc}, '-', -1), '节', '') AS UNSIGNED)
+          )
+        """)
+    int countTeachingClassRoomConflict(
+        @Param("teachingClassId") Integer teachingClassId,
+        @Param("weekDay") Integer weekDay,
+        @Param("sectionDesc") String sectionDesc,
+        @Param("classroomId") String classroomId
+    );
+
+    @Update("""
+        UPDATE teaching_class
+        SET week_day = #{weekDay},
+            section_desc = #{sectionDesc},
+            week_range = #{weekRange},
+            classroom_id = NULLIF(#{classroomId}, '')
+        WHERE teaching_class_id = #{teachingClassId}
+        """)
+    int applyScheduleAdjustRequest(
+        @Param("teachingClassId") Integer teachingClassId,
+        @Param("weekDay") Integer weekDay,
+        @Param("sectionDesc") String sectionDesc,
+        @Param("weekRange") String weekRange,
+        @Param("classroomId") String classroomId
+    );
+
+    @Update("""
+        UPDATE schedule_adjust_request
+        SET request_status = #{status},
+            review_comment = #{reviewComment},
+            reviewed_by = #{reviewedBy},
+            reviewed_at = NOW(),
+            updated_at = NOW()
+        WHERE adjust_request_id = #{adjustRequestId}
+        """)
+    int updateScheduleAdjustRequestStatus(
+        @Param("adjustRequestId") Long adjustRequestId,
+        @Param("status") String status,
+        @Param("reviewComment") String reviewComment,
+        @Param("reviewedBy") Integer reviewedBy
+    );
+
+    @Select("""
+        SELECT
             csr.request_id AS requestId,
             csr.student_id AS studentId,
             s.student_name AS studentName,
@@ -478,6 +688,18 @@ public interface AdminMapper {
         @Param("teachingClassId") Integer teachingClassId
     );
 
+    @Select("""
+        SELECT COUNT(*)
+        FROM course_selection
+        WHERE student_id = #{studentId}
+          AND teaching_class_id = #{teachingClassId}
+          AND selection_status = '已退'
+        """)
+    int countDroppedCourse(
+        @Param("studentId") String studentId,
+        @Param("teachingClassId") Integer teachingClassId
+    );
+
     @Insert("""
         INSERT INTO course_selection (student_id, teaching_class_id, selection_status)
         VALUES (#{studentId}, #{teachingClassId}, '已选')
@@ -486,6 +708,26 @@ public interface AdminMapper {
         @Param("studentId") String studentId,
         @Param("teachingClassId") Integer teachingClassId
     );
+
+    @Update("""
+        UPDATE course_selection
+        SET selection_status = '已选',
+            selection_time = NOW()
+        WHERE student_id = #{studentId}
+          AND teaching_class_id = #{teachingClassId}
+          AND selection_status = '已退'
+        """)
+    int restoreDroppedCourseByAdmin(
+        @Param("studentId") String studentId,
+        @Param("teachingClassId") Integer teachingClassId
+    );
+
+    @Delete("""
+        DELETE FROM score
+        WHERE student_id = #{studentId}
+          AND teaching_class_id = #{teachingClassId}
+        """)
+    int deleteScore(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
 
     @Update("""
         UPDATE teaching_class

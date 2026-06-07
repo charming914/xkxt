@@ -7,12 +7,8 @@ import com.school.student.dto.ScoreReviewRequestCreateRequest;
 import com.school.student.dto.SelectCourseRequest;
 import com.school.student.dto.StudentCourseQueryRequest;
 import com.school.student.mapper.StudentMapper;
-import java.sql.CallableStatement;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
-import javax.sql.DataSource;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,42 +18,63 @@ import org.springframework.transaction.annotation.Transactional;
 public class StudentService {
 
     private final StudentMapper studentMapper;
-    private final DataSource dataSource;
 
-    public List<Map<String, Object>> availableCourses(String username, StudentCourseQueryRequest query) {
-        String studentId = resolveStudentId(username);
+    public List<Map<String, Object>> availableCourses(
+        StudentCourseQueryRequest query,
+        String username,
+        String fallbackStudentId
+    ) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
         return studentMapper.selectAvailableCourses(query, studentId);
     }
 
-    public List<Map<String, Object>> selectedCourses(String username) {
-        String studentId = resolveStudentId(username);
+    public List<Map<String, Object>> selectedCourses(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
         return studentMapper.selectSelectedCourses(studentId);
     }
 
-    public List<Map<String, Object>> dropCourses(String username) {
-        String studentId = resolveStudentId(username);
+    public List<Map<String, Object>> dropCourses(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
         return studentMapper.selectDropCourses(studentId);
     }
 
-    public void selectCourse(String username, SelectCourseRequest request) {
-        String studentId = resolveStudentId(username);
-        try (Connection connection = dataSource.getConnection();
-             CallableStatement statement = connection.prepareCall("{call sp_select_course(?, ?)}")) {
-            statement.setString(1, studentId);
-            statement.setInt(2, request.getTeachingClassId());
-            statement.execute();
-        } catch (SQLException e) {
-            throw new BusinessException(resolveSelectCourseMessage(e.getMessage()));
+    @Transactional(rollbackFor = Exception.class)
+    public void selectCourse(String username, String fallbackStudentId, SelectCourseRequest request) {
+        String studentId = resolveStudentId(username, firstNonBlank(fallbackStudentId, request.getStudentId()));
+        Integer teachingClassId = request.getTeachingClassId();
+        if (studentMapper.countSelectedCourse(studentId, teachingClassId) > 0) {
+            throw new BusinessException("选课失败：你已选过该课程");
         }
+        if (studentMapper.countSelectableTeachingClass(teachingClassId) == 0) {
+            throw new BusinessException("选课失败：当前不在选课开放时间内或该教学班不可选");
+        }
+        if (studentMapper.countAvailableCapacity(teachingClassId) == 0) {
+            throw new BusinessException("选课失败：该教学班人数已满");
+        }
+        if (studentMapper.countStudentTimeConflict(studentId, teachingClassId) > 0) {
+            throw new BusinessException("选课失败：该课程与已选课程时间冲突");
+        }
+        if (studentMapper.countDroppedCourse(studentId, teachingClassId) > 0) {
+            studentMapper.deleteScore(studentId, teachingClassId);
+            studentMapper.restoreDroppedCourse(studentId, teachingClassId);
+        } else {
+            studentMapper.insertSelectedCourse(studentId, teachingClassId);
+        }
+        studentMapper.increaseSelectedCount(teachingClassId);
+        studentMapper.insertOperationLog(
+            studentId,
+            "选课",
+            "学生 " + studentId + " 选课成功，教学班编号：" + teachingClassId
+        );
     }
 
-    public List<Map<String, Object>> timetable(String username) {
-        String studentId = resolveStudentId(username);
+    public List<Map<String, Object>> timetable(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
         return studentMapper.selectTimetable(studentId);
     }
 
-    public List<Map<String, Object>> scores(String username) {
-        String studentId = resolveStudentId(username);
+    public List<Map<String, Object>> scores(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
         try {
             return studentMapper.selectScores(studentId);
         } catch (RuntimeException e) {
@@ -68,8 +85,12 @@ public class StudentService {
         }
     }
 
-    public void createCourseSelectionRequest(String username, CourseSelectionRequestCreateRequest request) {
-        String studentId = resolveStudentId(username);
+    public void createCourseSelectionRequest(
+        String username,
+        String fallbackStudentId,
+        CourseSelectionRequestCreateRequest request
+    ) {
+        String studentId = resolveStudentId(username, firstNonBlank(fallbackStudentId, request.getStudentId()));
         Integer teachingClassId = request.getTeachingClassId();
 
         if (studentMapper.countSelectedCourse(studentId, teachingClassId) > 0) {
@@ -81,14 +102,14 @@ public class StudentService {
         studentMapper.insertCourseSelectionRequest(studentId, teachingClassId, request.getRequestReason());
     }
 
-    public List<Map<String, Object>> courseSelectionRequests(String username) {
-        String studentId = resolveStudentId(username);
+    public List<Map<String, Object>> courseSelectionRequests(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
         return studentMapper.selectCourseSelectionRequests(studentId);
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void dropCourse(String username, Integer teachingClassId) {
-        String studentId = resolveStudentId(username);
+    public void dropCourse(String username, String fallbackStudentId, Integer teachingClassId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
         if (studentMapper.countSelectedCourse(studentId, teachingClassId) == 0) {
             throw new BusinessException("未选该课程，不能退课");
         }
@@ -97,6 +118,7 @@ public class StudentService {
             if (updated == 0) {
                 throw new BusinessException("退课失败：未找到可退课程");
             }
+            studentMapper.deleteScore(studentId, teachingClassId);
             studentMapper.insertOperationLog(
                 studentId,
                 "退课",
@@ -111,8 +133,12 @@ public class StudentService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void createCourseDropRequest(String username, CourseDropRequestCreateRequest request) {
-        String studentId = resolveStudentId(username);
+    public void createCourseDropRequest(
+        String username,
+        String fallbackStudentId,
+        CourseDropRequestCreateRequest request
+    ) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
         Integer teachingClassId = request.getTeachingClassId();
         if (studentMapper.countSelectedCourse(studentId, teachingClassId) == 0) {
             throw new BusinessException("未选该课程，不能提交退课申请");
@@ -135,14 +161,18 @@ public class StudentService {
         }
     }
 
-    public List<Map<String, Object>> courseDropRequests(String username) {
-        String studentId = resolveStudentId(username);
+    public List<Map<String, Object>> courseDropRequests(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
         return studentMapper.selectCourseDropRequests(studentId);
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void createScoreReviewRequest(String username, ScoreReviewRequestCreateRequest request) {
-        String studentId = resolveStudentId(username);
+    public void createScoreReviewRequest(
+        String username,
+        String fallbackStudentId,
+        ScoreReviewRequestCreateRequest request
+    ) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
         Long scoreId = request.getScoreId();
         if (studentMapper.countReviewableScore(studentId, scoreId) == 0) {
             throw new BusinessException("该成绩不存在或尚未提交，不能申请复核");
@@ -168,8 +198,8 @@ public class StudentService {
         );
     }
 
-    public List<Map<String, Object>> scoreReviewRequests(String username) {
-        String studentId = resolveStudentId(username);
+    public List<Map<String, Object>> scoreReviewRequests(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
         try {
             return studentMapper.selectScoreReviewRequests(studentId);
         } catch (RuntimeException e) {
@@ -180,15 +210,25 @@ public class StudentService {
         }
     }
 
-    private String resolveStudentId(String username) {
-        if (username == null || username.isBlank()) {
-            throw new BusinessException("未识别登录身份，请重新登录");
-        }
-        String studentId = studentMapper.selectStudentIdByUsername(username);
-        if (studentId == null || studentId.isBlank()) {
+    private String resolveStudentId(String username, String fallbackStudentId) {
+        if (username != null && !username.isBlank()) {
+            String studentId = studentMapper.selectStudentIdByUsername(username);
+            if (studentId != null && !studentId.isBlank()) {
+                return studentId;
+            }
             throw new BusinessException("当前账号不是学生身份");
         }
-        return studentId;
+        if (fallbackStudentId != null && !fallbackStudentId.isBlank()) {
+            return fallbackStudentId;
+        }
+        throw new BusinessException("未识别登录身份，请重新登录");
+    }
+
+    private String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first;
+        }
+        return second;
     }
 
     private boolean isMissingScoreReviewTable(RuntimeException e) {
@@ -205,25 +245,6 @@ public class StudentService {
             && (message.contains("doesn't exist")
                 || message.contains("does not exist")
                 || message.contains("不存在"));
-    }
-
-    private String resolveSelectCourseMessage(String rawMessage) {
-        if (rawMessage == null || rawMessage.isBlank()) {
-            return "选课失败，请稍后重试";
-        }
-        if (rawMessage.contains("选课时间冲突")) {
-            return "选课失败：该课程与已选课程时间冲突";
-        }
-        if (rawMessage.contains("当前不在选课时间范围内")) {
-            return "选课失败：当前不在选课开放时间内";
-        }
-        if (rawMessage.contains("人数已满")) {
-            return "选课失败：该教学班人数已满";
-        }
-        if (rawMessage.contains("已选该课程")) {
-            return "选课失败：你已选过该课程";
-        }
-        return "选课失败：" + rawMessage;
     }
 
     private String resolveDropCourseMessage(String rawMessage) {

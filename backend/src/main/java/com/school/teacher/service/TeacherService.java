@@ -1,8 +1,14 @@
 package com.school.teacher.service;
 
+import static com.school.common.support.CourseDropReviewSupport.resolveDropCourseMessage;
+import static com.school.common.support.CourseDropReviewSupport.resolveReviewStatus;
+
+import com.school.common.dto.CourseDropReviewRequest;
 import com.school.common.exception.BusinessException;
-import com.school.teacher.dto.CourseDropRequestTeacherReviewRequest;
+import com.school.teacher.dto.ScheduleAdjustRequestCreateRequest;
+import com.school.teacher.dto.ScoreChangeRequestCreateRequest;
 import com.school.teacher.dto.ScoreInputRequest;
+import com.school.teacher.dto.TeacherProfileUpdateRequest;
 import com.school.teacher.mapper.TeacherMapper;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +22,21 @@ public class TeacherService {
 
     private final TeacherMapper teacherMapper;
 
+    public Map<String, Object> profile(String teacherId) {
+        Map<String, Object> profile = teacherMapper.selectTeacherProfile(teacherId);
+        if (profile == null) {
+            throw new BusinessException("教师信息不存在");
+        }
+        return profile;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void updateProfile(String teacherId, TeacherProfileUpdateRequest request) {
+        if (teacherMapper.updateTeacherProfile(teacherId, request.getPhone(), request.getEmail()) == 0) {
+            throw new BusinessException("教师信息不存在");
+        }
+    }
+
     public List<Map<String, Object>> teachingClasses(String teacherId) {
         return teacherMapper.selectTeachingClasses(teacherId);
     }
@@ -24,18 +45,106 @@ public class TeacherService {
         return teacherMapper.selectScores(teacherId);
     }
 
-    public void saveScore(ScoreInputRequest request) {
+    public Map<String, Object> todoSummary(String teacherId) {
+        return teacherMapper.selectTodoSummary(teacherId);
+    }
+
+    public Map<String, Object> scoreSubmitWindow(String teacherId, Integer teachingClassId) {
+        ensureTeachingClassOwner(teacherId, teachingClassId);
+        return teacherMapper.selectScoreSubmitWindow(teacherId, teachingClassId);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void saveScore(ScoreInputRequest request, String teacherId) {
+        ensureTeachingClassOwner(teacherId, request.getTeachingClassId());
+        ensureScoreSubmitAllowed(teacherId, request);
         teacherMapper.saveOrUpdateScore(request, request.getIsSubmitted() == null ? 0 : request.getIsSubmitted());
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void saveScores(List<ScoreInputRequest> requests, String teacherId) {
+        for (ScoreInputRequest request : requests) {
+            ensureTeachingClassOwner(teacherId, request.getTeachingClassId());
+            ensureScoreSubmitAllowed(teacherId, request);
+            teacherMapper.saveOrUpdateScore(request, request.getIsSubmitted() == null ? 0 : request.getIsSubmitted());
+        }
+    }
+
+    public Map<String, Object> teachingClassDetail(String teacherId, Integer teachingClassId) {
+        Map<String, Object> detail = teacherMapper.selectTeachingClassDetail(teacherId, teachingClassId);
+        if (detail == null) {
+            throw new BusinessException("教学班不存在或不属于当前教师");
+        }
+        return detail;
+    }
+
+    public List<Map<String, Object>> teachingClassStudents(String teacherId, Integer teachingClassId) {
+        ensureTeachingClassOwner(teacherId, teachingClassId);
+        return teacherMapper.selectTeachingClassStudents(teachingClassId);
     }
 
     public List<Map<String, Object>> courseDropRequests(String teacherId) {
         return teacherMapper.selectCourseDropRequests(teacherId);
     }
 
+    public List<Map<String, Object>> classroomOptions() {
+        return teacherMapper.selectClassroomOptions();
+    }
+
+    public List<Map<String, Object>> availableClassroomOptions(
+        String teacherId,
+        Integer teachingClassId,
+        Integer weekDay,
+        String sectionDesc
+    ) {
+        ensureTeachingClassOwner(teacherId, teachingClassId);
+        return teacherMapper.selectAvailableClassroomOptions(teachingClassId, weekDay, sectionDesc);
+    }
+
+    public List<Map<String, Object>> scheduleAdjustRequests(String teacherId) {
+        return teacherMapper.selectScheduleAdjustRequests(teacherId);
+    }
+
+    public List<Map<String, Object>> scoreChangeRequests(String teacherId) {
+        return teacherMapper.selectScoreChangeRequests(teacherId);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void createScoreChangeRequest(String teacherId, ScoreChangeRequestCreateRequest request) {
+        if (teacherMapper.countSubmittedScoreOwner(teacherId, request.getScoreId()) == 0) {
+            throw new BusinessException("成绩不存在、未提交或不属于当前教师");
+        }
+        if (teacherMapper.countPendingScoreChangeRequest(request.getScoreId()) > 0) {
+            throw new BusinessException("该成绩已有待审核修改申请");
+        }
+        if (teacherMapper.insertScoreChangeRequest(teacherId, request) == 0) {
+            throw new BusinessException("成绩修改申请提交失败");
+        }
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void createScheduleAdjustRequest(String teacherId, ScheduleAdjustRequestCreateRequest request) {
+        Map<String, Object> teachingClass = teachingClassDetail(teacherId, request.getTeachingClassId());
+        String originalWeekRange = (String) teachingClass.get("weekRange");
+        String originalSectionDesc = (String) teachingClass.get("sectionDesc");
+        if (!originalWeekRange.equals(request.getRequestedWeekRange())) {
+            throw new BusinessException("调课申请不能调整周次范围");
+        }
+        if (resolveSectionLength(originalSectionDesc) != resolveSectionLength(request.getRequestedSectionDesc())) {
+            throw new BusinessException("调整后节次长度必须与原节次一致");
+        }
+        if (teacherMapper.countPendingScheduleAdjustRequest(teacherId, request.getTeachingClassId()) > 0) {
+            throw new BusinessException("该教学班已有待审核调课申请");
+        }
+        if (teacherMapper.insertScheduleAdjustRequest(teacherId, request) == 0) {
+            throw new BusinessException("调课申请提交失败");
+        }
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public void reviewCourseDropRequest(
         Long dropRequestId,
-        CourseDropRequestTeacherReviewRequest request,
+        CourseDropReviewRequest request,
         String teacherId
     ) {
         Map<String, Object> dropRequest = teacherMapper.selectCourseDropRequestById(dropRequestId);
@@ -62,16 +171,6 @@ public class TeacherService {
         dropCourseIfFullyApproved(dropRequestId, dropRequest);
     }
 
-    private String resolveReviewStatus(String action) {
-        if ("APPROVE".equalsIgnoreCase(action)) {
-            return "已通过";
-        }
-        if ("REJECT".equalsIgnoreCase(action)) {
-            return "已驳回";
-        }
-        throw new BusinessException("不支持的审核动作");
-    }
-
     private void dropCourseIfFullyApproved(Long dropRequestId, Map<String, Object> dropRequest) {
         String requestStatus = teacherMapper.selectDropRequestStatus(dropRequestId);
         if (!"已通过".equals(requestStatus)) {
@@ -81,24 +180,43 @@ public class TeacherService {
         Integer teachingClassId = ((Number) dropRequest.get("teachingClassId")).intValue();
         try {
             teacherMapper.dropSelectedCourse(studentId, teachingClassId);
+            teacherMapper.deleteScore(studentId, teachingClassId);
         } catch (RuntimeException e) {
             throw new BusinessException(resolveDropCourseMessage(e.getMessage()));
         }
     }
 
-    private String resolveDropCourseMessage(String rawMessage) {
-        if (rawMessage == null || rawMessage.isBlank()) {
-            return "退课审核通过，但执行退课失败";
+    private void ensureTeachingClassOwner(String teacherId, Integer teachingClassId) {
+        if (teacherMapper.countTeachingClassOwner(teacherId, teachingClassId) == 0) {
+            throw new BusinessException("教学班不存在或不属于当前教师");
         }
-        if (rawMessage.contains("课程开课日期未设置")) {
-            return "退课失败：课程开课日期未设置";
-        }
-        if (rawMessage.contains("已超过开课三周")) {
-            return "退课失败：已超过开课三周，且没有合法双审核通过记录";
-        }
-        if (rawMessage.contains("开课超过一周")) {
-            return "退课失败：开课超过一周，需教师和管理员均同意后才能退课";
-        }
-        return "退课失败：" + rawMessage;
     }
+
+    private void ensureScoreSubmitAllowed(String teacherId, ScoreInputRequest request) {
+        if (!Integer.valueOf(1).equals(request.getIsSubmitted())) {
+            return;
+        }
+        if (teacherMapper.countOpenScoreSubmitWindow(teacherId, request.getTeachingClassId()) == 0) {
+            throw new BusinessException("当前不在成绩提交时间范围内");
+        }
+    }
+
+    private int resolveSectionLength(String sectionDesc) {
+        if (sectionDesc == null || !sectionDesc.contains("-")) {
+            return 0;
+        }
+        String normalized = sectionDesc.replace("节", "");
+        String[] parts = normalized.split("-");
+        if (parts.length != 2) {
+            return 0;
+        }
+        try {
+            int start = Integer.parseInt(parts[0]);
+            int end = Integer.parseInt(parts[1]);
+            return end - start + 1;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
 }

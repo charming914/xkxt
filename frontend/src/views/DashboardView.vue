@@ -8,6 +8,16 @@
       </div>
     </div>
 
+    <div v-if="userStore.isDefaultPassword" class="password-warning">
+      <div>
+        <strong>当前账号仍在使用默认密码</strong>
+        <p>为保护账号安全，请尽快修改默认密码。</p>
+      </div>
+      <RouterLink to="/password">
+        <el-button type="warning">立即修改</el-button>
+      </RouterLink>
+    </div>
+
     <div class="card-grid">
       <article class="dashboard-card">
         <h2>当前账号</h2>
@@ -23,6 +33,43 @@
         </ul>
       </article>
 
+      <article v-if="userStore.roleCode === 'TEACHER'" class="dashboard-card span-2">
+        <div class="todo-header">
+          <h2>教学待办</h2>
+          <el-button size="small" @click="loadTeacherTodos">刷新</el-button>
+        </div>
+        <div v-loading="todoLoading" class="todo-grid">
+          <div class="todo-item">
+            <span>退课待审核</span>
+            <strong>{{ teacherTodos.pendingDropRequests || 0 }}</strong>
+          </div>
+          <el-tooltip
+            :disabled="scoreSubmitWindowOpen"
+            content="当前不在相关事务的开放时间内"
+            placement="top"
+          >
+            <div class="todo-item">
+              <span>未录入成绩</span>
+              <strong>{{ scoreSubmitWindowOpen ? teacherTodos.missingScores || 0 : '--' }}</strong>
+            </div>
+          </el-tooltip>
+          <el-tooltip
+            :disabled="scoreSubmitWindowOpen"
+            content="当前不在相关事务的开放时间内"
+            placement="top"
+          >
+            <div class="todo-item">
+              <span>未提交成绩</span>
+              <strong>{{ scoreSubmitWindowOpen ? teacherTodos.unsubmittedScores || 0 : '--' }}</strong>
+            </div>
+          </el-tooltip>
+          <div class="todo-item">
+            <span>调课待审核</span>
+            <strong>{{ teacherTodos.pendingScheduleAdjustRequests || 0 }}</strong>
+          </div>
+        </div>
+      </article>
+
       <article class="dashboard-card span-2">
         <h2>系统说明</h2>
         <p>
@@ -34,10 +81,20 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { ElMessageBox } from 'element-plus'
+import { getTeacherTodos } from '../api/teacher'
 import { useUserStore } from '../stores/user'
 
 const userStore = useUserStore()
+const todoLoading = ref(false)
+const teacherTodos = ref({})
+
+const scoreSubmitWindowOpen = computed(() => Number(teacherTodos.value.scoreSubmitWindowOpen || 0) > 0)
+
+const scoreTodoTotal = computed(() => {
+  return Number(teacherTodos.value.missingScores || 0) + Number(teacherTodos.value.unsubmittedScores || 0)
+})
 
 const roleLabel = computed(() => {
   const roleMap = {
@@ -65,6 +122,44 @@ const actionList = computed(() => {
   }
   return map[userStore.roleCode] || ['查看系统信息']
 })
+
+async function loadTeacherTodos() {
+  if (userStore.roleCode !== 'TEACHER') {
+    return
+  }
+  todoLoading.value = true
+  try {
+    const response = await getTeacherTodos()
+    teacherTodos.value = response.data || {}
+    showScoreSubmitReminder()
+  } finally {
+    todoLoading.value = false
+  }
+}
+
+function showScoreSubmitReminder() {
+  if (!scoreSubmitWindowOpen.value) {
+    return
+  }
+  const reminderKey = `score-submit-reminder-${userStore.userId}-${userStore.loginAt || 'current'}`
+  if (sessionStorage.getItem(reminderKey)) {
+    return
+  }
+  sessionStorage.setItem(reminderKey, '1')
+  const missingScores = Number(teacherTodos.value.missingScores || 0)
+  const unsubmittedScores = Number(teacherTodos.value.unsubmittedScores || 0)
+  const message = scoreTodoTotal.value > 0
+    ? `当前处于成绩录入时间范围内。未录入成绩 ${missingScores} 条，未提交成绩 ${unsubmittedScores} 条，请及时处理。`
+    : '当前处于成绩录入时间范围内，暂无未录入或未提交成绩。'
+  ElMessageBox.alert(message, '成绩录入提醒', {
+    type: 'warning',
+    confirmButtonText: '知道了'
+  })
+}
+
+onMounted(() => {
+  loadTeacherTodos()
+})
 </script>
 
 <style scoped>
@@ -77,10 +172,10 @@ const actionList = computed(() => {
   padding: 28px;
   border-radius: 24px;
   background:
-    radial-gradient(circle at top right, rgba(100, 166, 135, 0.25), transparent 28%),
-    linear-gradient(135deg, #173f35 0%, #27594b 100%);
+    radial-gradient(circle at top right, rgba(224, 247, 255, 0.24), transparent 30%),
+    linear-gradient(135deg, #075985 0%, #0369a1 54%, #0284c7 100%);
   color: #fff;
-  box-shadow: 0 20px 50px rgba(23, 63, 53, 0.18);
+  box-shadow: 0 22px 55px rgba(3, 105, 161, 0.26);
 }
 
 .hero-card h1 {
@@ -90,7 +185,7 @@ const actionList = computed(() => {
 
 .hero-card p {
   margin: 0;
-  color: #d9efe7;
+  color: rgba(255, 255, 255, 0.84);
 }
 
 .hero-tag {
@@ -99,6 +194,22 @@ const actionList = computed(() => {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.14);
   font-size: 13px;
+}
+
+.password-warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 8px;
+  color: #7c2d12;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+
+.password-warning p {
+  margin: 6px 0 0;
 }
 
 .card-grid {
@@ -111,11 +222,45 @@ const actionList = computed(() => {
   padding: 24px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 20px 50px rgba(22, 48, 41, 0.08);
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  box-shadow: var(--card-shadow);
 }
 
 .dashboard-card h2 {
   margin-top: 0;
+}
+
+.todo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.todo-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.todo-item {
+  padding: 16px;
+  border-radius: 8px;
+  background: #f8fbfd;
+  border: 1px solid #c8ecff;
+}
+
+.todo-item span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.todo-item strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--sky-700);
+  font-size: 24px;
 }
 
 .plain-list {
@@ -129,5 +274,12 @@ const actionList = computed(() => {
 
 .span-2 {
   grid-column: 1 / -1;
+}
+
+@media (max-width: 720px) {
+  .card-grid,
+  .todo-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

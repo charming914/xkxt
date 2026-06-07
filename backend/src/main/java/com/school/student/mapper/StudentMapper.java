@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
+import org.apache.ibatis.annotations.Delete;
 
 @Mapper
 public interface StudentMapper {
@@ -39,7 +40,55 @@ public interface StudentMapper {
             cl.building_name AS buildingName,
             cl.room_name AS roomName,
             tc.max_students AS maxStudents,
-            tc.selected_count AS selectedCount
+            tc.selected_count AS selectedCount,
+            CASE
+                WHEN NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+                 AND tc.selected_count &lt; tc.max_students
+                 AND NOT EXISTS (
+                    SELECT 1 FROM course_selection selected
+                    WHERE selected.student_id = #{studentId}
+                      AND selected.teaching_class_id = tc.teaching_class_id
+                      AND selected.selection_status = '已选'
+                 )
+                THEN 1 ELSE 0
+            END AS canSelectDirectly,
+            CASE
+                WHEN (
+                    NOW() NOT BETWEEN sem.course_select_start AND sem.course_select_end
+                    OR tc.selected_count >= tc.max_students
+                )
+                 AND NOT EXISTS (
+                    SELECT 1 FROM course_selection selected
+                    WHERE selected.student_id = #{studentId}
+                      AND selected.teaching_class_id = tc.teaching_class_id
+                      AND selected.selection_status = '已选'
+                 )
+                 AND NOT EXISTS (
+                    SELECT 1 FROM course_selection_request pending
+                    WHERE pending.student_id = #{studentId}
+                      AND pending.teaching_class_id = tc.teaching_class_id
+                      AND pending.request_status = '待审核'
+                 )
+                THEN 1 ELSE 0
+            END AS canRequestSelection,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1 FROM course_selection selected
+                    WHERE selected.student_id = #{studentId}
+                      AND selected.teaching_class_id = tc.teaching_class_id
+                      AND selected.selection_status = '已选'
+                )
+                THEN 1 ELSE 0
+            END AS alreadySelected,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1 FROM course_selection_request pending
+                    WHERE pending.student_id = #{studentId}
+                      AND pending.teaching_class_id = tc.teaching_class_id
+                      AND pending.request_status = '待审核'
+                )
+                THEN 1 ELSE 0
+            END AS hasPendingSelectionRequest
         FROM teaching_class tc
         JOIN semester sem ON tc.semester_id = sem.semester_id
         JOIN course c ON tc.course_id = c.course_id
@@ -47,13 +96,6 @@ public interface StudentMapper {
         LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
         WHERE sem.is_current = 1
           AND tc.status = '选课中'
-          AND NOT EXISTS (
-            SELECT 1
-            FROM course_selection cs
-            WHERE cs.student_id = #{studentId}
-              AND cs.teaching_class_id = tc.teaching_class_id
-              AND cs.selection_status = '已选'
-          )
           <if test="query.teacherName != null and query.teacherName != ''">
             AND t.teacher_name LIKE CONCAT('%', #{query.teacherName}, '%')
           </if>
@@ -341,6 +383,81 @@ public interface StudentMapper {
           AND selection_status = '已选'
         """)
     int countSelectedCourse(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM course_selection
+        WHERE student_id = #{studentId}
+          AND teaching_class_id = #{teachingClassId}
+          AND selection_status = '已退'
+        """)
+    int countDroppedCourse(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM teaching_class tc
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        WHERE tc.teaching_class_id = #{teachingClassId}
+          AND sem.is_current = 1
+          AND tc.status = '选课中'
+          AND NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+        """)
+    int countSelectableTeachingClass(@Param("teachingClassId") Integer teachingClassId);
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM teaching_class
+        WHERE teaching_class_id = #{teachingClassId}
+          AND selected_count < max_students
+        """)
+    int countAvailableCapacity(@Param("teachingClassId") Integer teachingClassId);
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM course_selection cs
+        JOIN teaching_class t1 ON cs.teaching_class_id = t1.teaching_class_id
+        JOIN teaching_class t2 ON t2.teaching_class_id = #{teachingClassId}
+        WHERE cs.student_id = #{studentId}
+          AND cs.selection_status = '已选'
+          AND t1.semester_id = t2.semester_id
+          AND t1.week_day = t2.week_day
+          AND t1.section_desc = t2.section_desc
+          AND cs.teaching_class_id <> #{teachingClassId}
+        """)
+    int countStudentTimeConflict(
+        @Param("studentId") String studentId,
+        @Param("teachingClassId") Integer teachingClassId
+    );
+
+    @Insert("""
+        INSERT INTO course_selection (student_id, teaching_class_id, selection_status)
+        VALUES (#{studentId}, #{teachingClassId}, '已选')
+        """)
+    int insertSelectedCourse(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
+
+    @Update("""
+        UPDATE course_selection
+        SET selection_status = '已选',
+            selection_time = NOW()
+        WHERE student_id = #{studentId}
+          AND teaching_class_id = #{teachingClassId}
+          AND selection_status = '已退'
+        """)
+    int restoreDroppedCourse(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
+
+    @Update("""
+        UPDATE teaching_class
+        SET selected_count = selected_count + 1
+        WHERE teaching_class_id = #{teachingClassId}
+        """)
+    int increaseSelectedCount(@Param("teachingClassId") Integer teachingClassId);
+
+    @Delete("""
+        DELETE FROM score
+        WHERE student_id = #{studentId}
+          AND teaching_class_id = #{teachingClassId}
+        """)
+    int deleteScore(@Param("studentId") String studentId, @Param("teachingClassId") Integer teachingClassId);
 
     @Update("""
         UPDATE course_selection

@@ -12,8 +12,6 @@
         </el-form-item>
         <el-button type="primary" class="full-width" :loading="loading" @click="handleLogin">登录</el-button>
       </el-form>
-      <div class="tips">
-      </div>
     </div>
   </div>
 </template>
@@ -40,7 +38,9 @@ function buildUser(data) {
     realName: data.realName,
     roleCode: data.roleCode,
     token: data.token,
-    refId: data.refId || null
+    defaultPassword: Boolean(data.defaultPassword),
+    loginAt: Date.now(),
+    refId: data.roleCode === 'STUDENT' || data.roleCode === 'TEACHER' ? data.username : null
   }
 }
 
@@ -67,8 +67,9 @@ async function handleLogin() {
   display: grid;
   place-items: center;
   background:
-    radial-gradient(circle at top left, rgba(69, 136, 110, 0.35), transparent 35%),
-    linear-gradient(135deg, #f4f8f5 0%, #e2efe9 100%);
+    radial-gradient(circle at top left, rgba(3, 105, 161, 0.28), transparent 36%),
+    radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.42), transparent 30%),
+    linear-gradient(135deg, #edf8ff 0%, #cfeaff 100%);
 }
 
 .login-card {
@@ -76,18 +77,11 @@ async function handleLogin() {
   padding: 32px;
   background: rgba(255, 255, 255, 0.92);
   border-radius: 18px;
-  box-shadow: 0 24px 60px rgba(26, 60, 50, 0.12);
+  border: 1px solid rgba(3, 105, 161, 0.18);
+  box-shadow: 0 24px 60px rgba(3, 105, 161, 0.18);
 }
 
 .full-width {
   width: 100%;
-}
-
-.tips {
-  display: grid;
-  gap: 6px;
-  margin-top: 16px;
-  color: #5b6d68;
-  font-size: 13px;
 }
 </style>

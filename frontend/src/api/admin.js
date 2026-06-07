@@ -149,6 +149,65 @@ export function updateCourseSelectionSetting(data) {
   })
 }
 
+export function getScoreSubmitSetting() {
+  return request({
+    url: '/admin/score-submit-setting',
+    method: 'get'
+  })
+}
+
+export function updateScoreSubmitSetting(data) {
+  return request({
+    url: '/admin/score-submit-setting',
+    method: 'put',
+    data
+  })
+}
+
+export function getSubmittedScores() {
+  return request({
+    url: '/admin/scores/submitted',
+    method: 'get'
+  })
+}
+
+export function rollbackSubmittedScore(scoreId) {
+  return request({
+    url: `/admin/scores/${scoreId}/rollback`,
+    method: 'put'
+  })
+}
+
+export function getAdminScoreChangeRequests() {
+  return request({
+    url: '/admin/score-change-requests',
+    method: 'get'
+  })
+}
+
+export function reviewAdminScoreChangeRequest(scoreChangeRequestId, data) {
+  return request({
+    url: `/admin/score-change-requests/${scoreChangeRequestId}/review`,
+    method: 'put',
+    data
+  })
+}
+
+export function getAdminScoreReviewRequests() {
+  return request({
+    url: '/admin/score-review-requests',
+    method: 'get'
+  })
+}
+
+export function reviewAdminScoreReviewRequest(requestId, data) {
+  return request({
+    url: `/admin/score-review-requests/${requestId}/review`,
+    method: 'put',
+    data
+  })
+}
+
 export function getDepartmentOptions() {
   return request({
     url: '/admin/departments',
@@ -228,16 +287,16 @@ export function reviewAdminCourseDropRequest(dropRequestId, data) {
   })
 }
 
-export function getAdminScoreReviewRequests() {
+export function getAdminScheduleAdjustRequests() {
   return request({
-    url: '/admin/score-review-requests',
+    url: '/admin/schedule-adjust-requests',
     method: 'get'
   })
 }
 
-export function reviewAdminScoreReviewRequest(requestId, data) {
+export function reviewAdminScheduleAdjustRequest(adjustRequestId, data) {
   return request({
-    url: `/admin/score-review-requests/${requestId}/review`,
+    url: `/admin/schedule-adjust-requests/${adjustRequestId}/review`,
     method: 'put',
     data
   })

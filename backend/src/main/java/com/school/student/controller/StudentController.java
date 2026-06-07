@@ -29,126 +29,116 @@ public class StudentController {
 
     @GetMapping("/courses/available")
     public ApiResponse<List<Map<String, Object>>> availableCourses(
+        StudentCourseQueryRequest query,
         @RequestHeader(value = "X-Username", required = false) String username,
-        StudentCourseQueryRequest query
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
     ) {
-        return ApiResponse.success(studentService.availableCourses(username, query));
-    }
-
-    @GetMapping("/course-selections")
-    public ApiResponse<List<Map<String, Object>>> selectedCourses(
-        @RequestHeader(value = "X-Username", required = false) String username
-    ) {
-        return ApiResponse.success(studentService.selectedCourses(username));
+        return ApiResponse.success(studentService.availableCourses(query, username, studentId));
     }
 
     @GetMapping("/selected-courses")
-    public ApiResponse<List<Map<String, Object>>> selectedCoursesAlias(
-        @RequestHeader(value = "X-Username", required = false) String username
+    public ApiResponse<List<Map<String, Object>>> selectedCourses(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
     ) {
-        return ApiResponse.success(studentService.selectedCourses(username));
+        return ApiResponse.success(studentService.selectedCourses(username, studentId));
     }
 
     @PostMapping("/course-selections")
     public ApiResponse<Void> selectCourse(
         @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId,
         @Valid @RequestBody SelectCourseRequest request
     ) {
-        studentService.selectCourse(username, request);
+        studentService.selectCourse(username, studentId, request);
         return ApiResponse.success("选课成功", null);
     }
 
     @DeleteMapping("/course-selections/{teachingClassId}")
     public ApiResponse<Void> dropCourse(
         @PathVariable Integer teachingClassId,
-        @RequestHeader(value = "X-Username", required = false) String username
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
     ) {
-        studentService.dropCourse(username, teachingClassId);
+        studentService.dropCourse(username, studentId, teachingClassId);
         return ApiResponse.success("退课成功", null);
     }
 
     @GetMapping("/timetable")
     public ApiResponse<List<Map<String, Object>>> timetable(
-        @RequestHeader(value = "X-Username", required = false) String username
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
     ) {
-        return ApiResponse.success(studentService.timetable(username));
+        return ApiResponse.success(studentService.timetable(username, studentId));
     }
 
     @GetMapping("/scores")
     public ApiResponse<List<Map<String, Object>>> scores(
-        @RequestHeader(value = "X-Username", required = false) String username
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
     ) {
-        return ApiResponse.success(studentService.scores(username));
+        return ApiResponse.success(studentService.scores(username, studentId));
     }
 
     @PostMapping("/course-selection-requests")
     public ApiResponse<Void> createCourseSelectionRequest(
         @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId,
         @Valid @RequestBody CourseSelectionRequestCreateRequest request
     ) {
-        studentService.createCourseSelectionRequest(username, request);
+        studentService.createCourseSelectionRequest(username, studentId, request);
         return ApiResponse.success("补选申请已提交", null);
     }
 
     @GetMapping("/course-selection-requests")
     public ApiResponse<List<Map<String, Object>>> courseSelectionRequests(
-        @RequestHeader(value = "X-Username", required = false) String username
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
     ) {
-        return ApiResponse.success(studentService.courseSelectionRequests(username));
+        return ApiResponse.success(studentService.courseSelectionRequests(username, studentId));
     }
 
     @GetMapping("/drop-courses")
     public ApiResponse<List<Map<String, Object>>> dropCourses(
-        @RequestHeader(value = "X-Username", required = false) String username
-    ) {
-        return ApiResponse.success(studentService.dropCourses(username));
-    }
-
-    @PostMapping("/course-drop-requests")
-    public ApiResponse<Void> createCourseDropRequest(
         @RequestHeader(value = "X-Username", required = false) String username,
-        @Valid @RequestBody CourseDropRequestCreateRequest request
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
     ) {
-        studentService.createCourseDropRequest(username, request);
-        return ApiResponse.success("退课申请已提交", null);
+        return ApiResponse.success(studentService.dropCourses(username, studentId));
     }
 
     @PostMapping("/drop-requests")
-    public ApiResponse<Void> createCourseDropRequestAlias(
+    public ApiResponse<Void> createCourseDropRequest(
         @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId,
         @Valid @RequestBody CourseDropRequestCreateRequest request
     ) {
-        studentService.createCourseDropRequest(username, request);
+        studentService.createCourseDropRequest(username, studentId, request);
         return ApiResponse.success("退课申请已提交", null);
     }
 
-    @GetMapping("/course-drop-requests")
-    public ApiResponse<List<Map<String, Object>>> courseDropRequests(
-        @RequestHeader(value = "X-Username", required = false) String username
-    ) {
-        return ApiResponse.success(studentService.courseDropRequests(username));
-    }
-
     @GetMapping("/drop-requests")
-    public ApiResponse<List<Map<String, Object>>> courseDropRequestsAlias(
-        @RequestHeader(value = "X-Username", required = false) String username
+    public ApiResponse<List<Map<String, Object>>> courseDropRequests(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
     ) {
-        return ApiResponse.success(studentService.courseDropRequests(username));
+        return ApiResponse.success(studentService.courseDropRequests(username, studentId));
     }
 
     @PostMapping("/score-review-requests")
     public ApiResponse<Void> createScoreReviewRequest(
         @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId,
         @Valid @RequestBody ScoreReviewRequestCreateRequest request
     ) {
-        studentService.createScoreReviewRequest(username, request);
+        studentService.createScoreReviewRequest(username, studentId, request);
         return ApiResponse.success("成绩复核申请已提交", null);
     }
 
     @GetMapping("/score-review-requests")
     public ApiResponse<List<Map<String, Object>>> scoreReviewRequests(
-        @RequestHeader(value = "X-Username", required = false) String username
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
     ) {
-        return ApiResponse.success(studentService.scoreReviewRequests(username));
+        return ApiResponse.success(studentService.scoreReviewRequests(username, studentId));
     }
 }

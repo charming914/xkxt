@@ -2,10 +2,10 @@
   <section class="page-card">
     <div class="page-header">
       <div>
-        <h1>成绩查询</h1>
+        <h1>学生成绩</h1>
         <p>当前登录学生：{{ userStore.realName }}（{{ userStore.refId }}）</p>
       </div>
-      <el-button @click="loadScores">刷新成绩</el-button>
+      <el-button @click="refreshAll">刷新成绩</el-button>
     </div>
 
     <el-form :model="queryForm" label-width="78px" class="query-panel">
@@ -46,9 +46,9 @@
         <strong>{{ averageScore }}</strong>
       </div>
       <div class="summary-card">
-        <span class="summary-label">学期平均绩点</span>
-        <strong>{{ semesterWeightedGpa }}</strong>
-        <span class="summary-tip">{{ selectedSemesterLabel }}</span>
+        <span class="summary-label">平均绩点</span>
+        <strong>{{ weightedGpa }}</strong>
+        <span class="summary-tip">{{ gpaScopeLabel }}</span>
       </div>
       <div class="summary-card">
         <span class="summary-label">计入学分</span>
@@ -120,6 +120,7 @@
         </el-table-column>
         <el-table-column prop="reviewComment" label="审核备注" min-width="170" />
         <el-table-column prop="createdAt" label="申请时间" min-width="170" />
+        <el-table-column prop="reviewedAt" label="审核时间" min-width="170" />
       </el-table>
     </div>
 
@@ -133,16 +134,18 @@
         </el-form-item>
         <el-form-item label="复核原因">
           <el-input
-            v-model="requestReason"
+            v-model.trim="requestReason"
             type="textarea"
             :rows="4"
+            maxlength="200"
+            show-word-limit
             placeholder="请说明需要复核的具体原因"
           />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleCreateReviewRequest">提交申请</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleCreateReviewRequest">提交申请</el-button>
       </template>
     </el-dialog>
   </section>
@@ -157,6 +160,7 @@ import { useUserStore } from '../../stores/user'
 const userStore = useUserStore()
 const loading = ref(false)
 const requestLoading = ref(false)
+const submitting = ref(false)
 const scores = ref([])
 const reviewRequests = ref([])
 const dialogVisible = ref(false)
@@ -217,7 +221,7 @@ const weightedCredits = computed(() => {
   return total.toFixed(1)
 })
 
-const semesterWeightedGpa = computed(() => {
+const weightedGpa = computed(() => {
   const totalCredits = Number(weightedCredits.value)
   if (!totalCredits) {
     return '0.00'
@@ -231,16 +235,16 @@ const semesterWeightedGpa = computed(() => {
   return (weightedTotal / totalCredits).toFixed(2)
 })
 
-const selectedSemesterLabel = computed(() => {
+const gpaScopeLabel = computed(() => {
   if (appliedQuery.semesterName) {
     return `按 ${appliedQuery.semesterName} 全部成绩计算`
   }
-  return '未选择学期时按当前查询结果计算'
+  return '按当前查询结果计算'
 })
 
 const selectedScoreLabel = computed(() => {
   if (!selectedScore.value) return ''
-  return `${selectedScore.value.courseName}（${selectedScore.value.courseId}）`
+  return `${selectedScore.value.courseName}（${selectedScore.value.courseId || '无课程号'}）`
 })
 
 const selectedScoreValue = computed(() => {
@@ -288,10 +292,6 @@ async function loadScores() {
   try {
     const response = await getStudentScores()
     scores.value = response.data || []
-    if (!appliedQuery.semesterName && semesterOptions.value.length === 1) {
-      queryForm.semesterName = semesterOptions.value[0]
-      applyQuery()
-    }
   } finally {
     loading.value = false
   }
@@ -307,6 +307,10 @@ async function loadReviewRequests() {
   }
 }
 
+async function refreshAll() {
+  await Promise.all([loadScores(), loadReviewRequests()])
+}
+
 function openReviewDialog(row) {
   selectedScore.value = row
   requestReason.value = ''
@@ -317,23 +321,26 @@ async function handleCreateReviewRequest() {
   if (!selectedScore.value) {
     return
   }
-  if (!requestReason.value.trim()) {
+  if (!requestReason.value) {
     ElMessage.warning('请填写复核原因')
     return
   }
-  const response = await createScoreReviewRequest({
-    scoreId: selectedScore.value.scoreId,
-    requestReason: requestReason.value.trim()
-  })
-  ElMessage.success(response.message || '成绩复核申请提交成功')
-  dialogVisible.value = false
-  await loadScores()
-  await loadReviewRequests()
+  submitting.value = true
+  try {
+    const response = await createScoreReviewRequest({
+      scoreId: selectedScore.value.scoreId,
+      requestReason: requestReason.value
+    })
+    ElMessage.success(response.message || '成绩复核申请提交成功')
+    dialogVisible.value = false
+    await refreshAll()
+  } finally {
+    submitting.value = false
+  }
 }
 
 onMounted(() => {
-  loadScores()
-  loadReviewRequests()
+  refreshAll()
 })
 </script>
 
@@ -344,39 +351,6 @@ onMounted(() => {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 20px;
-}
-
-.summary-row {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.summary-card {
-  padding: 18px 20px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #edf7f1 0%, #f8fbfd 100%);
-  border: 1px solid #d8e9df;
-}
-
-.summary-card strong {
-  display: block;
-  margin-top: 8px;
-  font-size: 26px;
-  color: #173f35;
-}
-
-.summary-label {
-  color: #5b6d68;
-  font-size: 13px;
-}
-
-.summary-tip {
-  display: block;
-  margin-top: 6px;
-  color: #6b7b76;
-  font-size: 12px;
 }
 
 .query-panel {
@@ -407,6 +381,39 @@ onMounted(() => {
   width: 100%;
 }
 
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.summary-card {
+  padding: 18px 20px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #e7f8ff 0%, #f8fdff 100%);
+  border: 1px solid #d8e9df;
+}
+
+.summary-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 26px;
+  color: var(--sky-700);
+}
+
+.summary-label {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.summary-tip {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .request-section {
   margin-top: 28px;
 }
@@ -416,5 +423,12 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+}
+
+@media (max-width: 960px) {
+  .query-grid,
+  .summary-row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

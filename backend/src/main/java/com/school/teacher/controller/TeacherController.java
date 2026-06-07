@@ -1,8 +1,12 @@
 package com.school.teacher.controller;
 
 import com.school.common.api.ApiResponse;
-import com.school.teacher.dto.CourseDropRequestTeacherReviewRequest;
+import com.school.common.dto.CourseDropReviewRequest;
+import com.school.teacher.dto.ScheduleAdjustRequestCreateRequest;
+import com.school.teacher.dto.ScoreChangeRequestCreateRequest;
+import com.school.teacher.dto.ScoreBatchSaveRequest;
 import com.school.teacher.dto.ScoreInputRequest;
+import com.school.teacher.dto.TeacherProfileUpdateRequest;
 import com.school.teacher.service.TeacherService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -16,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/teacher")
@@ -23,6 +28,29 @@ import org.springframework.web.bind.annotation.RequestHeader;
 public class TeacherController {
 
     private final TeacherService teacherService;
+
+    @GetMapping("/profile")
+    public ApiResponse<Map<String, Object>> profile(
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        return ApiResponse.success(teacherService.profile(teacherId));
+    }
+
+    @GetMapping("/todos")
+    public ApiResponse<Map<String, Object>> todos(
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        return ApiResponse.success(teacherService.todoSummary(teacherId));
+    }
+
+    @PutMapping("/profile")
+    public ApiResponse<Void> updateProfile(
+        @Valid @RequestBody TeacherProfileUpdateRequest request,
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        teacherService.updateProfile(teacherId, request);
+        return ApiResponse.success("个人信息保存成功", null);
+    }
 
     @GetMapping("/teaching-classes")
     public ApiResponse<List<Map<String, Object>>> teachingClasses(
@@ -38,10 +66,46 @@ public class TeacherController {
         return ApiResponse.success(teacherService.scores(teacherId));
     }
 
+    @GetMapping("/scores/submit-window/{teachingClassId}")
+    public ApiResponse<Map<String, Object>> scoreSubmitWindow(
+        @PathVariable Integer teachingClassId,
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        return ApiResponse.success(teacherService.scoreSubmitWindow(teacherId, teachingClassId));
+    }
+
     @PostMapping("/scores")
-    public ApiResponse<Void> saveScore(@Valid @RequestBody ScoreInputRequest request) {
-        teacherService.saveScore(request);
+    public ApiResponse<Void> saveScore(
+        @Valid @RequestBody ScoreInputRequest request,
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        teacherService.saveScore(request, teacherId);
         return ApiResponse.success("成绩保存成功", null);
+    }
+
+    @PostMapping("/scores/batch")
+    public ApiResponse<Void> saveScores(
+        @Valid @RequestBody ScoreBatchSaveRequest request,
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        teacherService.saveScores(request.getScores(), teacherId);
+        return ApiResponse.success("成绩批量保存成功", null);
+    }
+
+    @GetMapping("/teaching-classes/{teachingClassId}")
+    public ApiResponse<Map<String, Object>> teachingClassDetail(
+        @PathVariable Integer teachingClassId,
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        return ApiResponse.success(teacherService.teachingClassDetail(teacherId, teachingClassId));
+    }
+
+    @GetMapping("/teaching-classes/{teachingClassId}/students")
+    public ApiResponse<List<Map<String, Object>>> teachingClassStudents(
+        @PathVariable Integer teachingClassId,
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        return ApiResponse.success(teacherService.teachingClassStudents(teacherId, teachingClassId));
     }
 
     @GetMapping("/course-drop-requests")
@@ -51,10 +115,57 @@ public class TeacherController {
         return ApiResponse.success(teacherService.courseDropRequests(teacherId));
     }
 
+    @GetMapping("/classroom-options")
+    public ApiResponse<List<Map<String, Object>>> classroomOptions() {
+        return ApiResponse.success(teacherService.classroomOptions());
+    }
+
+    @GetMapping("/available-classroom-options")
+    public ApiResponse<List<Map<String, Object>>> availableClassroomOptions(
+        @RequestParam Integer teachingClassId,
+        @RequestParam Integer weekDay,
+        @RequestParam String sectionDesc,
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        return ApiResponse.success(teacherService.availableClassroomOptions(teacherId, teachingClassId, weekDay, sectionDesc));
+    }
+
+    @GetMapping("/schedule-adjust-requests")
+    public ApiResponse<List<Map<String, Object>>> scheduleAdjustRequests(
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        return ApiResponse.success(teacherService.scheduleAdjustRequests(teacherId));
+    }
+
+    @PostMapping("/schedule-adjust-requests")
+    public ApiResponse<Void> createScheduleAdjustRequest(
+        @Valid @RequestBody ScheduleAdjustRequestCreateRequest request,
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        teacherService.createScheduleAdjustRequest(teacherId, request);
+        return ApiResponse.success("调课申请提交成功", null);
+    }
+
+    @GetMapping("/score-change-requests")
+    public ApiResponse<List<Map<String, Object>>> scoreChangeRequests(
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        return ApiResponse.success(teacherService.scoreChangeRequests(teacherId));
+    }
+
+    @PostMapping("/score-change-requests")
+    public ApiResponse<Void> createScoreChangeRequest(
+        @Valid @RequestBody ScoreChangeRequestCreateRequest request,
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        teacherService.createScoreChangeRequest(teacherId, request);
+        return ApiResponse.success("成绩修改申请提交成功", null);
+    }
+
     @PutMapping("/course-drop-requests/{dropRequestId}/review")
     public ApiResponse<Void> reviewCourseDropRequest(
         @PathVariable Long dropRequestId,
-        @Valid @RequestBody CourseDropRequestTeacherReviewRequest request,
+        @Valid @RequestBody CourseDropReviewRequest request,
         @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
     ) {
         teacherService.reviewCourseDropRequest(dropRequestId, request, teacherId);

@@ -21,6 +21,10 @@
       <el-select v-model="filters.teacherId" clearable placeholder="按教师筛选">
         <el-option v-for="item in teachers" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
+      <el-select v-model="filters.classroomId" clearable placeholder="按教室筛选">
+        <el-option v-for="item in classrooms" :key="item.value" :label="item.label" :value="item.value" />
+      </el-select>
+      <el-button :disabled="filteredTeachingClasses.length === 0" @click="exportClassroomTimetable">导出教室课表</el-button>
       <el-button @click="resetFilters">重置筛选</el-button>
     </div>
 
@@ -30,6 +34,7 @@
       <el-table-column prop="teachingClassId" label="教学班编号" width="120" />
       <el-table-column prop="semesterName" label="学期" min-width="120" />
       <el-table-column prop="courseName" label="课程名称" min-width="150" />
+      <el-table-column prop="courseStartDate" label="开课日期" width="120" />
       <el-table-column prop="teacherName" label="任课教师" width="110" />
       <el-table-column label="上课时间" min-width="170">
         <template #default="{ row }">
@@ -69,6 +74,14 @@
           <el-select v-model="form.courseId">
             <el-option v-for="item in courses" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="开课日期">
+          <el-date-picker
+            v-model="form.courseStartDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="选择开课日期"
+          />
         </el-form-item>
         <el-form-item label="任课教师">
           <el-select v-model="form.teacherId">
@@ -158,7 +171,8 @@ const currentTeachingClassLabel = ref('')
 const filters = reactive({
   semesterId: null,
   courseId: '',
-  teacherId: ''
+  teacherId: '',
+  classroomId: ''
 })
 
 const weekDayOptions = [
@@ -174,6 +188,7 @@ const sectionOptions = ['1-2节', '1-4节', '3-4节', '5-6节', '5-8节', '7-8�
 
 const form = reactive({
   semesterId: null,
+  courseStartDate: '',
   courseId: '',
   teacherId: '',
   classroomId: '',
@@ -189,8 +204,16 @@ const filteredTeachingClasses = computed(() => {
     const matchSemester = !filters.semesterId || item.semesterId === filters.semesterId
     const matchCourse = !filters.courseId || item.courseId === filters.courseId
     const matchTeacher = !filters.teacherId || item.teacherId === filters.teacherId
-    return matchSemester && matchCourse && matchTeacher
+    const matchClassroom = !filters.classroomId || item.classroomId === filters.classroomId
+    return matchSemester && matchCourse && matchTeacher && matchClassroom
   })
+})
+
+const selectedClassroomLabel = computed(() => {
+  if (!filters.classroomId) {
+    return '全部教室'
+  }
+  return classrooms.value.find(item => item.value === filters.classroomId)?.label || filters.classroomId
 })
 
 function weekLabel(weekDay) {
@@ -224,6 +247,7 @@ async function loadOptions() {
 function resetForm() {
   Object.assign(form, {
     semesterId: semesters.value[0]?.value ?? null,
+    courseStartDate: '',
     courseId: courses.value[0]?.value || '',
     teacherId: teachers.value[0]?.value || '',
     classroomId: '',
@@ -239,6 +263,60 @@ function resetFilters() {
   filters.semesterId = null
   filters.courseId = ''
   filters.teacherId = ''
+  filters.classroomId = ''
+}
+
+function classroomLabel(row) {
+  return [row.buildingName, row.roomName].filter(Boolean).join(' ') || '-'
+}
+
+function sectionOrder(sectionDesc) {
+  const matched = String(sectionDesc || '').match(/\d+/)
+  return matched ? Number(matched[0]) : 999
+}
+
+function escapeCsv(value) {
+  const text = value == null ? '' : String(value)
+  return `"${text.replace(/"/g, '""')}"`
+}
+
+function exportClassroomTimetable() {
+  if (filteredTeachingClasses.value.length === 0) {
+    ElMessage.warning('当前没有可导出的教室课表')
+    return
+  }
+
+  const headers = ['学期', '教室', '星期', '节次', '周次', '课程名称', '教学班编号', '任课教师', '开课日期', '容量', '状态']
+  const rows = [...filteredTeachingClasses.value]
+    .sort((a, b) => {
+      return String(a.semesterName || '').localeCompare(String(b.semesterName || ''), 'zh-Hans') ||
+        classroomLabel(a).localeCompare(classroomLabel(b), 'zh-Hans') ||
+        Number(a.weekDay || 0) - Number(b.weekDay || 0) ||
+        sectionOrder(a.sectionDesc) - sectionOrder(b.sectionDesc) ||
+        String(a.courseStartDate || '').localeCompare(String(b.courseStartDate || '')) ||
+        Number(a.teachingClassId || 0) - Number(b.teachingClassId || 0)
+    })
+    .map(row => [
+      row.semesterName,
+      classroomLabel(row),
+      `周${weekLabel(row.weekDay)}`,
+      row.sectionDesc,
+      row.weekRange,
+      row.courseName,
+      row.teachingClassId,
+      row.teacherName,
+      row.courseStartDate,
+      `${row.selectedCount ?? 0}/${row.maxStudents ?? ''}`,
+      row.status
+    ])
+  const content = [headers, ...rows].map(row => row.map(escapeCsv).join(',')).join('\n')
+  const blob = new Blob([`\uFEFF${content}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `classroom-timetable-${selectedClassroomLabel.value}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 function openCreateDialog() {
@@ -253,6 +331,7 @@ function openEditDialog(row) {
   currentId.value = row.teachingClassId
   Object.assign(form, {
     semesterId: row.semesterId,
+    courseStartDate: row.courseStartDate || '',
     courseId: row.courseId,
     teacherId: row.teacherId,
     classroomId: row.classroomId || '',
@@ -266,6 +345,11 @@ function openEditDialog(row) {
 }
 
 async function handleSave() {
+  if (!form.courseStartDate) {
+    ElMessage.warning('请选择开课日期')
+    return
+  }
+
   if (isEdit.value) {
     await updateAdminTeachingClass(currentId.value, form)
     ElMessage.success('教学班修改成功')
