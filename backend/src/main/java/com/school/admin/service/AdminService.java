@@ -5,6 +5,7 @@ import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
+import com.school.admin.dto.ScoreReviewRequestReviewRequest;
 import com.school.admin.dto.ScoreSubmitSettingRequest;
 import static com.school.common.support.CourseDropReviewSupport.resolveDropCourseMessage;
 import static com.school.common.support.CourseDropReviewSupport.resolveReviewStatus;
@@ -188,6 +189,10 @@ public class AdminService {
         return adminMapper.selectScoreChangeRequests();
     }
 
+    public List<Map<String, Object>> scoreReviewRequests() {
+        return adminMapper.selectScoreReviewRequests();
+    }
+
     @Transactional
     public void rollbackSubmittedScore(Long scoreId) {
         if (adminMapper.rollbackSubmittedScore(scoreId) == 0) {
@@ -240,6 +245,39 @@ public class AdminService {
         }
 
         throw new BusinessException("不支持的审核动作");
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void reviewScoreReviewRequest(
+        Long requestId,
+        ScoreReviewRequestReviewRequest request,
+        String adminUsername
+    ) {
+        Map<String, Object> scoreReviewRequest = adminMapper.selectScoreReviewRequestById(requestId);
+        if (scoreReviewRequest == null) {
+            throw new BusinessException("成绩复核申请不存在");
+        }
+        if (!"待审核".equals(scoreReviewRequest.get("requestStatus"))) {
+            throw new BusinessException("该成绩复核申请已处理，请勿重复审核");
+        }
+
+        Integer adminUserId = adminMapper.selectUserIdByUsername(adminUsername);
+        if (adminUserId == null) {
+            throw new BusinessException("管理员账号不存在");
+        }
+
+        String reviewStatus = resolveReviewStatus(request.getAction());
+        adminMapper.updateScoreReviewRequestStatus(
+            requestId,
+            reviewStatus,
+            request.getReviewComment(),
+            adminUserId
+        );
+        adminMapper.insertOperationLog(
+            adminUserId,
+            "成绩复核审核",
+            "管理员处理成绩复核申请，申请编号：" + requestId + "，结果：" + reviewStatus
+        );
     }
 
     @Transactional(rollbackFor = Exception.class)

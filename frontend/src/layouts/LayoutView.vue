@@ -82,6 +82,7 @@ const navItems = computed(() => {
       { path: '/admin/course-drop-requests', label: '退课审核' },
       { path: '/admin/schedule-adjust-requests', label: '调课审核' },
       { path: '/admin/score-change-requests', label: '成绩修改审核' },
+      { path: '/admin/score-review-requests', label: '成绩复核审核' },
       { path: '/admin/statistics', label: '统计分析' }
     )
   }

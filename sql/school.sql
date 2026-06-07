@@ -219,6 +219,28 @@ CREATE TABLE score (
         FOREIGN KEY (teaching_class_id) REFERENCES teaching_class(teaching_class_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='成绩表';
 
+CREATE TABLE score_review_request (
+    request_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '成绩复核申请编号',
+    student_id VARCHAR(12) NOT NULL COMMENT '学号',
+    score_id BIGINT NOT NULL COMMENT '成绩编号',
+    request_reason VARCHAR(200) NOT NULL COMMENT '复核原因',
+    request_status VARCHAR(20) NOT NULL DEFAULT '待审核' COMMENT '申请状态',
+    review_comment VARCHAR(200) NULL COMMENT '审核备注',
+    reviewed_by INT NULL COMMENT '审核管理员用户编号',
+    reviewed_at DATETIME NULL COMMENT '审核时间',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '申请时间',
+    PRIMARY KEY (request_id),
+    KEY idx_score_review_student (student_id),
+    KEY idx_score_review_score (score_id),
+    KEY idx_score_review_status (request_status),
+    CONSTRAINT fk_score_review_student
+        FOREIGN KEY (student_id) REFERENCES student(student_id),
+    CONSTRAINT fk_score_review_score
+        FOREIGN KEY (score_id) REFERENCES score(score_id),
+    CONSTRAINT fk_score_review_admin
+        FOREIGN KEY (reviewed_by) REFERENCES sys_user(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='成绩复核申请表';
+
 CREATE TABLE operation_log (
     log_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '日志编号',
     user_id INT NULL COMMENT '操作人',
@@ -339,8 +361,8 @@ SET selected_count = (
 INSERT INTO score (
     student_id, teaching_class_id, usual_score, exam_score, final_score, gpa_point, is_submitted, entered_at
 ) VALUES
-('20240002', 1, 82, 86, 84.40, 3.8, 1, NOW()),
-('20240002', 2, 88, 90, 89.20, 4.0, 1, NOW()),
+('20240002', 1, 82, 86, 84.40, 3.3, 1, NOW()),
+('20240002', 2, 88, 90, 89.20, 3.7, 1, NOW()),
 ('20240003', 1, 75, 80, 78.00, 3.0, 1, NOW());
 
 DELIMITER $$
@@ -361,8 +383,14 @@ BEGIN
         SET NEW.final_score = ROUND(NEW.usual_score * 0.4 + NEW.exam_score * 0.6, 2);
         SET NEW.gpa_point = CASE
             WHEN NEW.final_score >= 90 THEN 4.0
-            WHEN NEW.final_score >= 80 THEN 3.0
-            WHEN NEW.final_score >= 70 THEN 2.0
+            WHEN NEW.final_score >= 85 THEN 3.7
+            WHEN NEW.final_score >= 82 THEN 3.3
+            WHEN NEW.final_score >= 78 THEN 3.0
+            WHEN NEW.final_score >= 75 THEN 2.7
+            WHEN NEW.final_score >= 72 THEN 2.3
+            WHEN NEW.final_score >= 68 THEN 2.0
+            WHEN NEW.final_score >= 66 THEN 1.7
+            WHEN NEW.final_score >= 64 THEN 1.5
             WHEN NEW.final_score >= 60 THEN 1.0
             ELSE 0.0
         END;
@@ -389,8 +417,14 @@ BEGIN
         SET NEW.final_score = ROUND(NEW.usual_score * 0.4 + NEW.exam_score * 0.6, 2);
         SET NEW.gpa_point = CASE
             WHEN NEW.final_score >= 90 THEN 4.0
-            WHEN NEW.final_score >= 80 THEN 3.0
-            WHEN NEW.final_score >= 70 THEN 2.0
+            WHEN NEW.final_score >= 85 THEN 3.7
+            WHEN NEW.final_score >= 82 THEN 3.3
+            WHEN NEW.final_score >= 78 THEN 3.0
+            WHEN NEW.final_score >= 75 THEN 2.7
+            WHEN NEW.final_score >= 72 THEN 2.3
+            WHEN NEW.final_score >= 68 THEN 2.0
+            WHEN NEW.final_score >= 66 THEN 1.7
+            WHEN NEW.final_score >= 64 THEN 1.5
             WHEN NEW.final_score >= 60 THEN 1.0
             ELSE 0.0
         END;
@@ -515,16 +549,40 @@ WHERE cs.selection_status = '已选';
 
 CREATE OR REPLACE VIEW v_student_score AS
 SELECT
+    sc.score_id,
     sc.student_id,
     s.student_name,
+    sem.semester_id,
     sem.semester_name,
+    tc.teaching_class_id,
+    c.course_id,
     c.course_name,
+    c.course_type,
+    c.credit,
+    t.teacher_name,
     sc.usual_score,
     sc.exam_score,
     sc.final_score,
-    sc.gpa_point
+    sc.gpa_point,
+    CASE
+        WHEN sc.final_score IS NULL THEN NULL
+        WHEN sc.final_score >= 90 THEN 'A'
+        WHEN sc.final_score >= 85 THEN 'A-'
+        WHEN sc.final_score >= 82 THEN 'B+'
+        WHEN sc.final_score >= 78 THEN 'B'
+        WHEN sc.final_score >= 75 THEN 'B-'
+        WHEN sc.final_score >= 72 THEN 'C+'
+        WHEN sc.final_score >= 68 THEN 'C'
+        WHEN sc.final_score >= 66 THEN 'C-'
+        WHEN sc.final_score >= 64 THEN 'D'
+        WHEN sc.final_score >= 60 THEN 'D-'
+        ELSE 'F'
+    END AS grade_level,
+    sc.is_submitted,
+    sc.entered_at
 FROM score sc
 JOIN student s ON sc.student_id = s.student_id
 JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
 JOIN semester sem ON tc.semester_id = sem.semester_id
-JOIN course c ON tc.course_id = c.course_id;
+JOIN course c ON tc.course_id = c.course_id
+JOIN teacher t ON tc.teacher_id = t.teacher_id;

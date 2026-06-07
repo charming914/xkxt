@@ -69,21 +69,37 @@
   - 学生可选课程接口返回 `canSelectDirectly`、`canRequestSelection`、`alreadySelected`、`hasPendingSelectionRequest`，前端据此互斥显示“选课”和“申请补选”按钮可用状态。
   - 退课会清理该学生在该教学班的成绩记录；退课后再次加入课程前也会删除旧成绩，避免保留历史已提交成绩。
 
+- 学生端绩点换算与成绩复核恢复：
+  - 恢复 `score` 表触发器的 11 档绩点换算规则：90/85/82/78/75/72/68/66/64/60 分分别对应 4.0/3.7/3.3/3.0/2.7/2.3/2.0/1.7/1.5/1.0/0.0。
+  - 修正 `sql/school.sql` 中初始化成绩样例和 `v_student_score` 视图，补回课程号、课程类型、学分、任课教师、等级、提交状态和录入时间字段。
+  - 新增 `sql/0605_score_gpa_update.sql`，用于已有数据库更新绩点触发器、重算已有成绩并升级学生成绩视图。
+  - 恢复 `score_review_request` 成绩复核申请表，并补充 `sql/0607_score_review_request.sql` 作为已有数据库增量脚本。
+  - 学生端恢复成绩复核申请：学生只能对本人已提交成绩申请复核，同一成绩存在待审核申请时不能重复提交。
+  - 学生成绩查询恢复复核状态展示，并在 `score_review_request` 表尚未创建时回退到无复核字段查询，避免成绩查询直接报错。
+  - 管理员端新增“成绩复核审核”页面和接口，可通过或驳回复核申请，并记录审核人、审核时间、审核备注和操作日志。
+  - 学生身份解析优先使用 `X-Username` 对应的登录账号，兼容当前前端仍传递的 `X-Student-Id` 和请求体 `studentId`，避免破坏现有选课、补选、退课调用。
+
 - SQL 更新：
   - `sql/school.sql` 已加入成绩提交时间字段和初始化值。
   - `sql/school.sql` 中的 `sp_select_course` 已同步支持恢复 `已退` 选课记录。
+  - `sql/school.sql` 已同步 11 档绩点触发器、成绩复核申请表和升级后的学生成绩视图。
   - `sql/school.sql` 已补齐初始化教师账号，确保 `teacher` 表中的教师都能登录。
   - `sql/0601_student_features.sql` 的退课触发器已同步清理成绩记录。
   - `sql/0601_student_features.sql` 已加入成绩提交时间迁移语句和 `schedule_adjust_request` 表。
+  - 新增独立迁移脚本 `sql/0605_score_gpa_update.sql`，用于已有数据库修正绩点规则并重算已有成绩。
   - 新增独立迁移脚本 `sql/0607_teacher_features.sql`，用于已有数据库补齐成绩提交时间字段和调课申请表。
   - 新增独立迁移脚本 `sql/0607_sync_login_users.sql`，用于已有数据库同步所有学生和教师登录账号、默认密码和角色关系。
   - 新增独立迁移脚本 `sql/0607_score_change_request.sql`，用于创建成绩修改申请表。
+  - 新增独立迁移脚本 `sql/0607_score_review_request.sql`，用于创建成绩复核申请表。
 
 - 验证记录：
   - 已按用户要求关闭本轮启动的前端 `5173` 和后端 `8080` 进程，确认两个端口不再监听。
   - 后端执行 `mvn test`：编译通过；当前项目无测试用例，Maven 显示 `No tests to run`。
   - 前端执行 `npm run build`：Vite 构建通过。
   - 前端仍有既有的大 chunk 警告和第三方库 `#__PURE__` 注释警告，不影响本轮功能。
+  - 本轮恢复后再次执行 `mvn -q -DskipTests compile`：后端编译通过。
+  - 本轮恢复后再次执行 `npm run build`：前端构建通过；仍仅有既有的大 chunk 和第三方注释警告。
+  - 本轮恢复后执行冲突标记扫描，未发现 `<<<<<<<`、`=======`、`>>>>>>>` 残留。
 
 ## 待完成
 
@@ -91,7 +107,9 @@
   - 已对当前 `school` 数据库执行 `sql/0607_teacher_features.sql`，并确认 `schedule_adjust_request` 表、`semester.score_submit_start`、`semester.score_submit_end` 已存在。
   - 已对当前 `school` 数据库执行 `sql/0607_sync_login_users.sql`，确认 5 个学生账号和 4 个教师账号均可使用默认密码 `123456` 登录，并具备对应角色。
   - 已对当前 `school` 数据库执行 `sql/0607_score_change_request.sql`，创建 `score_change_request` 表。
-  - 如果从零初始化数据库，先执行 `sql/school.sql`，再执行 `sql/0601_student_features.sql`。
+  - 本轮只恢复代码和 SQL 脚本，未重新连接数据库执行 `sql/0605_score_gpa_update.sql` 或 `sql/0607_score_review_request.sql`。
+  - 如果当前数据库还未包含成绩复核表或 11 档绩点触发器，需要依次执行 `sql/0605_score_gpa_update.sql`、`sql/0607_score_review_request.sql`。
+  - 如果从零初始化数据库，先执行 `sql/school.sql`，再按需要执行其它增量脚本。
 
 - 人工验收重点：
   - 教师只能查看本人教学班详情和学生名单。
@@ -109,3 +127,7 @@
   - 学生退选后再次选课，以及通过补选恢复同一教学班时，不应出现 `Duplicate entry`。
   - 正常可选课程的补选按钮应禁用；不可直接选课但允许补选时，选课按钮应禁用。
   - 退课后再次加入课程，不应继续展示退课前的旧成绩。
+  - 学生成绩页应显示课程号、课程类型、学分、等级、绩点、复核状态，并可按学期/课程/通过状态筛选。
+  - 平均绩点应按学分加权计算，且数据库触发器应按 11 档规则生成 `gpa_point`。
+  - 学生对已提交成绩提交复核申请后，管理员“成绩复核审核”页应出现待审核记录。
+  - 管理员通过或驳回复核申请后，学生端应能看到审核状态、审核备注和审核时间。
