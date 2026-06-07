@@ -134,6 +134,42 @@ export function getAdminCourseSelectionStatistics() {
   })
 }
 
+export function getAdminDashboardOverview() {
+  return request({
+    url: '/admin/dashboard/overview',
+    method: 'get'
+  })
+}
+
+export function getAdminScoredClasses() {
+  return request({
+    url: '/admin/statistics/scored-classes',
+    method: 'get'
+  })
+}
+
+export function getAdminScoreDistribution(teachingClassId) {
+  return request({
+    url: `/admin/statistics/score-distribution/${teachingClassId}`,
+    method: 'get'
+  })
+}
+
+export function getAdminOperationLogs(params) {
+  return request({
+    url: '/admin/operation-logs',
+    method: 'get',
+    params
+  })
+}
+
+export function getAdminOperationLogTypes() {
+  return request({
+    url: '/admin/operation-logs/types',
+    method: 'get'
+  })
+}
+
 export function getCourseSelectionSetting() {
   return request({
     url: '/admin/course-selection-setting',

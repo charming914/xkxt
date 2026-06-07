@@ -908,4 +908,64 @@ public interface AdminMapper {
         @Param("operationType") String operationType,
         @Param("operationContent") String operationContent
     );
+
+    // ==================== 仪表盘概览 ====================
+
+    @Select("""
+        SELECT
+            (SELECT COUNT(*) FROM student) AS studentCount,
+            (SELECT COUNT(*) FROM teacher) AS teacherCount,
+            (SELECT COUNT(*) FROM course) AS courseCount,
+            (SELECT COUNT(*) FROM teaching_class tc
+                JOIN semester sem ON tc.semester_id = sem.semester_id
+                WHERE sem.is_current = 1) AS teachingClassCount,
+            (SELECT COUNT(*) FROM course_selection_request
+                WHERE request_status = '待审核') AS pendingSelectionRequests,
+            (SELECT COUNT(*) FROM course_drop_request
+                WHERE request_status = '待审核' AND admin_status = '待审核') AS pendingDropRequests,
+            (SELECT COUNT(*) FROM schedule_adjust_request
+                WHERE request_status = '待审核') AS pendingScheduleRequests,
+            (SELECT COUNT(*) FROM score_change_request
+                WHERE request_status = '待审核') AS pendingScoreChangeRequests
+        """)
+    Map<String, Object> selectDashboardOverview();
+
+    // ==================== 成绩图表分析 ====================
+
+    @Select("""
+        SELECT
+            tc.teaching_class_id AS teachingClassId,
+            sem.semester_name AS semesterName,
+            c.course_name AS courseName,
+            t.teacher_name AS teacherName,
+            COUNT(sc.score_id) AS scoredCount
+        FROM score sc
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        WHERE sc.is_submitted = 1 AND sc.final_score IS NOT NULL
+        GROUP BY tc.teaching_class_id, sem.semester_name, c.course_name, t.teacher_name
+        ORDER BY sem.semester_name DESC, c.course_name
+        """)
+    List<Map<String, Object>> selectScoredTeachingClasses();
+
+    @Select("""
+        SELECT
+            COUNT(*) AS totalCount,
+            ROUND(AVG(final_score), 2) AS avgScore,
+            MAX(final_score) AS maxScore,
+            MIN(final_score) AS minScore,
+            SUM(CASE WHEN final_score >= 60 THEN 1 ELSE 0 END) AS passCount,
+            SUM(CASE WHEN final_score < 60 THEN 1 ELSE 0 END) AS rangeFail,
+            SUM(CASE WHEN final_score >= 60 AND final_score < 70 THEN 1 ELSE 0 END) AS range60,
+            SUM(CASE WHEN final_score >= 70 AND final_score < 80 THEN 1 ELSE 0 END) AS range70,
+            SUM(CASE WHEN final_score >= 80 AND final_score < 90 THEN 1 ELSE 0 END) AS range80,
+            SUM(CASE WHEN final_score >= 90 THEN 1 ELSE 0 END) AS range90
+        FROM score
+        WHERE is_submitted = 1
+          AND final_score IS NOT NULL
+          AND teaching_class_id = #{teachingClassId}
+        """)
+    Map<String, Object> selectScoreDistribution(@Param("teachingClassId") Integer teachingClassId);
 }

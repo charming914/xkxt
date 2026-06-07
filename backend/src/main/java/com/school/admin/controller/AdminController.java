@@ -11,6 +11,7 @@ import com.school.admin.dto.ScoreSubmitSettingRequest;
 import com.school.admin.service.AdminService;
 import com.school.common.api.ApiResponse;
 import com.school.common.dto.CourseDropReviewRequest;
+import com.school.log.OperationLog;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -38,18 +39,21 @@ public class AdminController {
     }
 
     @PostMapping("/students")
+    @OperationLog(type = "学生管理", action = "新增学生")
     public ApiResponse<Void> createStudent(@Valid @RequestBody AdminStudentRequest request) {
         adminService.createStudent(request);
         return ApiResponse.success("学生新增成功，默认登录密码为123456", null);
     }
 
     @PutMapping("/students/{studentId}")
+    @OperationLog(type = "学生管理", action = "修改学生")
     public ApiResponse<Void> updateStudent(@PathVariable String studentId, @Valid @RequestBody AdminStudentRequest request) {
         adminService.updateStudent(studentId, request);
         return ApiResponse.success("学生信息修改成功", null);
     }
 
     @DeleteMapping("/students/{studentId}")
+    @OperationLog(type = "学生管理", action = "删除学生")
     public ApiResponse<Void> deleteStudent(@PathVariable String studentId) {
         adminService.deleteStudent(studentId);
         return ApiResponse.success("学生删除成功", null);
@@ -61,18 +65,21 @@ public class AdminController {
     }
 
     @PostMapping("/teachers")
+    @OperationLog(type = "教师管理", action = "新增教师")
     public ApiResponse<Void> createTeacher(@Valid @RequestBody AdminTeacherRequest request) {
         adminService.createTeacher(request);
         return ApiResponse.success("教师新增成功，默认登录密码为123456", null);
     }
 
     @PutMapping("/teachers/{teacherId}")
+    @OperationLog(type = "教师管理", action = "修改教师")
     public ApiResponse<Void> updateTeacher(@PathVariable String teacherId, @Valid @RequestBody AdminTeacherRequest request) {
         adminService.updateTeacher(teacherId, request);
         return ApiResponse.success("教师信息修改成功", null);
     }
 
     @DeleteMapping("/teachers/{teacherId}")
+    @OperationLog(type = "教师管理", action = "删除教师")
     public ApiResponse<Void> deleteTeacher(@PathVariable String teacherId) {
         adminService.deleteTeacher(teacherId);
         return ApiResponse.success("教师删除成功", null);
@@ -94,30 +101,35 @@ public class AdminController {
     }
 
     @PostMapping("/courses")
+    @OperationLog(type = "课程管理", action = "新增课程")
     public ApiResponse<Void> createCourse(@Valid @RequestBody AdminCourseRequest request) {
         adminService.createCourse(request);
         return ApiResponse.success("课程新增成功", null);
     }
 
     @PutMapping("/courses/{courseId}")
+    @OperationLog(type = "课程管理", action = "修改课程")
     public ApiResponse<Void> updateCourse(@PathVariable String courseId, @Valid @RequestBody AdminCourseRequest request) {
         adminService.updateCourse(courseId, request);
         return ApiResponse.success("课程修改成功", null);
     }
 
     @DeleteMapping("/courses/{courseId}")
+    @OperationLog(type = "课程管理", action = "删除课程")
     public ApiResponse<Void> deleteCourse(@PathVariable String courseId) {
         adminService.deleteCourse(courseId);
         return ApiResponse.success("课程删除成功", null);
     }
 
     @PostMapping("/teaching-classes")
+    @OperationLog(type = "教学班管理", action = "新增教学班")
     public ApiResponse<Void> createTeachingClass(@Valid @RequestBody AdminTeachingClassRequest request) {
         adminService.createTeachingClass(request);
         return ApiResponse.success("教学班新增成功", null);
     }
 
     @PutMapping("/teaching-classes/{teachingClassId}")
+    @OperationLog(type = "教学班管理", action = "修改教学班")
     public ApiResponse<Void> updateTeachingClass(
         @PathVariable Integer teachingClassId,
         @Valid @RequestBody AdminTeachingClassRequest request
@@ -127,6 +139,7 @@ public class AdminController {
     }
 
     @DeleteMapping("/teaching-classes/{teachingClassId}")
+    @OperationLog(type = "教学班管理", action = "删除教学班")
     public ApiResponse<Void> deleteTeachingClass(@PathVariable Integer teachingClassId) {
         adminService.deleteTeachingClass(teachingClassId);
         return ApiResponse.success("教学班删除成功", null);
@@ -135,6 +148,21 @@ public class AdminController {
     @GetMapping("/statistics/course-selection")
     public ApiResponse<List<Map<String, Object>>> courseSelectionStatistics() {
         return ApiResponse.success(adminService.courseSelectionStatistics());
+    }
+
+    @GetMapping("/dashboard/overview")
+    public ApiResponse<Map<String, Object>> dashboardOverview() {
+        return ApiResponse.success(adminService.dashboardOverview());
+    }
+
+    @GetMapping("/statistics/scored-classes")
+    public ApiResponse<List<Map<String, Object>>> scoredTeachingClasses() {
+        return ApiResponse.success(adminService.scoredTeachingClasses());
+    }
+
+    @GetMapping("/statistics/score-distribution/{teachingClassId}")
+    public ApiResponse<Map<String, Object>> scoreDistribution(@PathVariable Integer teachingClassId) {
+        return ApiResponse.success(adminService.scoreDistribution(teachingClassId));
     }
 
     @GetMapping("/departments")
@@ -178,6 +206,7 @@ public class AdminController {
     }
 
     @PutMapping("/course-selection-setting")
+    @OperationLog(type = "选课设置", action = "更新选课设置")
     public ApiResponse<Void> updateCourseSelectionSetting(@Valid @RequestBody CourseSelectionSettingRequest request) {
         adminService.updateCourseSelectionSetting(request);
         return ApiResponse.success("选课设置更新成功", null);
@@ -189,6 +218,7 @@ public class AdminController {
     }
 
     @PutMapping("/score-submit-setting")
+    @OperationLog(type = "成绩设置", action = "更新成绩提交时间")
     public ApiResponse<Void> updateScoreSubmitSetting(@Valid @RequestBody ScoreSubmitSettingRequest request) {
         adminService.updateScoreSubmitSetting(request);
         return ApiResponse.success("成绩提交时间更新成功", null);
@@ -210,6 +240,7 @@ public class AdminController {
     }
 
     @PutMapping("/scores/{scoreId}/rollback")
+    @OperationLog(type = "成绩管理", action = "退回成绩")
     public ApiResponse<Void> rollbackSubmittedScore(@PathVariable Long scoreId) {
         adminService.rollbackSubmittedScore(scoreId);
         return ApiResponse.success("成绩已退回，可由教师重新修改提交", null);
@@ -231,6 +262,7 @@ public class AdminController {
     }
 
     @PutMapping("/course-selection-requests/{requestId}/review")
+    @OperationLog(type = "补选审核", action = "审核补选申请")
     public ApiResponse<Void> reviewCourseSelectionRequest(
         @PathVariable Long requestId,
         @Valid @RequestBody CourseSelectionRequestReviewRequest request,
@@ -241,6 +273,7 @@ public class AdminController {
     }
 
     @PutMapping("/course-drop-requests/{dropRequestId}/review")
+    @OperationLog(type = "退课审核", action = "审核退课申请")
     public ApiResponse<Void> reviewCourseDropRequest(
         @PathVariable Long dropRequestId,
         @Valid @RequestBody CourseDropReviewRequest request,
@@ -251,6 +284,7 @@ public class AdminController {
     }
 
     @PutMapping("/schedule-adjust-requests/{adjustRequestId}/review")
+    @OperationLog(type = "调课审核", action = "审核调课申请")
     public ApiResponse<Void> reviewScheduleAdjustRequest(
         @PathVariable Long adjustRequestId,
         @Valid @RequestBody CourseSelectionRequestReviewRequest request,
@@ -261,6 +295,7 @@ public class AdminController {
     }
 
     @PutMapping("/score-change-requests/{scoreChangeRequestId}/review")
+    @OperationLog(type = "成绩修改审核", action = "审核成绩修改申请")
     public ApiResponse<Void> reviewScoreChangeRequest(
         @PathVariable Long scoreChangeRequestId,
         @Valid @RequestBody CourseSelectionRequestReviewRequest request,
