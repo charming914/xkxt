@@ -193,6 +193,21 @@ export function reviewAdminScoreChangeRequest(scoreChangeRequestId, data) {
   })
 }
 
+export function getAdminScoreReviewRequests() {
+  return request({
+    url: '/admin/score-review-requests',
+    method: 'get'
+  })
+}
+
+export function reviewAdminScoreReviewRequest(requestId, data) {
+  return request({
+    url: `/admin/score-review-requests/${requestId}/review`,
+    method: 'put',
+    data
+  })
+}
+
 export function getDepartmentOptions() {
   return request({
     url: '/admin/departments',

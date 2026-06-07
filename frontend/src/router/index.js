@@ -22,6 +22,7 @@ import AdminSelectionRequestView from '../views/admin/AdminSelectionRequestView.
 import AdminDropRequestView from '../views/admin/AdminDropRequestView.vue'
 import AdminScheduleRequestView from '../views/admin/AdminScheduleRequestView.vue'
 import AdminScoreChangeRequestView from '../views/admin/AdminScoreChangeRequestView.vue'
+import AdminScoreReviewRequestView from '../views/admin/AdminScoreReviewRequestView.vue'
 import PasswordView from '../views/PasswordView.vue'
 
 const routes = [
@@ -154,6 +155,12 @@ const routes = [
         path: 'admin/score-change-requests',
         name: 'admin-score-change-requests',
         component: AdminScoreChangeRequestView,
+        meta: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'admin/score-review-requests',
+        name: 'admin-score-review-requests',
+        component: AdminScoreReviewRequestView,
         meta: { roles: ['ADMIN'] }
       },
       {

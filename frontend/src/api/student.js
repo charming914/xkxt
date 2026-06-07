@@ -30,6 +30,21 @@ export function getStudentScores() {
   })
 }
 
+export function createScoreReviewRequest(data) {
+  return request({
+    url: '/student/score-review-requests',
+    method: 'post',
+    data
+  })
+}
+
+export function getScoreReviewRequests() {
+  return request({
+    url: '/student/score-review-requests',
+    method: 'get'
+  })
+}
+
 export function createCourseSelectionRequest(data) {
   return request({
     url: '/student/course-selection-requests',
