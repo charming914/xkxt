@@ -16,6 +16,7 @@ import TeacherScheduleRequestView from '../views/teacher/TeacherScheduleRequestV
 import AdminStudentView from '../views/admin/AdminStudentView.vue'
 import AdminTeacherView from '../views/admin/AdminTeacherView.vue'
 import AdminCourseView from '../views/admin/AdminCourseView.vue'
+import AdminSemesterView from '../views/admin/AdminSemesterView.vue'
 import AdminTeachingClassView from '../views/admin/AdminTeachingClassView.vue'
 import AdminStatisticsView from '../views/admin/AdminStatisticsView.vue'
 import AdminScoreAnalysisView from '../views/admin/AdminScoreAnalysisView.vue'
@@ -127,6 +128,12 @@ const routes = [
         path: 'admin/courses',
         name: 'admin-courses',
         component: AdminCourseView,
+        meta: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'admin/semesters',
+        name: 'admin-semesters',
+        component: AdminSemesterView,
         meta: { roles: ['ADMIN'] }
       },
       {

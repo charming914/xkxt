@@ -34,7 +34,4 @@ public class AdminTeachingClassRequest {
 
     @NotNull(message = "容量不能为空")
     private Integer maxStudents;
-
-    @NotBlank(message = "状态不能为空")
-    private String status;
 }

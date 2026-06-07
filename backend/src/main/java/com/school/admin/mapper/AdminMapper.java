@@ -7,11 +7,13 @@ import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
 import com.school.admin.dto.ScoreSubmitSettingRequest;
+import com.school.admin.dto.SemesterRequest;
 import java.util.List;
 import java.util.Map;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -99,7 +101,12 @@ public interface AdminMapper {
             tc.week_range AS weekRange,
             tc.max_students AS maxStudents,
             tc.selected_count AS selectedCount,
-            tc.status AS status
+            CASE
+                WHEN sem.course_select_start IS NULL OR sem.course_select_end IS NULL THEN '未开始'
+                WHEN NOW() < sem.course_select_start THEN '未开始'
+                WHEN NOW() > sem.course_select_end THEN '已结束'
+                ELSE '选课中'
+            END AS status
         FROM teaching_class tc
         JOIN semester sem ON tc.semester_id = sem.semester_id
         JOIN course c ON tc.course_id = c.course_id
@@ -169,6 +176,60 @@ public interface AdminMapper {
         ORDER BY semester_id DESC
         """)
     List<Map<String, Object>> selectSemesterOptions();
+
+    @Select("""
+        SELECT
+            semester_id AS semesterId,
+            semester_name AS semesterName,
+            school_year AS schoolYear,
+            term_code AS termCode,
+            start_date AS startDate,
+            end_date AS endDate,
+            course_select_start AS courseSelectStart,
+            course_select_end AS courseSelectEnd,
+            is_current AS isCurrent
+        FROM semester
+        ORDER BY semester_id DESC
+        """)
+    List<Map<String, Object>> selectAllSemesters();
+
+    @Insert("""
+        INSERT INTO semester (
+            semester_name, school_year, term_code, start_date, end_date,
+            course_select_start, course_select_end, is_current
+        ) VALUES (
+            #{request.semesterName}, #{request.schoolYear}, #{request.termCode},
+            #{request.startDate}, #{request.endDate},
+            #{request.courseSelectStart}, #{request.courseSelectEnd}, 0
+        )
+        """)
+    @Options(useGeneratedKeys = true, keyProperty = "semesterId", keyColumn = "semester_id")
+    int insertSemester(@Param("request") SemesterRequest request);
+
+    @Update("UPDATE semester SET is_current = 0")
+    int clearCurrentSemester();
+
+    @Update("UPDATE semester SET is_current = 1 WHERE semester_id = #{semesterId}")
+    int markCurrentSemester(@Param("semesterId") Integer semesterId);
+
+    @Select("SELECT COUNT(*) FROM semester WHERE semester_id = #{semesterId}")
+    int countSemesterById(@Param("semesterId") Integer semesterId);
+
+    @Insert("""
+        INSERT INTO teaching_class (
+            semester_id, course_id, teacher_id, classroom_id,
+            course_start_date, week_day, section_desc, week_range, max_students, selected_count
+        )
+        SELECT
+            #{targetSemesterId}, course_id, teacher_id, classroom_id,
+            NULL, week_day, section_desc, week_range, max_students, 0
+        FROM teaching_class
+        WHERE semester_id = #{sourceSemesterId}
+        """)
+    int carryOverTeachingClasses(
+        @Param("sourceSemesterId") Integer sourceSemesterId,
+        @Param("targetSemesterId") Integer targetSemesterId
+    );
 
     @Select("""
         SELECT teacher_id AS value, teacher_name AS label
@@ -293,10 +354,10 @@ public interface AdminMapper {
     @Insert("""
         INSERT INTO teaching_class (
             semester_id, course_id, teacher_id, classroom_id,
-            course_start_date, week_day, section_desc, week_range, max_students, selected_count, status
+            course_start_date, week_day, section_desc, week_range, max_students, selected_count
         ) VALUES (
             #{request.semesterId}, #{request.courseId}, #{request.teacherId}, NULLIF(#{request.classroomId}, ''),
-            #{request.courseStartDate}, #{request.weekDay}, #{request.sectionDesc}, #{request.weekRange}, #{request.maxStudents}, 0, #{request.status}
+            #{request.courseStartDate}, #{request.weekDay}, #{request.sectionDesc}, #{request.weekRange}, #{request.maxStudents}, 0
         )
         """)
     int insertTeachingClass(@Param("request") AdminTeachingClassRequest request);
@@ -311,8 +372,7 @@ public interface AdminMapper {
             week_day = #{request.weekDay},
             section_desc = #{request.sectionDesc},
             week_range = #{request.weekRange},
-            max_students = #{request.maxStudents},
-            status = #{request.status}
+            max_students = #{request.maxStudents}
         WHERE teaching_class_id = #{teachingClassId}
         """)
     int updateTeachingClass(
@@ -322,6 +382,14 @@ public interface AdminMapper {
 
     @Delete("DELETE FROM teaching_class WHERE teaching_class_id = #{teachingClassId}")
     int deleteTeachingClass(@Param("teachingClassId") Integer teachingClassId);
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM course_selection
+        WHERE teaching_class_id = #{teachingClassId}
+          AND selection_status = '已选'
+        """)
+    int countSelectedByTeachingClassId(@Param("teachingClassId") Integer teachingClassId);
 
     @Select("SELECT role_id FROM sys_role WHERE role_code = #{roleCode} LIMIT 1")
     Integer selectRoleIdByCode(@Param("roleCode") String roleCode);
@@ -377,13 +445,6 @@ public interface AdminMapper {
         """)
     Map<String, Object> selectCurrentSemesterSetting();
 
-    @Select("""
-        SELECT COALESCE(MIN(status), '未开始')
-        FROM teaching_class
-        WHERE semester_id = #{semesterId}
-        """)
-    String selectTeachingClassStatusBySemesterId(@Param("semesterId") Integer semesterId);
-
     @Update("""
         UPDATE semester
         SET course_select_start = #{request.courseSelectStart},
@@ -393,16 +454,6 @@ public interface AdminMapper {
     int updateCourseSelectionTime(
         @Param("semesterId") Integer semesterId,
         @Param("request") CourseSelectionSettingRequest request
-    );
-
-    @Update("""
-        UPDATE teaching_class
-        SET status = #{status}
-        WHERE semester_id = #{semesterId}
-        """)
-    int updateTeachingClassStatusBySemesterId(
-        @Param("semesterId") Integer semesterId,
-        @Param("status") String status
     );
 
     @Select("""

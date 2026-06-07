@@ -11,7 +11,4 @@ public class CourseSelectionSettingRequest {
 
     @NotBlank(message = "选课结束时间不能为空")
     private String courseSelectEnd;
-
-    @NotBlank(message = "教学班状态不能为空")
-    private String teachingClassStatus;
 }

@@ -95,7 +95,7 @@ public interface StudentMapper {
         JOIN teacher t ON tc.teacher_id = t.teacher_id
         LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
         WHERE sem.is_current = 1
-          AND tc.status = '选课中'
+          AND NOW() BETWEEN sem.course_select_start AND sem.course_select_end
           <if test="query.teacherName != null and query.teacherName != ''">
             AND t.teacher_name LIKE CONCAT('%', #{query.teacherName}, '%')
           </if>
@@ -409,7 +409,6 @@ public interface StudentMapper {
         JOIN semester sem ON tc.semester_id = sem.semester_id
         WHERE tc.teaching_class_id = #{teachingClassId}
           AND sem.is_current = 1
-          AND tc.status = '选课中'
           AND NOW() BETWEEN sem.course_select_start AND sem.course_select_end
         """)
     int countSelectableTeachingClass(@Param("teachingClassId") Integer teachingClassId);

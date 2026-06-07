@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h1>教学班管理</h1>
-        <p>管理员可以新增教学班、指定任课教师和教室，并设置上课时间、容量和状态。</p>
+        <p>管理员可以新增教学班、指定任课教师和教室，并设置上课时间和容量。选课状态由学期选课时间自动判定。</p>
       </div>
       <div class="toolbar">
         <el-button @click="loadTeachingClasses">刷新教学班</el-button>
@@ -52,7 +52,11 @@
             {{ row.selectedCount }}/{{ row.maxStudents }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" />
+        <el-table-column label="选课状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="statusTagType(row.status)">{{ row.status }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
             <div class="action-row">
@@ -122,13 +126,6 @@
         </el-form-item>
         <el-form-item label="容量">
           <el-input-number v-model="form.maxStudents" :min="1" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="form.status">
-            <el-option label="未开始" value="未开始" />
-            <el-option label="选课中" value="选课中" />
-            <el-option label="已结束" value="已结束" />
-          </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -210,8 +207,7 @@ const form = reactive({
   weekDay: 1,
   sectionDesc: '1-4节',
   weekRange: '1-16周',
-  maxStudents: 60,
-  status: '未开始'
+  maxStudents: 60
 })
 
 const filteredTeachingClasses = computed(() => {
@@ -243,6 +239,12 @@ const selectedClassroomLabel = computed(() => {
 function weekLabel(weekDay) {
   const map = { 1: '一', 2: '二', 3: '三', 4: '四', 5: '五', 6: '六', 7: '日' }
   return map[weekDay] || weekDay
+}
+
+function statusTagType(status) {
+  if (status === '选课中') return 'success'
+  if (status === '已结束') return 'info'
+  return 'warning'
 }
 
 async function loadTeachingClasses() {
@@ -278,8 +280,7 @@ function resetForm() {
     weekDay: 1,
     sectionDesc: '1-4节',
     weekRange: '1-16周',
-    maxStudents: 60,
-    status: '未开始'
+    maxStudents: 60
   })
 }
 
@@ -362,8 +363,7 @@ function openEditDialog(row) {
     weekDay: row.weekDay,
     sectionDesc: row.sectionDesc,
     weekRange: row.weekRange,
-    maxStudents: row.maxStudents,
-    status: row.status
+    maxStudents: row.maxStudents
   })
   dialogVisible.value = true
 }

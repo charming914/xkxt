@@ -7,6 +7,7 @@ import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
 import com.school.admin.dto.ScoreReviewRequestReviewRequest;
 import com.school.admin.dto.ScoreSubmitSettingRequest;
+import com.school.admin.dto.SemesterRequest;
 import static com.school.common.support.CourseDropReviewSupport.resolveDropCourseMessage;
 import static com.school.common.support.CourseDropReviewSupport.resolveReviewStatus;
 
@@ -85,6 +86,39 @@ public class AdminService {
         return adminMapper.selectSemesterOptions();
     }
 
+    public List<Map<String, Object>> allSemesters() {
+        return adminMapper.selectAllSemesters();
+    }
+
+    @Transactional
+    public void createSemester(SemesterRequest request) {
+        if (request.getCourseSelectStart().compareTo(request.getCourseSelectEnd()) >= 0) {
+            throw new BusinessException("选课开始时间必须早于结束时间");
+        }
+        Integer carryOverFrom = request.getCarryOverFromSemesterId();
+        if (carryOverFrom != null && adminMapper.countSemesterById(carryOverFrom) == 0) {
+            throw new BusinessException("结转来源学期不存在");
+        }
+        adminMapper.insertSemester(request);
+        Integer newSemesterId = request.getSemesterId();
+        if (carryOverFrom != null) {
+            adminMapper.carryOverTeachingClasses(carryOverFrom, newSemesterId);
+        }
+        if (Boolean.TRUE.equals(request.getSetAsCurrent())) {
+            adminMapper.clearCurrentSemester();
+            adminMapper.markCurrentSemester(newSemesterId);
+        }
+    }
+
+    @Transactional
+    public void setCurrentSemester(Integer semesterId) {
+        if (adminMapper.countSemesterById(semesterId) == 0) {
+            throw new BusinessException("学期不存在");
+        }
+        adminMapper.clearCurrentSemester();
+        adminMapper.markCurrentSemester(semesterId);
+    }
+
     public List<Map<String, Object>> teacherOptions() {
         return adminMapper.selectTeacherOptions();
     }
@@ -156,6 +190,9 @@ public class AdminService {
     }
 
     public void deleteTeachingClass(Integer teachingClassId) {
+        if (adminMapper.countSelectedByTeachingClassId(teachingClassId) > 0) {
+            throw new BusinessException("该教学班已有学生选课，不能删除");
+        }
         adminMapper.deleteTeachingClass(teachingClassId);
     }
 
@@ -164,8 +201,6 @@ public class AdminService {
         if (setting == null) {
             throw new BusinessException("当前学期不存在");
         }
-        Integer semesterId = ((Number) setting.get("semesterId")).intValue();
-        setting.put("teachingClassStatus", adminMapper.selectTeachingClassStatusBySemesterId(semesterId));
         return setting;
     }
 
@@ -177,7 +212,6 @@ public class AdminService {
         }
         Integer semesterId = ((Number) setting.get("semesterId")).intValue();
         adminMapper.updateCourseSelectionTime(semesterId, request);
-        adminMapper.updateTeachingClassStatusBySemesterId(semesterId, request.getTeachingClassStatus());
     }
 
     public Map<String, Object> currentScoreSubmitSetting() {

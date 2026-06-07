@@ -4,7 +4,7 @@
       <div class="setting-header">
         <div>
           <h2>选课设置</h2>
-          <p>管理员可以为当前学期设置选课时间，并开启或关闭选课。</p>
+          <p>管理员为当前学期设置选课时间窗口。选课状态依据当前时间自动判定，到点自动开始、结束。</p>
         </div>
         <div class="toolbar">
           <el-button @click="loadSetting">刷新设置</el-button>
@@ -19,12 +19,7 @@
         </div>
         <div class="setting-item">
           <span class="setting-label">选课状态</span>
-          <el-switch
-            v-model="isCourseSelectionOpen"
-            active-text="开启"
-            inactive-text="关闭"
-            inline-prompt
-          />
+          <el-tag :type="courseSelectionStatusType">{{ courseSelectionStatus }}</el-tag>
         </div>
         <div class="setting-item">
           <span class="setting-label">选课开始时间</span>
@@ -215,8 +210,7 @@ const scorePaged = useClientPagination(submittedScores, 10)
 const setting = reactive({
   semesterName: '',
   courseSelectStart: '',
-  courseSelectEnd: '',
-  teachingClassStatus: '未开始'
+  courseSelectEnd: ''
 })
 const scoreSetting = reactive({
   semesterName: '',
@@ -224,11 +218,23 @@ const scoreSetting = reactive({
   scoreSubmitEnd: ''
 })
 
-const isCourseSelectionOpen = computed({
-  get: () => setting.teachingClassStatus === '选课中',
-  set: (value) => {
-    setting.teachingClassStatus = value ? '选课中' : '未开始'
+const courseSelectionStatus = computed(() => {
+  if (!setting.courseSelectStart || !setting.courseSelectEnd) {
+    return '未设置'
   }
+  const now = Date.now()
+  const start = new Date(setting.courseSelectStart.replace(/-/g, '/')).getTime()
+  const end = new Date(setting.courseSelectEnd.replace(/-/g, '/')).getTime()
+  if (now < start) return '未开始'
+  if (now > end) return '已结束'
+  return '选课中'
+})
+
+const courseSelectionStatusType = computed(() => {
+  const status = courseSelectionStatus.value
+  if (status === '选课中') return 'success'
+  if (status === '已结束') return 'info'
+  return 'warning'
 })
 
 const totalSelected = computed(() => {
@@ -289,8 +295,7 @@ async function loadSubmittedScores() {
 async function handleSaveSetting() {
   await updateCourseSelectionSetting({
     courseSelectStart: setting.courseSelectStart,
-    courseSelectEnd: setting.courseSelectEnd,
-    teachingClassStatus: setting.teachingClassStatus
+    courseSelectEnd: setting.courseSelectEnd
   })
   ElMessage.success('选课设置更新成功')
   await loadSetting()

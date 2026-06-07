@@ -8,6 +8,7 @@ import com.school.admin.dto.CourseSelectionSettingRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.dto.ScoreReviewRequestReviewRequest;
 import com.school.admin.dto.ScoreSubmitSettingRequest;
+import com.school.admin.dto.SemesterRequest;
 import com.school.admin.service.AdminService;
 import com.school.common.api.ApiResponse;
 import com.school.common.dto.CourseDropReviewRequest;
@@ -183,6 +184,25 @@ public class AdminController {
     @GetMapping("/semesters")
     public ApiResponse<List<Map<String, Object>>> semesters() {
         return ApiResponse.success(adminService.semesters());
+    }
+
+    @GetMapping("/semester-management")
+    public ApiResponse<List<Map<String, Object>>> allSemesters() {
+        return ApiResponse.success(adminService.allSemesters());
+    }
+
+    @PostMapping("/semesters")
+    @OperationLog(type = "学期管理", action = "新建学期")
+    public ApiResponse<Void> createSemester(@Valid @RequestBody SemesterRequest request) {
+        adminService.createSemester(request);
+        return ApiResponse.success("学期创建成功", null);
+    }
+
+    @PutMapping("/semesters/{semesterId}/current")
+    @OperationLog(type = "学期管理", action = "切换当前学期")
+    public ApiResponse<Void> setCurrentSemester(@PathVariable Integer semesterId) {
+        adminService.setCurrentSemester(semesterId);
+        return ApiResponse.success("当前学期切换成功", null);
     }
 
     @GetMapping("/teacher-options")

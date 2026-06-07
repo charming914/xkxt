@@ -258,6 +258,28 @@ export function getSemesterOptions() {
   })
 }
 
+export function getSemesterManagement() {
+  return request({
+    url: '/admin/semester-management',
+    method: 'get'
+  })
+}
+
+export function createSemester(data) {
+  return request({
+    url: '/admin/semesters',
+    method: 'post',
+    data
+  })
+}
+
+export function setCurrentSemester(semesterId) {
+  return request({
+    url: `/admin/semesters/${semesterId}/current`,
+    method: 'put'
+  })
+}
+
 export function getTeacherOptions() {
   return request({
     url: '/admin/teacher-options',

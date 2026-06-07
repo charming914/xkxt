@@ -116,6 +116,7 @@ const navItems = computed(() => {
           { path: '/admin/students', label: '学生管理' },
           { path: '/admin/teachers', label: '教师管理' },
           { path: '/admin/courses', label: '课程管理' },
+          { path: '/admin/semesters', label: '学期管理' },
           { path: '/admin/teaching-classes', label: '教学班管理' }
         ]
       },
