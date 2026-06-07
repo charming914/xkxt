@@ -155,6 +155,23 @@ export function getAdminScoreDistribution(teachingClassId) {
   })
 }
 
+export function getCultivationPlanRequirements() {
+  return request({
+    url: '/admin/cultivation-plan',
+    method: 'get'
+  })
+}
+
+export function importCultivationPlan(file) {
+  const data = new FormData()
+  data.append('file', file)
+  return request({
+    url: '/admin/cultivation-plan/import',
+    method: 'post',
+    data
+  })
+}
+
 export function getAdminOperationLogs(params) {
   return request({
     url: '/admin/operation-logs',
@@ -239,6 +256,44 @@ export function getAdminScoreReviewRequests() {
 export function reviewAdminScoreReviewRequest(requestId, data) {
   return request({
     url: `/admin/score-review-requests/${requestId}/review`,
+    method: 'put',
+    data
+  })
+}
+
+export function getAdminMakeupRequests() {
+  return request({
+    url: '/admin/makeup-requests',
+    method: 'get'
+  })
+}
+
+export function reviewAdminMakeupRequest(requestId, data) {
+  return request({
+    url: `/admin/makeup-requests/${requestId}/review`,
+    method: 'put',
+    data
+  })
+}
+
+export function updateAdminMakeupResult(requestId, data) {
+  return request({
+    url: `/admin/makeup-requests/${requestId}/result`,
+    method: 'put',
+    data
+  })
+}
+
+export function getAdminRetakeRequests() {
+  return request({
+    url: '/admin/retake-requests',
+    method: 'get'
+  })
+}
+
+export function reviewAdminRetakeRequest(requestId, data) {
+  return request({
+    url: `/admin/retake-requests/${requestId}/review`,
     method: 'put',
     data
   })

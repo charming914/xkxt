@@ -1,11 +1,13 @@
 package com.school.student.service;
 
 import com.school.common.exception.BusinessException;
+import com.school.student.dto.AcademicRequestCreateRequest;
 import com.school.student.dto.CourseDropRequestCreateRequest;
 import com.school.student.dto.CourseSelectionRequestCreateRequest;
 import com.school.student.dto.ScoreReviewRequestCreateRequest;
 import com.school.student.dto.SelectCourseRequest;
 import com.school.student.dto.StudentCourseQueryRequest;
+import com.school.student.dto.StudentProfileUpdateRequest;
 import com.school.student.mapper.StudentMapper;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +20,133 @@ import org.springframework.transaction.annotation.Transactional;
 public class StudentService {
 
     private final StudentMapper studentMapper;
+
+    public Map<String, Object> profile(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
+        Map<String, Object> profile = studentMapper.selectStudentProfile(studentId);
+        if (profile == null) {
+            throw new BusinessException("学生信息不存在");
+        }
+        return profile;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void updateProfile(
+        String username,
+        String fallbackStudentId,
+        StudentProfileUpdateRequest request
+    ) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
+        if (studentMapper.updateStudentProfile(studentId, request.getPhone(), request.getEmail()) == 0) {
+            throw new BusinessException("学生信息不存在");
+        }
+    }
+
+    public Map<String, Object> todoSummary(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
+        try {
+            return studentMapper.selectTodoSummary(studentId);
+        } catch (RuntimeException e) {
+            if (isMissingScoreReviewTable(e)) {
+                return studentMapper.selectTodoSummaryWithoutReview(studentId);
+            }
+            throw e;
+        }
+    }
+
+    public List<Map<String, Object>> coursePlans(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
+        return studentMapper.selectCoursePlans(studentId);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void createCoursePlan(String username, String fallbackStudentId, SelectCourseRequest request) {
+        String studentId = resolveStudentId(username, firstNonBlank(fallbackStudentId, request.getStudentId()));
+        Integer teachingClassId = request.getTeachingClassId();
+        if (studentMapper.countCoursePlan(studentId, teachingClassId) > 0) {
+            throw new BusinessException("该课程已在选课计划中");
+        }
+        if (studentMapper.countSelectableTeachingClass(teachingClassId) == 0
+            && studentMapper.countAvailableCapacity(teachingClassId) == 0) {
+            throw new BusinessException("教学班不存在或不可加入计划");
+        }
+        studentMapper.insertCoursePlan(studentId, teachingClassId);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteCoursePlan(String username, String fallbackStudentId, Long planId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
+        if (studentMapper.deleteCoursePlan(studentId, planId) == 0) {
+            throw new BusinessException("选课计划不存在");
+        }
+    }
+
+    public List<Map<String, Object>> academicRemediationScores(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
+        return studentMapper.selectAcademicRemediationScores(studentId);
+    }
+
+    public List<Map<String, Object>> makeupExamRequests(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
+        return studentMapper.selectMakeupExamRequests(studentId);
+    }
+
+    public List<Map<String, Object>> retakeRequests(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
+        return studentMapper.selectRetakeRequests(studentId);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void createMakeupExamRequest(
+        String username,
+        String fallbackStudentId,
+        AcademicRequestCreateRequest request
+    ) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
+        Long scoreId = request.getScoreId();
+        if (studentMapper.countFailedSubmittedScore(studentId, scoreId) == 0) {
+            throw new BusinessException("只能对本人未通过且已提交的成绩申请补考");
+        }
+        if (studentMapper.countActiveMakeupRequest(studentId, scoreId) > 0) {
+            throw new BusinessException("该课程已有补考申请或补考记录");
+        }
+        studentMapper.insertMakeupExamRequest(studentId, scoreId, request.getRequestReason());
+        studentMapper.insertOperationLog(
+            studentId,
+            "补考申请",
+            "学生 " + studentId + " 提交补考申请，成绩编号：" + scoreId
+        );
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void createRetakeRequest(
+        String username,
+        String fallbackStudentId,
+        AcademicRequestCreateRequest request
+    ) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
+        Long scoreId = request.getScoreId();
+        if (studentMapper.countFailedSubmittedScore(studentId, scoreId) == 0) {
+            throw new BusinessException("只能对本人未通过且已提交的成绩申请重修");
+        }
+        if (studentMapper.countFailedMakeupResult(studentId, scoreId) == 0) {
+            throw new BusinessException("需先补考且补考未通过后，才能申请重修");
+        }
+        if (studentMapper.countActiveRetakeRequest(studentId, scoreId) > 0) {
+            throw new BusinessException("该课程已有待处理或已通过的重修申请");
+        }
+        studentMapper.insertRetakeRequest(studentId, scoreId, request.getRequestReason());
+        studentMapper.insertOperationLog(
+            studentId,
+            "重修申请",
+            "学生 " + studentId + " 提交重修申请，成绩编号：" + scoreId
+        );
+    }
+
+    public List<Map<String, Object>> academicProgress(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
+        return studentMapper.selectAcademicProgress(studentId);
+    }
 
     public List<Map<String, Object>> availableCourses(
         StudentCourseQueryRequest query,

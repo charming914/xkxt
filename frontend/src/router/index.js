@@ -3,12 +3,16 @@ import { useUserStore } from '../stores/user'
 import LoginView from '../views/LoginView.vue'
 import LayoutView from '../layouts/LayoutView.vue'
 import DashboardView from '../views/DashboardView.vue'
+import StudentProfileView from '../views/student/StudentProfileView.vue'
 import StudentCourseView from '../views/student/StudentCourseView.vue'
+import StudentCoursePlanView from '../views/student/StudentCoursePlanView.vue'
 import StudentSelectedCourseView from '../views/student/StudentSelectedCourseView.vue'
 import StudentDropCourseView from '../views/student/StudentDropCourseView.vue'
 import StudentTimetableView from '../views/student/StudentTimetableView.vue'
 import StudentScoreView from '../views/student/StudentScoreView.vue'
 import StudentExamView from '../views/student/StudentExamView.vue'
+import StudentRemediationView from '../views/student/StudentRemediationView.vue'
+import StudentAcademicProgressView from '../views/student/StudentAcademicProgressView.vue'
 import TeacherClassView from '../views/teacher/TeacherClassView.vue'
 import TeacherScoreView from '../views/teacher/TeacherScoreView.vue'
 import TeacherDropRequestView from '../views/teacher/TeacherDropRequestView.vue'
@@ -20,6 +24,7 @@ import AdminTeacherView from '../views/admin/AdminTeacherView.vue'
 import AdminCourseView from '../views/admin/AdminCourseView.vue'
 import AdminSemesterView from '../views/admin/AdminSemesterView.vue'
 import AdminTeachingClassView from '../views/admin/AdminTeachingClassView.vue'
+import AdminCultivationPlanView from '../views/admin/AdminCultivationPlanView.vue'
 import AdminStatisticsView from '../views/admin/AdminStatisticsView.vue'
 import AdminScoreAnalysisView from '../views/admin/AdminScoreAnalysisView.vue'
 import AdminOperationLogView from '../views/admin/AdminOperationLogView.vue'
@@ -30,6 +35,7 @@ import AdminScoreChangeRequestView from '../views/admin/AdminScoreChangeRequestV
 import AdminScoreReviewRequestView from '../views/admin/AdminScoreReviewRequestView.vue'
 import AdminExamView from '../views/admin/AdminExamView.vue'
 import AdminExamChangeRequestView from '../views/admin/AdminExamChangeRequestView.vue'
+import AdminRemediationRequestView from '../views/admin/AdminRemediationRequestView.vue'
 import PasswordView from '../views/PasswordView.vue'
 
 const routes = [
@@ -57,9 +63,21 @@ const routes = [
         meta: { roles: ['ADMIN', 'TEACHER', 'STUDENT'] }
       },
       {
+        path: 'student/profile',
+        name: 'student-profile',
+        component: StudentProfileView,
+        meta: { roles: ['STUDENT'] }
+      },
+      {
         path: 'student/courses',
         name: 'student-courses',
         component: StudentCourseView,
+        meta: { roles: ['STUDENT'] }
+      },
+      {
+        path: 'student/course-plans',
+        name: 'student-course-plans',
+        component: StudentCoursePlanView,
         meta: { roles: ['STUDENT'] }
       },
       {
@@ -90,6 +108,18 @@ const routes = [
         path: 'student/exams',
         name: 'student-exams',
         component: StudentExamView,
+        meta: { roles: ['STUDENT'] }
+      },
+      {
+        path: 'student/remediation',
+        name: 'student-remediation',
+        component: StudentRemediationView,
+        meta: { roles: ['STUDENT'] }
+      },
+      {
+        path: 'student/academic-progress',
+        name: 'student-academic-progress',
+        component: StudentAcademicProgressView,
         meta: { roles: ['STUDENT'] }
       },
       {
@@ -165,6 +195,12 @@ const routes = [
         meta: { roles: ['ADMIN'] }
       },
       {
+        path: 'admin/cultivation-plan',
+        name: 'admin-cultivation-plan',
+        component: AdminCultivationPlanView,
+        meta: { roles: ['ADMIN'] }
+      },
+      {
         path: 'admin/course-selection-requests',
         name: 'admin-course-selection-requests',
         component: AdminSelectionRequestView,
@@ -198,6 +234,12 @@ const routes = [
         path: 'admin/score-review-requests',
         name: 'admin-score-review-requests',
         component: AdminScoreReviewRequestView,
+        meta: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'admin/remediation-requests',
+        name: 'admin-remediation-requests',
+        component: AdminRemediationRequestView,
         meta: { roles: ['ADMIN'] }
       },
       {

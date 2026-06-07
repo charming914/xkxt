@@ -5,7 +5,13 @@
         <h1>学生成绩</h1>
         <p>当前登录学生：{{ userStore.realName }}（{{ userStore.refId }}）</p>
       </div>
-      <el-button @click="refreshAll">刷新成绩</el-button>
+      <div class="toolbar">
+        <el-button @click="refreshAll">刷新成绩</el-button>
+        <el-button :disabled="filteredScores.length === 0" @click="handleExportCsv">导出 CSV</el-button>
+        <el-button type="primary" :disabled="filteredScores.length === 0" @click="handlePrintScores">
+          打印成绩单
+        </el-button>
+      </div>
     </div>
 
     <el-form :model="queryForm" label-width="78px" class="query-panel">
@@ -54,6 +60,52 @@
         <span class="summary-label">计入学分</span>
         <strong>{{ weightedCredits }}</strong>
       </div>
+    </div>
+
+    <div class="analysis-grid">
+      <section class="analysis-panel">
+        <h2>学期绩点趋势</h2>
+        <el-empty v-if="semesterGpaTrend.length === 0" description="暂无绩点趋势数据" />
+        <div v-else class="trend-list">
+          <div v-for="item in semesterGpaTrend" :key="item.semesterName" class="trend-row">
+            <div class="trend-meta">
+              <strong>{{ item.semesterName }}</strong>
+              <span>{{ item.credits.toFixed(1) }} 学分 / 平均 {{ item.averageScore }}</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill" :style="{ width: gpaBarWidth(item.gpa) }" />
+            </div>
+            <strong class="trend-value">{{ item.gpa }}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="analysis-panel">
+        <h2>课程类型学分</h2>
+        <el-empty v-if="courseTypeCredits.length === 0" description="暂无课程类型统计" />
+        <div v-else class="credit-list">
+          <div v-for="item in courseTypeCredits" :key="item.courseType" class="credit-row">
+            <div class="credit-header">
+              <strong>{{ item.courseType }}</strong>
+              <span>{{ item.credits.toFixed(1) }} 学分 / {{ item.count }} 门</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill credit-fill" :style="{ width: creditBarWidth(item.credits) }" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="analysis-panel warning-panel">
+        <h2>未通过课程提醒</h2>
+        <el-empty v-if="failedScoreList.length === 0" description="暂无未通过课程" />
+        <ul v-else class="failed-list">
+          <li v-for="item in failedScoreList" :key="`${item.semesterName}-${item.courseId}`">
+            <strong>{{ item.courseName }}</strong>
+            <span>{{ item.semesterName }} / {{ item.finalScore ?? '-' }} 分 / {{ item.credit || 0 }} 学分</span>
+          </li>
+        </ul>
+      </section>
     </div>
 
     <el-empty v-if="!loading && filteredScores.length === 0" description="暂无符合条件的成绩数据" />
@@ -242,6 +294,69 @@ const gpaScopeLabel = computed(() => {
   return '按当前查询结果计算'
 })
 
+const semesterGpaTrend = computed(() => {
+  const groups = new Map()
+  scores.value.forEach((item) => {
+    const semesterName = item.semesterName || '未分学期'
+    if (!groups.has(semesterName)) {
+      groups.set(semesterName, {
+        semesterName,
+        credits: 0,
+        weightedGpa: 0,
+        scoreTotal: 0,
+        scoreCount: 0
+      })
+    }
+    const group = groups.get(semesterName)
+    const credit = Number(item.credit || 0)
+    const gpa = Number(item.gpaPoint)
+    if (!Number.isNaN(gpa)) {
+      group.credits += credit
+      group.weightedGpa += credit * gpa
+    }
+    if (item.finalScore !== null && item.finalScore !== undefined) {
+      group.scoreTotal += Number(item.finalScore || 0)
+      group.scoreCount += 1
+    }
+  })
+  return [...groups.values()]
+    .map(group => ({
+      semesterName: group.semesterName,
+      credits: group.credits,
+      gpa: group.credits ? (group.weightedGpa / group.credits).toFixed(2) : '0.00',
+      averageScore: group.scoreCount ? (group.scoreTotal / group.scoreCount).toFixed(2) : '0.00'
+    }))
+    .sort((a, b) => String(b.semesterName).localeCompare(String(a.semesterName), 'zh-CN'))
+})
+
+const courseTypeCredits = computed(() => {
+  const groups = new Map()
+  filteredScores.value.forEach((item) => {
+    const courseType = item.courseType || '未分类'
+    if (!groups.has(courseType)) {
+      groups.set(courseType, {
+        courseType,
+        credits: 0,
+        count: 0
+      })
+    }
+    const group = groups.get(courseType)
+    group.credits += Number(item.credit || 0)
+    group.count += 1
+  })
+  return [...groups.values()].sort((a, b) => b.credits - a.credits)
+})
+
+const maxCourseTypeCredit = computed(() => {
+  return Math.max(...courseTypeCredits.value.map(item => item.credits), 0)
+})
+
+const failedScoreList = computed(() => {
+  return scores.value
+    .filter(item => item.finalScore !== null && item.finalScore !== undefined && Number(item.finalScore) < 60)
+    .sort((a, b) => String(b.semesterName).localeCompare(String(a.semesterName), 'zh-CN'))
+})
+
 const selectedScoreLabel = computed(() => {
   if (!selectedScore.value) return ''
   return `${selectedScore.value.courseName}（${selectedScore.value.courseId || '无课程号'}）`
@@ -268,6 +383,165 @@ function requestStatusType(status) {
 
 function canRequestReview(row) {
   return Number(row.isSubmitted) === 1 && Number(row.hasPendingScoreReview) !== 1
+}
+
+function gpaBarWidth(gpa) {
+  const value = Math.max(0, Math.min(Number(gpa || 0), 4))
+  return `${Math.max(value / 4 * 100, value > 0 ? 6 : 0)}%`
+}
+
+function creditBarWidth(credits) {
+  const maxCredit = maxCourseTypeCredit.value
+  if (!maxCredit) {
+    return '0%'
+  }
+  const value = Number(credits || 0)
+  return `${Math.max(value / maxCredit * 100, value > 0 ? 8 : 0)}%`
+}
+
+function formatValue(value) {
+  if (value === null || value === undefined || value === '') {
+    return '-'
+  }
+  return value
+}
+
+function escapeCsvCell(value) {
+  const text = String(value ?? '')
+  return `"${text.replace(/"/g, '""')}"`
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function handleExportCsv() {
+  const headers = [
+    '学期',
+    '课程号',
+    '课程名称',
+    '课程类型',
+    '任课教师',
+    '学分',
+    '平时成绩',
+    '考试成绩',
+    '总评成绩',
+    '等级',
+    '绩点',
+    '成绩状态',
+    '复核状态',
+    '录入时间'
+  ]
+  const rows = filteredScores.value.map(item => [
+    item.semesterName,
+    item.courseId,
+    item.courseName,
+    item.courseType,
+    item.teacherName,
+    item.credit,
+    item.usualScore,
+    item.examScore,
+    item.finalScore,
+    item.gradeLevel,
+    item.gpaPoint,
+    scoreStatus(item.finalScore),
+    item.scoreReviewStatus || '未申请',
+    item.enteredAt
+  ])
+  const csv = [headers, ...rows]
+    .map(row => row.map(escapeCsvCell).join(','))
+    .join('\n')
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+  link.href = url
+  link.download = `${userStore.refId || 'student'}-成绩单-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+function handlePrintScores() {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    ElMessage.warning('浏览器阻止了打印窗口，请允许弹窗后重试')
+    return
+  }
+  const rows = filteredScores.value.map(item => `
+    <tr>
+      <td>${escapeHtml(formatValue(item.semesterName))}</td>
+      <td>${escapeHtml(formatValue(item.courseId))}</td>
+      <td>${escapeHtml(formatValue(item.courseName))}</td>
+      <td>${escapeHtml(formatValue(item.courseType))}</td>
+      <td>${escapeHtml(formatValue(item.teacherName))}</td>
+      <td>${escapeHtml(formatValue(item.credit))}</td>
+      <td>${escapeHtml(formatValue(item.usualScore))}</td>
+      <td>${escapeHtml(formatValue(item.examScore))}</td>
+      <td>${escapeHtml(formatValue(item.finalScore))}</td>
+      <td>${escapeHtml(formatValue(item.gradeLevel))}</td>
+      <td>${escapeHtml(formatValue(item.gpaPoint))}</td>
+      <td>${escapeHtml(scoreStatus(item.finalScore))}</td>
+    </tr>
+  `).join('')
+  const title = `${userStore.realName || '学生'}成绩单`
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(title)}</title>
+        <style>
+          body { margin: 24px; color: #1f2937; font-family: Arial, "Microsoft YaHei", sans-serif; }
+          h1 { margin: 0 0 8px; font-size: 24px; }
+          p { margin: 0 0 16px; color: #64748b; }
+          .summary { display: flex; gap: 16px; margin-bottom: 18px; }
+          .summary span { padding: 8px 12px; border: 1px solid #bae6fd; border-radius: 6px; background: #f0f9ff; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+          th { background: #e0f2fe; font-weight: 700; }
+          @media print { body { margin: 12mm; } .summary { flex-wrap: wrap; } }
+        </style>
+      </head>
+      <body>
+        <h1>${escapeHtml(title)}</h1>
+        <p>学号：${escapeHtml(userStore.refId || '-')}　导出时间：${escapeHtml(new Date().toLocaleString())}</p>
+        <div class="summary">
+          <span>课程数：${escapeHtml(filteredScores.value.length)}</span>
+          <span>平均总评：${escapeHtml(averageScore.value)}</span>
+          <span>平均绩点：${escapeHtml(weightedGpa.value)}</span>
+          <span>计入学分：${escapeHtml(weightedCredits.value)}</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>学期</th>
+              <th>课程号</th>
+              <th>课程名称</th>
+              <th>课程类型</th>
+              <th>教师</th>
+              <th>学分</th>
+              <th>平时</th>
+              <th>考试</th>
+              <th>总评</th>
+              <th>等级</th>
+              <th>绩点</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </body>
+    </html>
+  `)
+  printWindow.document.close()
+  printWindow.focus()
+  printWindow.print()
 }
 
 function applyQuery() {
@@ -353,6 +627,11 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
+.toolbar {
+  display: flex;
+  gap: 12px;
+}
+
 .query-panel {
   margin-bottom: 18px;
   padding: 16px;
@@ -386,6 +665,104 @@ onMounted(() => {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 20px;
+}
+
+.analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.analysis-panel {
+  min-height: 210px;
+  padding: 18px;
+  border-radius: 8px;
+  border: 1px solid #d8e9df;
+  background: #fff;
+}
+
+.analysis-panel h2 {
+  margin: 0 0 14px;
+  font-size: 16px;
+}
+
+.trend-list,
+.credit-list {
+  display: grid;
+  gap: 14px;
+}
+
+.trend-row,
+.credit-row {
+  display: grid;
+  gap: 8px;
+}
+
+.trend-row {
+  grid-template-columns: minmax(110px, 1fr) minmax(120px, 1.4fr) 48px;
+  align-items: center;
+}
+
+.trend-meta,
+.credit-header {
+  display: grid;
+  gap: 4px;
+}
+
+.trend-meta span,
+.credit-header span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.trend-value {
+  color: var(--sky-700);
+  text-align: right;
+}
+
+.bar-track {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5eef5;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #0284c7;
+}
+
+.credit-fill {
+  background: #059669;
+}
+
+.warning-panel {
+  border-color: #fed7aa;
+  background: #fffaf4;
+}
+
+.failed-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.failed-list li {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+}
+
+.failed-list span {
+  color: #9a3412;
+  font-size: 12px;
 }
 
 .summary-card {
@@ -427,7 +804,8 @@ onMounted(() => {
 
 @media (max-width: 960px) {
   .query-grid,
-  .summary-row {
+  .summary-row,
+  .analysis-grid {
     grid-template-columns: 1fr;
   }
 }

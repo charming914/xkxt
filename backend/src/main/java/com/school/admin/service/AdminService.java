@@ -1,6 +1,7 @@
 package com.school.admin.service;
 
 import com.school.admin.dto.AdminCourseRequest;
+import com.school.admin.dto.AcademicRequestReviewRequest;
 import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.AdminTeachingClassRequest;
@@ -16,6 +17,11 @@ import com.school.common.dto.CourseDropReviewRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.mapper.AdminMapper;
 import com.school.common.exception.BusinessException;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.List;
@@ -24,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
@@ -71,6 +78,138 @@ public class AdminService {
             throw new BusinessException("该教学班暂无已提交成绩");
         }
         return distribution;
+    }
+
+    public List<Map<String, Object>> cultivationPlanRequirements() {
+        return adminMapper.selectCultivationPlanRequirements();
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public int importCultivationPlan(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("请选择培养方案 CSV 文件");
+        }
+        int imported = 0;
+        try (BufferedReader reader = new BufferedReader(
+            new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8)
+        )) {
+            String line;
+            boolean firstLine = true;
+            while ((line = reader.readLine()) != null) {
+                String normalized = stripBom(line).trim();
+                if (normalized.isBlank()) {
+                    continue;
+                }
+                String[] parts = normalized.split(",", -1);
+                if (firstLine && isCultivationPlanHeader(parts)) {
+                    firstLine = false;
+                    continue;
+                }
+                firstLine = false;
+                if (parts.length < 4) {
+                    throw new BusinessException("培养方案 CSV 至少需要4列：入学年份,专业编号,课程类型,要求学分");
+                }
+                Integer enrollmentYear = Integer.valueOf(parts[0].trim());
+                String majorId = parts[1].trim();
+                String courseType = parts[2].trim();
+                BigDecimal requiredCredit = new BigDecimal(parts[3].trim());
+                String remark = parts.length > 4 ? parts[4].trim() : "";
+                if (majorId.isBlank() || courseType.isBlank()) {
+                    throw new BusinessException("专业编号和课程类型不能为空");
+                }
+                adminMapper.upsertCultivationPlanRequirement(
+                    enrollmentYear,
+                    majorId,
+                    courseType,
+                    requiredCredit,
+                    remark
+                );
+                imported++;
+            }
+        } catch (NumberFormatException e) {
+            throw new BusinessException("培养方案 CSV 中入学年份或要求学分格式不正确");
+        } catch (IOException e) {
+            throw new BusinessException("培养方案 CSV 读取失败");
+        }
+        return imported;
+    }
+
+    public List<Map<String, Object>> makeupExamRequests() {
+        return adminMapper.selectMakeupExamRequests();
+    }
+
+    public List<Map<String, Object>> retakeRequests() {
+        return adminMapper.selectRetakeRequests();
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void reviewMakeupExamRequest(
+        Long requestId,
+        AcademicRequestReviewRequest request,
+        String adminUsername
+    ) {
+        Map<String, Object> makeupRequest = adminMapper.selectMakeupExamRequestById(requestId);
+        if (makeupRequest == null) {
+            throw new BusinessException("补考申请不存在");
+        }
+        if (!"待审核".equals(makeupRequest.get("requestStatus"))) {
+            throw new BusinessException("该补考申请已处理，请勿重复审核");
+        }
+        Integer adminUserId = resolveAdminUserId(adminUsername);
+        String reviewStatus = resolveReviewStatus(request.getAction());
+        String resultStatus = "已通过".equals(reviewStatus)
+            ? normalizeMakeupResult(request.getResultStatus(), "待考试")
+            : "未安排";
+        adminMapper.updateMakeupExamReview(
+            requestId,
+            reviewStatus,
+            resultStatus,
+            request.getReviewComment(),
+            adminUserId
+        );
+        adminMapper.insertOperationLog(
+            adminUserId,
+            "补考审核",
+            "管理员处理补考申请，申请编号：" + requestId + "，结果：" + reviewStatus
+        );
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void updateMakeupExamResult(Long requestId, AcademicRequestReviewRequest request) {
+        Map<String, Object> makeupRequest = adminMapper.selectMakeupExamRequestById(requestId);
+        if (makeupRequest == null) {
+            throw new BusinessException("补考申请不存在");
+        }
+        if (!"已通过".equals(makeupRequest.get("requestStatus"))) {
+            throw new BusinessException("只有已通过审核的补考申请可以登记结果");
+        }
+        String resultStatus = normalizeMakeupResult(request.getResultStatus(), null);
+        if (adminMapper.updateMakeupExamResult(requestId, resultStatus) == 0) {
+            throw new BusinessException("补考结果登记失败");
+        }
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void reviewRetakeRequest(
+        Long requestId,
+        AcademicRequestReviewRequest request,
+        String adminUsername
+    ) {
+        Map<String, Object> retakeRequest = adminMapper.selectRetakeRequestById(requestId);
+        if (retakeRequest == null) {
+            throw new BusinessException("重修申请不存在");
+        }
+        if (!"待审核".equals(retakeRequest.get("requestStatus"))) {
+            throw new BusinessException("该重修申请已处理，请勿重复审核");
+        }
+        Integer adminUserId = resolveAdminUserId(adminUsername);
+        String reviewStatus = resolveReviewStatus(request.getAction());
+        adminMapper.updateRetakeReview(requestId, reviewStatus, request.getReviewComment(), adminUserId);
+        adminMapper.insertOperationLog(
+            adminUserId,
+            "重修审核",
+            "管理员处理重修申请，申请编号：" + requestId + "，结果：" + reviewStatus
+        );
     }
 
     public List<Map<String, Object>> departments() {
@@ -470,6 +609,40 @@ public class AdminService {
         } catch (RuntimeException e) {
             throw new BusinessException(resolveDropCourseMessage(e.getMessage()));
         }
+    }
+
+    private Integer resolveAdminUserId(String adminUsername) {
+        Integer adminUserId = adminMapper.selectUserIdByUsername(adminUsername);
+        if (adminUserId == null) {
+            throw new BusinessException("管理员账号不存在");
+        }
+        return adminUserId;
+    }
+
+    private String stripBom(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\uFEFF", "");
+    }
+
+    private boolean isCultivationPlanHeader(String[] parts) {
+        if (parts.length == 0) {
+            return false;
+        }
+        String first = stripBom(parts[0]).toLowerCase();
+        return first.contains("enrollment") || first.contains("入学");
+    }
+
+    private String normalizeMakeupResult(String resultStatus, String fallback) {
+        String value = resultStatus == null || resultStatus.isBlank() ? fallback : resultStatus.trim();
+        if (value == null || value.isBlank()) {
+            throw new BusinessException("补考结果不能为空");
+        }
+        if (!List.of("待考试", "已通过", "未通过", "未安排").contains(value)) {
+            throw new BusinessException("补考结果只能是待考试、已通过、未通过或未安排");
+        }
+        return value;
     }
 
     private void createUserIfNecessary(String username, String realName, String userType, String roleCode) {

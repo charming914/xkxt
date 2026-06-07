@@ -8,6 +8,7 @@ import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
 import com.school.admin.dto.ScoreSubmitSettingRequest;
 import com.school.admin.dto.SemesterRequest;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import org.apache.ibatis.annotations.Delete;
@@ -719,11 +720,13 @@ public interface AdminMapper {
           AND cs.selection_status = '已选'
           AND t1.semester_id = t2.semester_id
           AND t1.week_day = t2.week_day
-          AND CAST(SUBSTRING_INDEX(t1.section_desc, '-', 1) AS UNSIGNED)
-              <= CAST(REPLACE(SUBSTRING_INDEX(t2.section_desc, '-', -1), '节', '') AS UNSIGNED)
-          AND CAST(SUBSTRING_INDEX(t2.section_desc, '-', 1) AS UNSIGNED)
-              <= CAST(REPLACE(SUBSTRING_INDEX(t1.section_desc, '-', -1), '节', '') AS UNSIGNED)
           AND cs.teaching_class_id <> #{teachingClassId}
+          AND NOT (
+              CAST(REPLACE(SUBSTRING_INDEX(t1.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                  < CAST(SUBSTRING_INDEX(t2.section_desc, '-', 1) AS UNSIGNED)
+              OR CAST(SUBSTRING_INDEX(t1.section_desc, '-', 1) AS UNSIGNED)
+                  > CAST(REPLACE(SUBSTRING_INDEX(t2.section_desc, '-', -1), '节', '') AS UNSIGNED)
+          )
         """)
     int countStudentTimeConflict(
         @Param("studentId") String studentId,
@@ -1022,6 +1025,169 @@ public interface AdminMapper {
           AND teaching_class_id = #{teachingClassId}
         """)
     Map<String, Object> selectScoreDistribution(@Param("teachingClassId") Integer teachingClassId);
+
+    // ==================== 学业扩展 ====================
+
+    @Select("""
+        SELECT
+            req.requirement_id AS requirementId,
+            req.enrollment_year AS enrollmentYear,
+            req.major_id AS majorId,
+            m.major_name AS majorName,
+            req.course_type AS courseType,
+            req.required_credit AS requiredCredit,
+            req.remark AS remark,
+            req.updated_at AS updatedAt
+        FROM cultivation_plan_requirement req
+        LEFT JOIN major m ON req.major_id = m.major_id
+        ORDER BY req.enrollment_year DESC, m.major_name, req.course_type
+        """)
+    List<Map<String, Object>> selectCultivationPlanRequirements();
+
+    @Insert("""
+        INSERT INTO cultivation_plan_requirement (
+            enrollment_year, major_id, course_type, required_credit, remark
+        ) VALUES (
+            #{enrollmentYear}, #{majorId}, #{courseType}, #{requiredCredit}, #{remark}
+        )
+        ON DUPLICATE KEY UPDATE
+            required_credit = #{requiredCredit},
+            remark = #{remark},
+            updated_at = NOW()
+        """)
+    int upsertCultivationPlanRequirement(
+        @Param("enrollmentYear") Integer enrollmentYear,
+        @Param("majorId") String majorId,
+        @Param("courseType") String courseType,
+        @Param("requiredCredit") BigDecimal requiredCredit,
+        @Param("remark") String remark
+    );
+
+    @Select("""
+        SELECT
+            mer.request_id AS requestId,
+            mer.student_id AS studentId,
+            s.student_name AS studentName,
+            mer.score_id AS scoreId,
+            sem.semester_name AS semesterName,
+            c.course_id AS courseId,
+            c.course_name AS courseName,
+            sc.final_score AS finalScore,
+            mer.request_reason AS requestReason,
+            mer.request_status AS requestStatus,
+            mer.result_status AS resultStatus,
+            mer.review_comment AS reviewComment,
+            mer.created_at AS createdAt,
+            mer.reviewed_at AS reviewedAt
+        FROM makeup_exam_request mer
+        JOIN student s ON mer.student_id = s.student_id
+        JOIN score sc ON mer.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        ORDER BY CASE mer.request_status WHEN '待审核' THEN 1 WHEN '已通过' THEN 2 ELSE 3 END,
+                 mer.created_at DESC,
+                 mer.request_id DESC
+        """)
+    List<Map<String, Object>> selectMakeupExamRequests();
+
+    @Select("""
+        SELECT
+            request_id AS requestId,
+            student_id AS studentId,
+            score_id AS scoreId,
+            request_status AS requestStatus,
+            result_status AS resultStatus
+        FROM makeup_exam_request
+        WHERE request_id = #{requestId}
+        LIMIT 1
+        """)
+    Map<String, Object> selectMakeupExamRequestById(@Param("requestId") Long requestId);
+
+    @Update("""
+        UPDATE makeup_exam_request
+        SET request_status = #{requestStatus},
+            result_status = #{resultStatus},
+            review_comment = #{reviewComment},
+            reviewed_by = #{reviewedBy},
+            reviewed_at = NOW(),
+            updated_at = NOW()
+        WHERE request_id = #{requestId}
+        """)
+    int updateMakeupExamReview(
+        @Param("requestId") Long requestId,
+        @Param("requestStatus") String requestStatus,
+        @Param("resultStatus") String resultStatus,
+        @Param("reviewComment") String reviewComment,
+        @Param("reviewedBy") Integer reviewedBy
+    );
+
+    @Update("""
+        UPDATE makeup_exam_request
+        SET result_status = #{resultStatus},
+            updated_at = NOW()
+        WHERE request_id = #{requestId}
+          AND request_status = '已通过'
+        """)
+    int updateMakeupExamResult(
+        @Param("requestId") Long requestId,
+        @Param("resultStatus") String resultStatus
+    );
+
+    @Select("""
+        SELECT
+            crr.request_id AS requestId,
+            crr.student_id AS studentId,
+            s.student_name AS studentName,
+            crr.score_id AS scoreId,
+            sem.semester_name AS semesterName,
+            c.course_id AS courseId,
+            c.course_name AS courseName,
+            sc.final_score AS finalScore,
+            crr.request_reason AS requestReason,
+            crr.request_status AS requestStatus,
+            crr.review_comment AS reviewComment,
+            crr.created_at AS createdAt,
+            crr.reviewed_at AS reviewedAt
+        FROM course_retake_request crr
+        JOIN student s ON crr.student_id = s.student_id
+        JOIN score sc ON crr.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        ORDER BY CASE crr.request_status WHEN '待审核' THEN 1 WHEN '已通过' THEN 2 ELSE 3 END,
+                 crr.created_at DESC,
+                 crr.request_id DESC
+        """)
+    List<Map<String, Object>> selectRetakeRequests();
+
+    @Select("""
+        SELECT
+            request_id AS requestId,
+            student_id AS studentId,
+            score_id AS scoreId,
+            request_status AS requestStatus
+        FROM course_retake_request
+        WHERE request_id = #{requestId}
+        LIMIT 1
+        """)
+    Map<String, Object> selectRetakeRequestById(@Param("requestId") Long requestId);
+
+    @Update("""
+        UPDATE course_retake_request
+        SET request_status = #{requestStatus},
+            review_comment = #{reviewComment},
+            reviewed_by = #{reviewedBy},
+            reviewed_at = NOW(),
+            updated_at = NOW()
+        WHERE request_id = #{requestId}
+        """)
+    int updateRetakeReview(
+        @Param("requestId") Long requestId,
+        @Param("requestStatus") String requestStatus,
+        @Param("reviewComment") String reviewComment,
+        @Param("reviewedBy") Integer reviewedBy
+    );
 
     // ==================== 考试管理 ====================
 
