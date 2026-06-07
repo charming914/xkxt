@@ -13,7 +13,7 @@
         <RouterLink v-if="canViewStudent" to="/student/selected-courses">已选课程</RouterLink>
         <RouterLink v-if="canViewStudent" to="/student/drop-courses">退课</RouterLink>
         <RouterLink v-if="canViewStudent" to="/student/timetable">学生课表</RouterLink>
-        <RouterLink v-if="canViewStudent" to="/student/scores">学生成绩</RouterLink>
+        <RouterLink v-if="canViewStudent" to="/student/scores">成绩查询</RouterLink>
         <RouterLink v-if="canViewTeacher" to="/teacher/classes">教师授课</RouterLink>
         <RouterLink v-if="canViewTeacher" to="/teacher/scores">教师成绩录入</RouterLink>
         <RouterLink v-if="canViewTeacher" to="/teacher/course-drop-requests">退课审核</RouterLink>
@@ -23,6 +23,7 @@
         <RouterLink v-if="canViewAdmin" to="/admin/teaching-classes">教学班管理</RouterLink>
         <RouterLink v-if="canViewAdmin" to="/admin/course-selection-requests">补选审核</RouterLink>
         <RouterLink v-if="canViewAdmin" to="/admin/course-drop-requests">退课审核</RouterLink>
+        <RouterLink v-if="canViewAdmin" to="/admin/score-review-requests">成绩复核审核</RouterLink>
         <RouterLink v-if="canViewAdmin" to="/admin/statistics">统计分析</RouterLink>
       </nav>
       <el-button class="logout-btn" plain @click="handleLogout">退出登录</el-button>

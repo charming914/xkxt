@@ -35,6 +35,9 @@ public class AuthService {
     }
 
     public LoginUserVO profile(String username) {
+        if (username == null || username.isBlank()) {
+            throw new BusinessException("未识别登录身份，请重新登录");
+        }
         LoginUserVO loginUser = authMapper.selectProfileByUsername(username);
         if (loginUser == null) {
             throw new BusinessException("用户不存在");
@@ -43,6 +46,9 @@ public class AuthService {
     }
 
     public void updatePassword(String username, PasswordUpdateRequest request) {
+        if (username == null || username.isBlank()) {
+            throw new BusinessException("未识别登录身份，请重新登录");
+        }
         String encodedPassword = authMapper.selectPasswordByUsername(username);
         boolean matched = encodedPassword != null && passwordEncoder.matches(request.getOldPassword(), encodedPassword);
         if (!matched && encodedPassword != null && request.getOldPassword().equals(encodedPassword)) {

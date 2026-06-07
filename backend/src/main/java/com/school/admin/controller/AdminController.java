@@ -7,6 +7,7 @@ import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
 import com.school.admin.dto.CourseDropRequestAdminReviewRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
+import com.school.admin.dto.ScoreReviewRequestReviewRequest;
 import com.school.admin.service.AdminService;
 import com.school.common.api.ApiResponse;
 import jakarta.validation.Valid;
@@ -191,11 +192,16 @@ public class AdminController {
         return ApiResponse.success(adminService.courseDropRequests());
     }
 
+    @GetMapping("/score-review-requests")
+    public ApiResponse<List<Map<String, Object>>> scoreReviewRequests() {
+        return ApiResponse.success(adminService.scoreReviewRequests());
+    }
+
     @PutMapping("/course-selection-requests/{requestId}/review")
     public ApiResponse<Void> reviewCourseSelectionRequest(
         @PathVariable Long requestId,
         @Valid @RequestBody CourseSelectionRequestReviewRequest request,
-        @RequestHeader(value = "X-Username", defaultValue = "admin") String username
+        @RequestHeader(value = "X-Username", required = false) String username
     ) {
         adminService.reviewCourseSelectionRequest(requestId, request, username);
         return ApiResponse.success("补选申请处理成功", null);
@@ -205,9 +211,19 @@ public class AdminController {
     public ApiResponse<Void> reviewCourseDropRequest(
         @PathVariable Long dropRequestId,
         @Valid @RequestBody CourseDropRequestAdminReviewRequest request,
-        @RequestHeader(value = "X-Username", defaultValue = "admin") String username
+        @RequestHeader(value = "X-Username", required = false) String username
     ) {
         adminService.reviewCourseDropRequest(dropRequestId, request, username);
         return ApiResponse.success("退课申请处理成功", null);
+    }
+
+    @PutMapping("/score-review-requests/{requestId}/review")
+    public ApiResponse<Void> reviewScoreReviewRequest(
+        @PathVariable Long requestId,
+        @Valid @RequestBody ScoreReviewRequestReviewRequest request,
+        @RequestHeader(value = "X-Username", required = false) String username
+    ) {
+        adminService.reviewScoreReviewRequest(requestId, request, username);
+        return ApiResponse.success("成绩复核申请处理成功", null);
     }
 }

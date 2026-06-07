@@ -18,6 +18,7 @@ import AdminTeachingClassView from '../views/admin/AdminTeachingClassView.vue'
 import AdminStatisticsView from '../views/admin/AdminStatisticsView.vue'
 import AdminSelectionRequestView from '../views/admin/AdminSelectionRequestView.vue'
 import AdminDropRequestView from '../views/admin/AdminDropRequestView.vue'
+import AdminScoreReviewRequestView from '../views/admin/AdminScoreReviewRequestView.vue'
 import PasswordView from '../views/PasswordView.vue'
 
 const routes = [
@@ -126,6 +127,12 @@ const routes = [
         path: 'admin/course-drop-requests',
         name: 'admin-course-drop-requests',
         component: AdminDropRequestView,
+        meta: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'admin/score-review-requests',
+        name: 'admin-score-review-requests',
+        component: AdminScoreReviewRequestView,
         meta: { roles: ['ADMIN'] }
       },
       {

@@ -13,6 +13,7 @@ public class LoginUserVO {
     private String username;
     private String realName;
     private String roleCode;
+    private String refId;
     private String token;
     private String password;
 }

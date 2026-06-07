@@ -11,9 +11,6 @@ request.interceptors.request.use((config) => {
   if (user?.username) {
     config.headers['X-Username'] = user.username
   }
-  if (user?.refId && user?.roleCode === 'STUDENT') {
-    config.headers['X-Student-Id'] = user.refId
-  }
   if (user?.refId && user?.roleCode === 'TEACHER') {
     config.headers['X-Teacher-Id'] = user.refId
   }

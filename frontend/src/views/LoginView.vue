@@ -40,7 +40,7 @@ function buildUser(data) {
     realName: data.realName,
     roleCode: data.roleCode,
     token: data.token,
-    refId: data.roleCode === 'STUDENT' || data.roleCode === 'TEACHER' ? data.username : null
+    refId: data.refId || null
   }
 }
 

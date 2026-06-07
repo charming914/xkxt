@@ -13,6 +13,16 @@ import org.apache.ibatis.annotations.Update;
 public interface StudentMapper {
 
     @Select("""
+        SELECT ref_id
+        FROM sys_user
+        WHERE username = #{username}
+          AND user_type = '学生'
+          AND is_enabled = 1
+        LIMIT 1
+        """)
+    String selectStudentIdByUsername(@Param("username") String username);
+
+    @Select("""
         <script>
         SELECT
             tc.teaching_class_id AS teachingClassId,
@@ -37,6 +47,13 @@ public interface StudentMapper {
         LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
         WHERE sem.is_current = 1
           AND tc.status = '选课中'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM course_selection cs
+            WHERE cs.student_id = #{studentId}
+              AND cs.teaching_class_id = tc.teaching_class_id
+              AND cs.selection_status = '已选'
+          )
           <if test="query.teacherName != null and query.teacherName != ''">
             AND t.teacher_name LIKE CONCAT('%', #{query.teacherName}, '%')
           </if>
@@ -66,7 +83,10 @@ public interface StudentMapper {
         ORDER BY tc.week_day, tc.section_desc
         </script>
         """)
-    List<Map<String, Object>> selectAvailableCourses(@Param("query") StudentCourseQueryRequest query);
+    List<Map<String, Object>> selectAvailableCourses(
+        @Param("query") StudentCourseQueryRequest query,
+        @Param("studentId") String studentId
+    );
 
     @Select("""
         SELECT
@@ -181,19 +201,118 @@ public interface StudentMapper {
 
     @Select("""
         SELECT
-            student_id AS studentId,
-            student_name AS studentName,
-            semester_name AS semesterName,
-            course_name AS courseName,
-            usual_score AS usualScore,
-            exam_score AS examScore,
-            final_score AS finalScore,
-            gpa_point AS gpaPoint
-        FROM v_student_score
-        WHERE student_id = #{studentId}
-        ORDER BY semester_name, course_name
+            sc.score_id AS scoreId,
+            sc.student_id AS studentId,
+            s.student_name AS studentName,
+            sem.semester_id AS semesterId,
+            sem.semester_name AS semesterName,
+            tc.teaching_class_id AS teachingClassId,
+            c.course_id AS courseId,
+            c.course_name AS courseName,
+            c.course_type AS courseType,
+            c.credit AS credit,
+            t.teacher_name AS teacherName,
+            sc.usual_score AS usualScore,
+            sc.exam_score AS examScore,
+            sc.final_score AS finalScore,
+            sc.gpa_point AS gpaPoint,
+            CASE
+                WHEN sc.final_score IS NULL THEN NULL
+                WHEN sc.final_score >= 90 THEN 'A'
+                WHEN sc.final_score >= 85 THEN 'A-'
+                WHEN sc.final_score >= 82 THEN 'B+'
+                WHEN sc.final_score >= 78 THEN 'B'
+                WHEN sc.final_score >= 75 THEN 'B-'
+                WHEN sc.final_score >= 72 THEN 'C+'
+                WHEN sc.final_score >= 68 THEN 'C'
+                WHEN sc.final_score >= 66 THEN 'C-'
+                WHEN sc.final_score >= 64 THEN 'D'
+                WHEN sc.final_score >= 60 THEN 'D-'
+                ELSE 'F'
+            END AS gradeLevel,
+            sc.is_submitted AS isSubmitted,
+            sc.entered_at AS enteredAt,
+            latest_review.request_id AS scoreReviewRequestId,
+            latest_review.request_status AS scoreReviewStatus,
+            latest_review.request_reason AS scoreReviewReason,
+            latest_review.review_comment AS scoreReviewComment,
+            latest_review.created_at AS scoreReviewCreatedAt,
+            latest_review.reviewed_at AS scoreReviewReviewedAt,
+            CASE
+                WHEN latest_review.request_status = '待审核' THEN 1
+                ELSE 0
+            END AS hasPendingScoreReview
+        FROM score sc
+        JOIN student s ON sc.student_id = s.student_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        LEFT JOIN score_review_request latest_review
+          ON latest_review.request_id = (
+            SELECT srr.request_id
+            FROM score_review_request srr
+            WHERE srr.score_id = sc.score_id
+            ORDER BY srr.created_at DESC, srr.request_id DESC
+            LIMIT 1
+          )
+        WHERE sc.student_id = #{studentId}
+          AND sc.is_submitted = 1
+        ORDER BY sem.semester_name DESC, c.course_name
         """)
     List<Map<String, Object>> selectScores(@Param("studentId") String studentId);
+
+    @Select("""
+        SELECT
+            sc.score_id AS scoreId,
+            sc.student_id AS studentId,
+            s.student_name AS studentName,
+            sem.semester_id AS semesterId,
+            sem.semester_name AS semesterName,
+            tc.teaching_class_id AS teachingClassId,
+            c.course_id AS courseId,
+            c.course_name AS courseName,
+            c.course_type AS courseType,
+            c.credit AS credit,
+            t.teacher_name AS teacherName,
+            sc.usual_score AS usualScore,
+            sc.exam_score AS examScore,
+            sc.final_score AS finalScore,
+            sc.gpa_point AS gpaPoint,
+            CASE
+                WHEN sc.final_score IS NULL THEN NULL
+                WHEN sc.final_score >= 90 THEN 'A'
+                WHEN sc.final_score >= 85 THEN 'A-'
+                WHEN sc.final_score >= 82 THEN 'B+'
+                WHEN sc.final_score >= 78 THEN 'B'
+                WHEN sc.final_score >= 75 THEN 'B-'
+                WHEN sc.final_score >= 72 THEN 'C+'
+                WHEN sc.final_score >= 68 THEN 'C'
+                WHEN sc.final_score >= 66 THEN 'C-'
+                WHEN sc.final_score >= 64 THEN 'D'
+                WHEN sc.final_score >= 60 THEN 'D-'
+                ELSE 'F'
+            END AS gradeLevel,
+            sc.is_submitted AS isSubmitted,
+            sc.entered_at AS enteredAt,
+            NULL AS scoreReviewRequestId,
+            NULL AS scoreReviewStatus,
+            NULL AS scoreReviewReason,
+            NULL AS scoreReviewComment,
+            NULL AS scoreReviewCreatedAt,
+            NULL AS scoreReviewReviewedAt,
+            0 AS hasPendingScoreReview
+        FROM score sc
+        JOIN student s ON sc.student_id = s.student_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        WHERE sc.student_id = #{studentId}
+          AND sc.is_submitted = 1
+        ORDER BY sem.semester_name DESC, c.course_name
+        """)
+    List<Map<String, Object>> selectScoresWithoutReview(@Param("studentId") String studentId);
 
     @Insert("""
         INSERT INTO course_selection_request (student_id, teaching_class_id, request_reason)
@@ -293,6 +412,62 @@ public interface StudentMapper {
         @Param("operationType") String operationType,
         @Param("operationContent") String operationContent
     );
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM score
+        WHERE score_id = #{scoreId}
+          AND student_id = #{studentId}
+          AND is_submitted = 1
+        """)
+    int countReviewableScore(@Param("studentId") String studentId, @Param("scoreId") Long scoreId);
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM score_review_request
+        WHERE student_id = #{studentId}
+          AND score_id = #{scoreId}
+          AND request_status = '待审核'
+        """)
+    int countPendingScoreReviewRequest(@Param("studentId") String studentId, @Param("scoreId") Long scoreId);
+
+    @Insert("""
+        INSERT INTO score_review_request (student_id, score_id, request_reason)
+        VALUES (#{studentId}, #{scoreId}, #{requestReason})
+        """)
+    int insertScoreReviewRequest(
+        @Param("studentId") String studentId,
+        @Param("scoreId") Long scoreId,
+        @Param("requestReason") String requestReason
+    );
+
+    @Select("""
+        SELECT
+            srr.request_id AS requestId,
+            srr.score_id AS scoreId,
+            srr.request_reason AS requestReason,
+            srr.request_status AS requestStatus,
+            srr.review_comment AS reviewComment,
+            srr.created_at AS createdAt,
+            srr.reviewed_at AS reviewedAt,
+            sem.semester_name AS semesterName,
+            c.course_id AS courseId,
+            c.course_name AS courseName,
+            t.teacher_name AS teacherName,
+            sc.usual_score AS usualScore,
+            sc.exam_score AS examScore,
+            sc.final_score AS finalScore,
+            sc.gpa_point AS gpaPoint
+        FROM score_review_request srr
+        JOIN score sc ON srr.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        WHERE srr.student_id = #{studentId}
+        ORDER BY srr.created_at DESC, srr.request_id DESC
+        """)
+    List<Map<String, Object>> selectScoreReviewRequests(@Param("studentId") String studentId);
 
     @Select("""
         SELECT

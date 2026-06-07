@@ -263,12 +263,11 @@ async function handleSelect(row) {
     return
   }
   submittingId.value = row.teachingClassId
-  selectionHint.value = ''
-  try {
-    const response = await selectCourse({
-      studentId: userStore.refId,
-      teachingClassId: row.teachingClassId
-    })
+    selectionHint.value = ''
+    try {
+      const response = await selectCourse({
+        teachingClassId: row.teachingClassId
+      })
     ElMessage.success(response.message || '选课成功')
     await loadCourses()
   } catch (error) {
@@ -298,7 +297,6 @@ async function handleCreateRequest() {
     return
   }
   const response = await createCourseSelectionRequest({
-    studentId: userStore.refId,
     teachingClassId: selectedCourse.value.teachingClassId,
     requestReason: requestReason.value.trim()
   })

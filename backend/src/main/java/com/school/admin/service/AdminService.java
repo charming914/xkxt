@@ -7,6 +7,7 @@ import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
 import com.school.admin.dto.CourseDropRequestAdminReviewRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
+import com.school.admin.dto.ScoreReviewRequestReviewRequest;
 import com.school.admin.mapper.AdminMapper;
 import com.school.common.exception.BusinessException;
 import java.util.List;
@@ -166,6 +167,10 @@ public class AdminService {
         return adminMapper.selectCourseDropRequests();
     }
 
+    public List<Map<String, Object>> scoreReviewRequests() {
+        return adminMapper.selectScoreReviewRequests();
+    }
+
     @Transactional
     public void reviewCourseSelectionRequest(
         Long requestId,
@@ -181,7 +186,7 @@ public class AdminService {
             throw new BusinessException("该补选申请已处理，请勿重复审核");
         }
 
-        Integer reviewedBy = adminMapper.selectUserIdByUsername(adminUsername);
+        Integer reviewedBy = resolveAdminUserId(adminUsername);
         if (reviewedBy == null) {
             throw new BusinessException("管理员账号不存在");
         }
@@ -227,10 +232,7 @@ public class AdminService {
             throw new BusinessException("你已审核过该退课申请");
         }
 
-        Integer adminUserId = adminMapper.selectUserIdByUsername(adminUsername);
-        if (adminUserId == null) {
-            throw new BusinessException("管理员账号不存在");
-        }
+        Integer adminUserId = resolveAdminUserId(adminUsername);
 
         String adminStatus = resolveReviewStatus(request.getAction());
         adminMapper.updateAdminDropReview(
@@ -240,6 +242,35 @@ public class AdminService {
             adminUserId
         );
         dropCourseIfFullyApproved(dropRequestId, dropRequest);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void reviewScoreReviewRequest(
+        Long requestId,
+        ScoreReviewRequestReviewRequest request,
+        String adminUsername
+    ) {
+        Map<String, Object> scoreReviewRequest = adminMapper.selectScoreReviewRequestById(requestId);
+        if (scoreReviewRequest == null) {
+            throw new BusinessException("成绩复核申请不存在");
+        }
+        if (!"待审核".equals(scoreReviewRequest.get("requestStatus"))) {
+            throw new BusinessException("该成绩复核申请已处理，请勿重复审核");
+        }
+
+        Integer adminUserId = resolveAdminUserId(adminUsername);
+        String reviewStatus = resolveReviewStatus(request.getAction());
+        adminMapper.updateScoreReviewRequestStatus(
+            requestId,
+            reviewStatus,
+            request.getReviewComment(),
+            adminUserId
+        );
+        adminMapper.insertOperationLog(
+            adminUserId,
+            "成绩复核审核",
+            "管理员处理成绩复核申请，申请编号：" + requestId + "，结果：" + reviewStatus
+        );
     }
 
     private String resolveReviewStatus(String action) {
@@ -280,6 +311,17 @@ public class AdminService {
             return "退课失败：开课超过一周，需教师和管理员均同意后才能退课";
         }
         return "退课失败：" + rawMessage;
+    }
+
+    private Integer resolveAdminUserId(String username) {
+        if (username == null || username.isBlank()) {
+            throw new BusinessException("未识别登录身份，请重新登录");
+        }
+        Integer adminUserId = adminMapper.selectAdminUserIdByUsername(username);
+        if (adminUserId == null) {
+            throw new BusinessException("当前账号不是管理员身份");
+        }
+        return adminUserId;
     }
 
     private void createUserIfNecessary(String username, String realName, String userType, String roleCode) {

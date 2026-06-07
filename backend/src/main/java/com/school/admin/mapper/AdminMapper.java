@@ -338,6 +338,18 @@ public interface AdminMapper {
     @Select("SELECT user_id FROM sys_user WHERE username = #{username} LIMIT 1")
     Integer selectUserIdByUsername(@Param("username") String username);
 
+    @Select("""
+        SELECT u.user_id
+        FROM sys_user u
+        JOIN sys_user_role ur ON u.user_id = ur.user_id
+        JOIN sys_role r ON ur.role_id = r.role_id
+        WHERE u.username = #{username}
+          AND r.role_code = 'ADMIN'
+          AND u.is_enabled = 1
+        LIMIT 1
+        """)
+    Integer selectAdminUserIdByUsername(@Param("username") String username);
+
     @Insert("INSERT INTO sys_user_role (user_id, role_id) VALUES (#{userId}, #{roleId})")
     int insertSysUserRole(@Param("userId") Integer userId, @Param("roleId") Integer roleId);
 
@@ -582,5 +594,76 @@ public interface AdminMapper {
     int dropSelectedCourse(
         @Param("studentId") String studentId,
         @Param("teachingClassId") Integer teachingClassId
+    );
+
+    @Select("""
+        SELECT
+            srr.request_id AS requestId,
+            srr.score_id AS scoreId,
+            srr.student_id AS studentId,
+            s.student_name AS studentName,
+            sem.semester_name AS semesterName,
+            c.course_id AS courseId,
+            c.course_name AS courseName,
+            t.teacher_name AS teacherName,
+            sc.usual_score AS usualScore,
+            sc.exam_score AS examScore,
+            sc.final_score AS finalScore,
+            sc.gpa_point AS gpaPoint,
+            srr.request_reason AS requestReason,
+            srr.request_status AS requestStatus,
+            srr.review_comment AS reviewComment,
+            reviewer.real_name AS reviewedByName,
+            srr.created_at AS createdAt,
+            srr.reviewed_at AS reviewedAt
+        FROM score_review_request srr
+        JOIN student s ON srr.student_id = s.student_id
+        JOIN score sc ON srr.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        LEFT JOIN sys_user reviewer ON srr.reviewed_by = reviewer.user_id
+        ORDER BY CASE srr.request_status WHEN '待审核' THEN 1 WHEN '已通过' THEN 2 ELSE 3 END,
+                 srr.created_at DESC,
+                 srr.request_id DESC
+        """)
+    List<Map<String, Object>> selectScoreReviewRequests();
+
+    @Select("""
+        SELECT
+            request_id AS requestId,
+            score_id AS scoreId,
+            student_id AS studentId,
+            request_status AS requestStatus
+        FROM score_review_request
+        WHERE request_id = #{requestId}
+        LIMIT 1
+        """)
+    Map<String, Object> selectScoreReviewRequestById(@Param("requestId") Long requestId);
+
+    @Update("""
+        UPDATE score_review_request
+        SET request_status = #{status},
+            review_comment = #{reviewComment},
+            reviewed_by = #{reviewedBy},
+            reviewed_at = NOW()
+        WHERE request_id = #{requestId}
+        """)
+    int updateScoreReviewRequestStatus(
+        @Param("requestId") Long requestId,
+        @Param("status") String status,
+        @Param("reviewComment") String reviewComment,
+        @Param("reviewedBy") Integer reviewedBy
+    );
+
+    @Insert("""
+        INSERT INTO operation_log (user_id, operation_type, operation_content)
+        VALUES (#{userId}, #{operationType}, #{operationContent})
+        """)
+    int insertOperationLog(
+        @Param("userId") Integer userId,
+        @Param("operationType") String operationType,
+        @Param("operationContent") String operationContent
     );
 }

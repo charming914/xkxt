@@ -17,6 +17,7 @@ public interface AuthMapper {
             u.username AS username,
             u.real_name AS realName,
             r.role_code AS roleCode,
+            u.ref_id AS refId,
             CONCAT('token-', u.user_id) AS token,
             u.password AS password
         FROM sys_user u
@@ -34,6 +35,7 @@ public interface AuthMapper {
             u.username AS username,
             u.real_name AS realName,
             r.role_code AS roleCode,
+            u.ref_id AS refId,
             CONCAT('token-', u.user_id) AS token
         FROM sys_user u
         JOIN sys_user_role ur ON u.user_id = ur.user_id
