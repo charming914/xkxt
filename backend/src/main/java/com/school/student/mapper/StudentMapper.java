@@ -156,7 +156,8 @@ public interface StudentMapper {
         LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
         WHERE cs.student_id = #{studentId}
           AND cs.selection_status = '已选'
-        ORDER BY sem.semester_name, tc.week_day, tc.section_desc
+          AND sem.is_current = 1
+        ORDER BY tc.week_day, tc.section_desc
         """)
     List<Map<String, Object>> selectSelectedCourses(@Param("studentId") String studentId);
 
@@ -225,19 +226,28 @@ public interface StudentMapper {
 
     @Select("""
         SELECT
-            student_id AS studentId,
-            student_name AS studentName,
-            semester_name AS semesterName,
-            course_name AS courseName,
-            teacher_name AS teacherName,
-            week_day AS weekDay,
-            section_desc AS sectionDesc,
-            week_range AS weekRange,
-            building_name AS buildingName,
-            room_name AS roomName
-        FROM v_student_timetable
-        WHERE student_id = #{studentId}
-        ORDER BY semester_name, week_day, section_desc
+            cs.student_id AS studentId,
+            s.student_name AS studentName,
+            tc.semester_id AS semesterId,
+            sem.semester_name AS semesterName,
+            c.course_name AS courseName,
+            t.teacher_name AS teacherName,
+            tc.week_day AS weekDay,
+            tc.section_desc AS sectionDesc,
+            tc.week_range AS weekRange,
+            cl.building_name AS buildingName,
+            cl.room_name AS roomName
+        FROM course_selection cs
+        JOIN student s ON cs.student_id = s.student_id
+        JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
+        WHERE cs.student_id = #{studentId}
+          AND cs.selection_status = '已选'
+          AND sem.is_current = 1
+        ORDER BY tc.week_day, tc.section_desc
         """)
     List<Map<String, Object>> selectTimetable(@Param("studentId") String studentId);
 
@@ -421,7 +431,10 @@ public interface StudentMapper {
           AND cs.selection_status = '已选'
           AND t1.semester_id = t2.semester_id
           AND t1.week_day = t2.week_day
-          AND t1.section_desc = t2.section_desc
+          AND CAST(SUBSTRING_INDEX(t1.section_desc, '-', 1) AS UNSIGNED)
+              <= CAST(REPLACE(SUBSTRING_INDEX(t2.section_desc, '-', -1), '节', '') AS UNSIGNED)
+          AND CAST(SUBSTRING_INDEX(t2.section_desc, '-', 1) AS UNSIGNED)
+              <= CAST(REPLACE(SUBSTRING_INDEX(t1.section_desc, '-', -1), '节', '') AS UNSIGNED)
           AND cs.teaching_class_id <> #{teachingClassId}
         """)
     int countStudentTimeConflict(

@@ -9,7 +9,15 @@
 --   - 当前学期(2025-2026-2)的教学班状态为“选课中”，仅有选课数据，
 --     用于“统计分析”和选课相关演示。
 --   - 所有新生成的学生/教师都会同步 sys_user 登录账号，默认密码 123456。
---   - 可安全重复执行：已存在的编号会被跳过（NOT EXISTS / INSERT IGNORE）。
+--   - 选课通过系统存储过程 sp_select_course 逐条完成，天然满足容量上限与
+--     上课时间不冲突；可安全重复执行（基础数据用 NOT EXISTS/INSERT IGNORE
+--     去重，选课的去重/容量/冲突由存储过程把关）。
+--
+-- 导入顺序：
+--   1) school.sql                      建表、触发器、存储过程、基础数据
+--   2) 0607_demo_seed_data.sql         本脚本，生成批量演示数据
+--   3) 0607_fix_schedule_conflicts.sql 消解教学班“同教师/同教室同时段”排课
+--                                      冲突（本脚本随机排课可能产生少量冲突）
 -- =====================================================================
 
 USE school;
@@ -202,6 +210,8 @@ WHERE u.ref_id IS NOT NULL;
 --      - 学期1(semester_id=1)：状态“已结束”，用于成绩分析
 --      - 学期2(semester_id=2)：状态“选课中”，用于选课统计
 --    教师、教室、上课时间均随机分配。
+--    注意：随机分配可能产生少量“同教师/同教室同时段”的排课冲突，
+--          导入本脚本后请再执行 0607_fix_schedule_conflicts.sql 自动消解冲突。
 -- ---------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_gen_teaching_classes;
 DELIMITER $$
@@ -255,53 +265,73 @@ CALL sp_gen_teaching_classes();
 DROP PROCEDURE IF EXISTS sp_gen_teaching_classes;
 
 -- ---------------------------------------------------------------------
--- 5. 生成选课记录
---    规则：
---      - 每名学生在每个学期最多选 6 门课；
---      - 同一学生不会选到上课时间(week_day + section_desc)冲突的课；
---      - 每个教学班选课人数不超过其容量上限(max_students)。
---    通过窗口函数分层筛选实现，保证 selected_count 不会超过容量。
+-- 5. 生成选课记录（通过系统存储过程 sp_select_course 逐条选课）
+--    设计思路：不再用 INSERT 直接写表，而是模拟学生逐个抢课，
+--    调用与学生端完全相同的 sp_select_course。该存储过程内置四重校验：
+--      - 选课时间窗口；
+--      - 是否已选该课（去重）；
+--      - 教学班容量上限；
+--      - 同一学生的上课时间(星期+节次)冲突。
+--    满员或冲突时存储过程会抛异常，驱动过程用 CONTINUE HANDLER 捕获后跳过，
+--    因此最终数据天然满足容量与时间不冲突，且可安全重复执行。
+--
+--    注意：当前真实日期通常已不在历史学期的选课窗口内，故在调用前临时把
+--    两个学期的选课窗口放宽到覆盖当下，跑完后立即恢复原值。
 -- ---------------------------------------------------------------------
 
--- 学期1（历史学期）选课
-INSERT IGNORE INTO course_selection (student_id, teaching_class_id, selection_status)
-SELECT student_id, teaching_class_id, '已选'
-FROM (
-    SELECT student_id, teaching_class_id, max_students,
-           ROW_NUMBER() OVER (PARTITION BY teaching_class_id ORDER BY RAND()) AS class_rn
-    FROM (
-        SELECT student_id, teaching_class_id, max_students
-        FROM (
-            SELECT s.student_id, tc.teaching_class_id, tc.max_students,
-                   ROW_NUMBER() OVER (PARTITION BY s.student_id, tc.week_day, tc.section_desc ORDER BY RAND()) AS slot_rn,
-                   ROW_NUMBER() OVER (PARTITION BY s.student_id ORDER BY RAND()) AS stu_rn
-            FROM student s
-            JOIN teaching_class tc ON tc.semester_id = 1
-        ) ranked
-        WHERE slot_rn = 1 AND stu_rn <= 6
-    ) candidate
-) capped
-WHERE class_rn <= max_students;
+-- 5.1 备份并临时放宽选课时间窗口
+DROP TEMPORARY TABLE IF EXISTS tmp_semester_window;
+CREATE TEMPORARY TABLE tmp_semester_window AS
+SELECT semester_id, course_select_start, course_select_end FROM semester;
 
--- 学期2（当前学期）选课
-INSERT IGNORE INTO course_selection (student_id, teaching_class_id, selection_status)
-SELECT student_id, teaching_class_id, '已选'
-FROM (
-    SELECT student_id, teaching_class_id, max_students,
-           ROW_NUMBER() OVER (PARTITION BY teaching_class_id ORDER BY RAND()) AS class_rn
-    FROM (
-        SELECT student_id, teaching_class_id, max_students
-        FROM (
-            SELECT s.student_id, tc.teaching_class_id, tc.max_students,
-                   ROW_NUMBER() OVER (PARTITION BY s.student_id, tc.week_day, tc.section_desc ORDER BY RAND()) AS slot_rn,
-                   ROW_NUMBER() OVER (PARTITION BY s.student_id ORDER BY RAND()) AS stu_rn
+UPDATE semester
+SET course_select_start = '2000-01-01 00:00:00',
+    course_select_end = '2099-12-31 23:59:59';
+
+-- 5.2 驱动过程：为每名学生在每个学期随机挑选若干教学班并尝试选课
+DROP PROCEDURE IF EXISTS sp_seed_enrollment;
+DELIMITER $$
+CREATE PROCEDURE sp_seed_enrollment(IN p_semester_id INT, IN p_max_per_student INT)
+BEGIN
+    DECLARE v_done INT DEFAULT 0;
+    DECLARE v_student_id VARCHAR(12);
+    DECLARE v_teaching_class_id INT;
+
+    -- 候选集：每名学生在该学期随机排序的教学班，仅取前 N 个尝试选课。
+    -- 真正能否选上由 sp_select_course 判定（容量/冲突/去重）。
+    DECLARE cur CURSOR FOR
+        SELECT student_id, teaching_class_id FROM (
+            SELECT s.student_id, tc.teaching_class_id,
+                   ROW_NUMBER() OVER (PARTITION BY s.student_id ORDER BY RAND()) AS rn
             FROM student s
-            JOIN teaching_class tc ON tc.semester_id = 2
+            JOIN teaching_class tc ON tc.semester_id = p_semester_id
         ) ranked
-        WHERE slot_rn = 1 AND stu_rn <= 6
-    ) candidate
-) capped
-WHERE class_rn <= max_students;
+        WHERE rn <= p_max_per_student;
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_done = 1;
+    -- 选课失败（满员/冲突/已选/不在窗口）时跳过该条，继续下一条
+    DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+
+    OPEN cur;
+    enroll_loop: LOOP
+        FETCH cur INTO v_student_id, v_teaching_class_id;
+        IF v_done = 1 THEN LEAVE enroll_loop; END IF;
+        CALL sp_select_course(v_student_id, v_teaching_class_id);
+    END LOOP;
+    CLOSE cur;
+END$$
+DELIMITER ;
+
+-- 5.3 执行选课：每个学期每名学生最多尝试 6 个教学班（实际选上数受容量/冲突限制）
+CALL sp_seed_enrollment(1, 6);
+CALL sp_seed_enrollment(2, 6);
+DROP PROCEDURE IF EXISTS sp_seed_enrollment;
+
+-- 5.4 恢复选课时间窗口原值
+UPDATE semester sem
+JOIN tmp_semester_window w ON sem.semester_id = w.semester_id
+SET sem.course_select_start = w.course_select_start,
+    sem.course_select_end = w.course_select_end;
+DROP TEMPORARY TABLE IF EXISTS tmp_semester_window;
 
 -- ---------------------------------------------------------------------
 -- 6. 生成历史学期成绩（仅 semester_id=1 的教学班）
@@ -322,7 +352,9 @@ WHERE tc.semester_id = 1
   AND cs.selection_status = '已选';
 
 -- ---------------------------------------------------------------------
--- 7. 根据实际选课记录回填各教学班的 selected_count
+-- 7. 兜底校正各教学班的 selected_count
+--    正常情况下 sp_select_course 已实时维护该字段，这里按实际选课记录
+--    重算一次，确保与 course_selection 完全一致（重复执行该脚本时尤为重要）。
 -- ---------------------------------------------------------------------
 UPDATE teaching_class tc
 SET selected_count = (

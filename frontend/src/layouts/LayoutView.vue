@@ -1,7 +1,7 @@
 <template>
   <div class="layout-shell">
     <header class="topbar">
-      <div class="brand-area">
+      <div class="brand-area" role="button" tabindex="0" @click="goHome" @keyup.enter="goHome">
         <img class="brand-mark" :src="shuLogo" alt="上海大学校徽" />
         <div>
           <h2>教务系统</h2>
@@ -9,17 +9,50 @@
         </div>
       </div>
       <nav class="top-nav">
-        <RouterLink v-for="item in navItems" :key="item.path" :to="item.path">
-          {{ item.label }}
-        </RouterLink>
+        <template v-for="item in navItems" :key="item.label">
+          <el-dropdown
+            v-if="item.children"
+            trigger="hover"
+            popper-class="nav-dropdown-popper"
+            :hide-on-click="true"
+          >
+            <span class="nav-link nav-group" :class="{ 'is-active': isGroupActive(item) }">
+              {{ item.label }}
+              <span class="caret">▾</span>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-for="child in item.children"
+                  :key="child.path"
+                  :class="{ 'is-active': route.path === child.path }"
+                  @click="router.push(child.path)"
+                >
+                  {{ child.label }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <RouterLink v-else :to="item.path" class="nav-link">
+            {{ item.label }}
+          </RouterLink>
+        </template>
       </nav>
-      <div class="user-panel">
-        <div>
-          <div class="user-name">{{ userStore.realName || '未登录' }}</div>
-          <div class="user-role">{{ roleLabel }}</div>
+      <el-dropdown trigger="hover" popper-class="nav-dropdown-popper">
+        <div class="user-panel">
+          <div>
+            <div class="user-name">{{ userStore.realName || '未登录' }}</div>
+            <div class="user-role">{{ roleLabel }}</div>
+          </div>
+          <span class="caret">▾</span>
         </div>
-        <el-button class="logout-btn" plain @click="handleLogout">退出登录</el-button>
-      </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item @click="router.push('/password')">修改密码</el-dropdown-item>
+            <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </header>
     <main class="content">
       <router-view />
@@ -29,11 +62,12 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import shuLogo from '../assets/shu-logo.png'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 
 const roleLabel = computed(() => {
@@ -50,10 +84,7 @@ const canViewTeacher = computed(() => userStore.roleCode === 'TEACHER')
 const canViewAdmin = computed(() => userStore.roleCode === 'ADMIN')
 
 const navItems = computed(() => {
-  const items = [
-    { path: '/', label: '首页' },
-    { path: '/password', label: '修改密码' }
-  ]
+  const items = []
   if (canViewStudent.value) {
     items.push(
       { path: '/student/courses', label: '学生选课' },
@@ -68,28 +99,56 @@ const navItems = computed(() => {
       { path: '/teacher/profile', label: '个人信息' },
       { path: '/teacher/classes', label: '教师授课' },
       { path: '/teacher/scores', label: '学生成绩录入' },
-      { path: '/teacher/course-drop-requests', label: '退课审核' },
-      { path: '/teacher/schedule-adjust-requests', label: '调课申请' }
+      {
+        label: '审核处理',
+        children: [
+          { path: '/teacher/course-drop-requests', label: '退课审核' },
+          { path: '/teacher/schedule-adjust-requests', label: '调课申请' }
+        ]
+      }
     )
   }
   if (canViewAdmin.value) {
     items.push(
-      { path: '/admin/students', label: '学生管理' },
-      { path: '/admin/teachers', label: '教师管理' },
-      { path: '/admin/courses', label: '课程管理' },
-      { path: '/admin/teaching-classes', label: '教学班管理' },
-      { path: '/admin/course-selection-requests', label: '补选审核' },
-      { path: '/admin/course-drop-requests', label: '退课审核' },
-      { path: '/admin/schedule-adjust-requests', label: '调课审核' },
-      { path: '/admin/score-change-requests', label: '成绩修改审核' },
-      { path: '/admin/score-review-requests', label: '成绩复核审核' },
-      { path: '/admin/statistics', label: '统计分析' },
-      { path: '/admin/score-analysis', label: '成绩分析' },
-      { path: '/admin/operation-logs', label: '操作日志' }
+      {
+        label: '基础数据',
+        children: [
+          { path: '/admin/students', label: '学生管理' },
+          { path: '/admin/teachers', label: '教师管理' },
+          { path: '/admin/courses', label: '课程管理' },
+          { path: '/admin/teaching-classes', label: '教学班管理' }
+        ]
+      },
+      {
+        label: '审核管理',
+        children: [
+          { path: '/admin/course-selection-requests', label: '补选审核' },
+          { path: '/admin/course-drop-requests', label: '退课审核' },
+          { path: '/admin/schedule-adjust-requests', label: '调课审核' },
+          { path: '/admin/score-change-requests', label: '成绩修改审核' },
+          { path: '/admin/score-review-requests', label: '成绩复核审核' }
+        ]
+      },
+      {
+        label: '统计与日志',
+        children: [
+          { path: '/admin/statistics', label: '统计分析' },
+          { path: '/admin/score-analysis', label: '成绩分析' },
+          { path: '/admin/operation-logs', label: '操作日志' }
+        ]
+      }
     )
   }
   return items
 })
+
+function isGroupActive(item) {
+  return Boolean(item.children?.some((child) => route.path === child.path))
+}
+
+function goHome() {
+  router.push('/')
+}
 
 function handleLogout() {
   userStore.clearUser()
@@ -126,6 +185,21 @@ function handleLogout() {
   align-items: center;
   gap: 12px;
   flex: 0 0 auto;
+  cursor: pointer;
+  padding: 6px 10px;
+  margin: -6px -10px;
+  border-radius: 16px;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.brand-area:hover {
+  background: rgba(255, 255, 255, 0.14);
+  transform: translateY(-1px);
+}
+
+.brand-area:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 2px;
 }
 
 .brand-mark {
@@ -160,21 +234,34 @@ function handleLogout() {
   scrollbar-width: thin;
 }
 
-.top-nav a {
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   flex: 0 0 auto;
-  padding: 9px 13px;
+  padding: 9px 14px;
   border-radius: 999px;
   color: rgba(255, 255, 255, 0.9);
   text-decoration: none;
   font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
   transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
-.top-nav a:hover,
-.top-nav a.router-link-active {
+.nav-link:hover,
+.nav-link.router-link-active,
+.nav-link.is-active {
   color: #075985;
   background: rgba(255, 255, 255, 0.9);
   transform: translateY(-1px);
+}
+
+.caret {
+  font-size: 11px;
+  opacity: 0.85;
+  line-height: 1;
 }
 
 .user-panel {
@@ -182,10 +269,16 @@ function handleLogout() {
   align-items: center;
   gap: 12px;
   flex: 0 0 auto;
-  padding: 10px 12px;
+  padding: 10px 14px;
   border-radius: 18px;
+  cursor: pointer;
   background: rgba(255, 255, 255, 0.2);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  transition: background-color 0.2s ease;
+}
+
+.user-panel:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .user-name {
@@ -198,12 +291,6 @@ function handleLogout() {
   margin-top: 4px;
   font-size: 12px;
   color: rgba(255, 255, 255, 0.78);
-}
-
-.logout-btn {
-  --el-button-bg-color: rgba(255, 255, 255, 0.92);
-  --el-button-border-color: rgba(255, 255, 255, 0.7);
-  --el-button-text-color: #075985;
 }
 
 .content {
@@ -234,5 +321,24 @@ function handleLogout() {
   .content {
     padding: 18px 14px;
   }
+}
+</style>
+
+<style>
+/* 下拉菜单挂载在 body 上，需用全局样式定制选中态 */
+.nav-dropdown-popper {
+  --el-dropdown-menuItem-hover-fill: #e7f5ff;
+  --el-dropdown-menuItem-hover-color: #075985;
+}
+
+.nav-dropdown-popper .el-dropdown-menu__item {
+  font-size: 14px;
+  padding: 9px 18px;
+}
+
+.nav-dropdown-popper .el-dropdown-menu__item.is-active {
+  color: #075985;
+  font-weight: 600;
+  background: #e7f5ff;
 }
 </style>

@@ -338,10 +338,10 @@ INSERT INTO teaching_class (
     semester_id, course_id, teacher_id, classroom_id,
     course_start_date, week_day, section_desc, week_range, max_students, selected_count, status
 ) VALUES
-(2, '08305002', 'T0101', 'LAB1', '2026-03-01', 3, '1-4节', '1-16周', 50, 0, '选课中'),
-(2, '08305003', 'T0102', 'R102', '2026-03-01', 5, '5-8节', '1-16周', 60, 0, '选课中'),
-(2, '08302001', 'T0201', 'R201', '2026-03-01', 1, '5-8节', '1-16周', 80, 0, '选课中'),
-(2, '08305001', 'T0103', 'R101', '2026-03-01', 2, '1-4节', '1-16周', 60, 0, '选课中');
+(2, '08305002', 'T0101', 'LAB1', '2026-03-01', 3, '1-2节', '1-16周', 50, 0, '选课中'),
+(2, '08305003', 'T0102', 'R102', '2026-03-01', 5, '5-6节', '1-16周', 60, 0, '选课中'),
+(2, '08302001', 'T0201', 'R201', '2026-03-01', 1, '5-6节', '1-16周', 80, 0, '选课中'),
+(2, '08305001', 'T0103', 'R101', '2026-03-01', 2, '1-2节', '1-16周', 60, 0, '选课中');
 
 INSERT INTO course_selection (student_id, teaching_class_id, selection_time, selection_status) VALUES
 ('20240001', 3, NOW(), '已选'),
@@ -491,7 +491,11 @@ BEGIN
       AND cs.selection_status = '已选'
       AND t1.semester_id = t2.semester_id
       AND t1.week_day = t2.week_day
-      AND t1.section_desc = t2.section_desc;
+      -- 按节次区间是否重叠判断冲突（兼容 "1-2节" 与 "1-4节" 这类跨段课程）
+      AND CAST(SUBSTRING_INDEX(t1.section_desc, '-', 1) AS UNSIGNED)
+          <= CAST(REPLACE(SUBSTRING_INDEX(t2.section_desc, '-', -1), '节', '') AS UNSIGNED)
+      AND CAST(SUBSTRING_INDEX(t2.section_desc, '-', 1) AS UNSIGNED)
+          <= CAST(REPLACE(SUBSTRING_INDEX(t1.section_desc, '-', -1), '节', '') AS UNSIGNED);
 
     IF v_conflict_count > 0 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '选课时间冲突';

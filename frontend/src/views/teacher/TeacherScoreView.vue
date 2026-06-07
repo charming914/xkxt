@@ -49,7 +49,8 @@
 
     <el-empty v-if="!loading && filteredScores.length === 0" description="当前暂无成绩录入数据" />
 
-    <el-table v-else v-loading="loading" :data="filteredScores" border>
+    <template v-else>
+    <el-table v-loading="loading" :data="pagedData" border>
       <el-table-column prop="teachingClassId" label="教学班编号" width="120" />
       <el-table-column prop="courseName" label="课程名称" min-width="160" />
       <el-table-column prop="studentId" label="学号" width="120" />
@@ -83,6 +84,19 @@
         </template>
       </el-table-column>
     </el-table>
+    <div class="pager">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :total="total"
+        :page-sizes="[10, 20, 50, 100]"
+        layout="total, sizes, prev, pager, next, jumper"
+        background
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+      />
+    </div>
+    </template>
 
     <div class="request-section">
       <div class="sub-header">
@@ -133,6 +147,7 @@ import {
   saveTeacherScores
 } from '../../api/teacher'
 import { useUserStore } from '../../stores/user'
+import { useClientPagination } from '../../composables/useClientPagination'
 
 const userStore = useUserStore()
 const loading = ref(false)
@@ -161,6 +176,16 @@ const filteredScores = computed(() => {
 })
 
 const editableScores = computed(() => filteredScores.value.filter(item => !item.isSubmitted))
+
+// 分页基于 filteredScores（完整筛选结果）；批量保存/导出/统计仍引用完整数据，不受当前页影响
+const {
+  currentPage,
+  pageSize,
+  total,
+  pagedData,
+  handleSizeChange,
+  handleCurrentChange
+} = useClientPagination(filteredScores, 10)
 
 const selectedScoreLabel = computed(() => {
   if (!selectedScore.value) {
@@ -372,6 +397,12 @@ onMounted(() => {
 .action-row {
   display: flex;
   gap: 10px;
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
 }
 
 .request-section {

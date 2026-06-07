@@ -114,7 +114,8 @@
 
     <el-empty v-if="!loading && statistics.length === 0" description="暂无统计数据" />
 
-    <el-table v-else v-loading="loading" :data="statistics" border>
+    <template v-else>
+      <el-table v-loading="loading" :data="statPaged.pagedData.value" border>
       <el-table-column prop="semesterName" label="学期" min-width="120" />
       <el-table-column prop="courseName" label="课程名称" min-width="160" />
       <el-table-column prop="teachingClassId" label="教学班编号" width="120" />
@@ -134,7 +135,20 @@
           {{ usageRate(row) }}
         </template>
       </el-table-column>
-    </el-table>
+      </el-table>
+      <div class="pager">
+        <el-pagination
+          v-model:current-page="statPaged.currentPage.value"
+          v-model:page-size="statPaged.pageSize.value"
+          :total="statPaged.total.value"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @size-change="statPaged.handleSizeChange"
+          @current-change="statPaged.handleCurrentChange"
+        />
+      </div>
+    </template>
 
     <div class="page-header score-header">
       <div>
@@ -145,7 +159,8 @@
     </div>
 
     <el-empty v-if="!scoreLoading && submittedScores.length === 0" description="暂无已提交成绩" />
-    <el-table v-else v-loading="scoreLoading" :data="submittedScores" border>
+    <template v-else>
+      <el-table v-loading="scoreLoading" :data="scorePaged.pagedData.value" border>
       <el-table-column prop="scoreId" label="成绩编号" width="100" />
       <el-table-column prop="semesterName" label="学期" width="130" />
       <el-table-column prop="courseName" label="课程名称" min-width="150" />
@@ -160,7 +175,20 @@
           <el-button size="small" type="warning" plain @click="handleRollback(row)">退回</el-button>
         </template>
       </el-table-column>
-    </el-table>
+      </el-table>
+      <div class="pager">
+        <el-pagination
+          v-model:current-page="scorePaged.currentPage.value"
+          v-model:page-size="scorePaged.pageSize.value"
+          :total="scorePaged.total.value"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @size-change="scorePaged.handleSizeChange"
+          @current-change="scorePaged.handleCurrentChange"
+        />
+      </div>
+    </template>
   </section>
 </template>
 
@@ -176,11 +204,14 @@ import {
   updateScoreSubmitSetting,
   updateCourseSelectionSetting
 } from '../../api/admin'
+import { useClientPagination } from '../../composables/useClientPagination'
 
 const loading = ref(false)
 const scoreLoading = ref(false)
 const statistics = ref([])
 const submittedScores = ref([])
+const statPaged = useClientPagination(statistics, 10)
+const scorePaged = useClientPagination(submittedScores, 10)
 const setting = reactive({
   semesterName: '',
   courseSelectStart: '',
@@ -363,5 +394,11 @@ onMounted(() => {
 .summary-label {
   color: var(--text-muted);
   font-size: 13px;
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
 }
 </style>

@@ -30,38 +30,52 @@
 
     <el-empty v-if="!loading && filteredTeachingClasses.length === 0" description="暂无教学班数据" />
 
-    <el-table v-else v-loading="loading" :data="filteredTeachingClasses" border>
-      <el-table-column prop="teachingClassId" label="教学班编号" width="120" />
-      <el-table-column prop="semesterName" label="学期" min-width="120" />
-      <el-table-column prop="courseName" label="课程名称" min-width="150" />
-      <el-table-column prop="courseStartDate" label="开课日期" width="120" />
-      <el-table-column prop="teacherName" label="任课教师" width="110" />
-      <el-table-column label="上课时间" min-width="170">
-        <template #default="{ row }">
-          周{{ weekLabel(row.weekDay) }} / {{ row.sectionDesc }} / {{ row.weekRange }}
-        </template>
-      </el-table-column>
-      <el-table-column label="教室" min-width="140">
-        <template #default="{ row }">
-          {{ row.buildingName || '-' }} {{ row.roomName || '' }}
-        </template>
-      </el-table-column>
-      <el-table-column label="容量" width="90">
-        <template #default="{ row }">
-          {{ row.selectedCount }}/{{ row.maxStudents }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="status" label="状态" width="100" />
-      <el-table-column label="操作" width="260" fixed="right">
-        <template #default="{ row }">
-          <div class="action-row">
-            <el-button size="small" type="primary" plain @click="openStudentDialog(row)">学生名单</el-button>
-            <el-button size="small" @click="openEditDialog(row)">编辑</el-button>
-            <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
-          </div>
-        </template>
-      </el-table-column>
-    </el-table>
+    <template v-else>
+      <el-table v-loading="loading" :data="pagedData" border>
+        <el-table-column prop="teachingClassId" label="教学班编号" width="120" />
+        <el-table-column prop="semesterName" label="学期" min-width="120" />
+        <el-table-column prop="courseName" label="课程名称" min-width="150" />
+        <el-table-column prop="courseStartDate" label="开课日期" width="120" />
+        <el-table-column prop="teacherName" label="任课教师" width="110" />
+        <el-table-column label="上课时间" min-width="170">
+          <template #default="{ row }">
+            周{{ weekLabel(row.weekDay) }} / {{ row.sectionDesc }} / {{ row.weekRange }}
+          </template>
+        </el-table-column>
+        <el-table-column label="教室" min-width="140">
+          <template #default="{ row }">
+            {{ row.buildingName || '-' }} {{ row.roomName || '' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="容量" width="90">
+          <template #default="{ row }">
+            {{ row.selectedCount }}/{{ row.maxStudents }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100" />
+        <el-table-column label="操作" width="260" fixed="right">
+          <template #default="{ row }">
+            <div class="action-row">
+              <el-button size="small" type="primary" plain @click="openStudentDialog(row)">学生名单</el-button>
+              <el-button size="small" @click="openEditDialog(row)">编辑</el-button>
+              <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="pager">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+    </template>
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑教学班' : '新增教学班'" width="760px">
       <el-form :model="form" label-width="90px" class="grid-form">
@@ -154,6 +168,7 @@ import {
   getTeacherOptions,
   updateAdminTeachingClass
 } from '../../api/admin'
+import { useClientPagination } from '../../composables/useClientPagination'
 
 const loading = ref(false)
 const dialogVisible = ref(false)
@@ -208,6 +223,15 @@ const filteredTeachingClasses = computed(() => {
     return matchSemester && matchCourse && matchTeacher && matchClassroom
   })
 })
+
+const {
+  currentPage,
+  pageSize,
+  total,
+  pagedData,
+  handleSizeChange,
+  handleCurrentChange
+} = useClientPagination(filteredTeachingClasses, 10)
 
 const selectedClassroomLabel = computed(() => {
   if (!filters.classroomId) {
@@ -421,5 +445,11 @@ onMounted(async () => {
 
 .student-dialog-header {
   margin-bottom: 16px;
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
 }
 </style>

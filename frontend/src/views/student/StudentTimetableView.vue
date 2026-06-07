@@ -21,7 +21,7 @@
         </div>
         <div v-for="day in weekDays" :key="`${day.value}-${block.key}`" class="calendar-cell">
           <div
-            v-for="course in getCourses(day.value, block.key)"
+            v-for="course in getCourses(day.value, block)"
             :key="`${course.courseName}-${course.teacherName}-${course.weekRange}`"
             class="course-card"
           >
@@ -55,27 +55,34 @@ const weekDays = [
   { value: 7, label: '日' }
 ]
 const timeBlocks = [
-  { key: 'morning', label: '上午', time: '1-4节' },
-  { key: 'afternoon', label: '下午', time: '5-8节' },
-  { key: 'evening', label: '晚上', time: '9-12节' }
+  { key: 's1_2', label: '第1-2节', time: '08:00-09:40', start: 1, end: 2 },
+  { key: 's3_4', label: '第3-4节', time: '10:00-11:40', start: 3, end: 4 },
+  { key: 's5_6', label: '第5-6节', time: '13:00-14:40', start: 5, end: 6 },
+  { key: 's7_8', label: '第7-8节', time: '15:00-16:40', start: 7, end: 8 },
+  { key: 's9_10', label: '第9-10节', time: '18:00-19:40', start: 9, end: 10 },
+  { key: 's11_12', label: '第11-12节', time: '20:00-21:40', start: 11, end: 12 }
 ]
 
-function resolveBlock(sectionDesc) {
-  const firstSection = parseInt(String(sectionDesc).split('-')[0], 10)
-  if (Number.isNaN(firstSection)) {
-    return 'afternoon'
+// 解析节次描述（如 "1-2节"、"3-4节"、"1-4节"）的起止节
+function parseSection(sectionDesc) {
+  const nums = String(sectionDesc).match(/\d+/g)
+  if (!nums || nums.length === 0) {
+    return { start: 0, end: 0 }
   }
-  if (firstSection <= 4) {
-    return 'morning'
-  }
-  if (firstSection <= 8) {
-    return 'afternoon'
-  }
-  return 'evening'
+  const start = parseInt(nums[0], 10)
+  const end = parseInt(nums[nums.length - 1], 10)
+  return { start, end }
 }
 
-function getCourses(weekDay, blockKey) {
-  return timetable.value.filter(item => item.weekDay === weekDay && resolveBlock(item.sectionDesc) === blockKey)
+function getCourses(weekDay, block) {
+  return timetable.value.filter(item => {
+    if (item.weekDay !== weekDay) {
+      return false
+    }
+    // 课程节次区间与该行节次区间有重叠即显示
+    const { start, end } = parseSection(item.sectionDesc)
+    return start <= block.end && block.start <= end
+  })
 }
 
 async function loadTimetable() {

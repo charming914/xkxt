@@ -10,7 +10,8 @@
 
     <el-empty v-if="!loading && requests.length === 0" description="暂无补选申请" />
 
-    <el-table v-else v-loading="loading" :data="requests" border>
+    <template v-else>
+    <el-table v-loading="loading" :data="pagedData" border>
       <el-table-column prop="studentId" label="学号" width="120" />
       <el-table-column prop="studentName" label="姓名" width="110" />
       <el-table-column prop="courseName" label="课程名称" min-width="150" />
@@ -37,6 +38,19 @@
         </template>
       </el-table-column>
     </el-table>
+      <div class="pager">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+    </template>
 
     <el-dialog v-model="dialogVisible" :title="reviewAction === 'APPROVE' ? '通过补选申请' : '驳回补选申请'" width="520px">
       <el-form label-position="top">
@@ -56,9 +70,18 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getAdminCourseSelectionRequests, reviewAdminCourseSelectionRequest } from '../../api/admin'
+import { useClientPagination } from '../../composables/useClientPagination'
 
 const loading = ref(false)
 const requests = ref([])
+const {
+  currentPage,
+  pageSize,
+  total,
+  pagedData,
+  handleSizeChange,
+  handleCurrentChange
+} = useClientPagination(requests, 10)
 const dialogVisible = ref(false)
 const currentRequestId = ref(null)
 const reviewAction = ref('APPROVE')
@@ -119,5 +142,11 @@ onMounted(() => {
 .action-row {
   display: flex;
   gap: 8px;
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
 }
 </style>

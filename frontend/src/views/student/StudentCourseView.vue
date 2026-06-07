@@ -61,48 +61,64 @@
       </div>
     </el-form>
 
-    <el-table v-loading="loading" :data="courses" border>
-      <el-table-column prop="teachingClassId" label="教学班编号" width="120" />
-      <el-table-column prop="courseId" label="课程号" width="120" />
-      <el-table-column prop="courseName" label="课程名称" min-width="160" />
-      <el-table-column prop="courseType" label="课程种类" width="120" />
-      <el-table-column prop="teacherName" label="任课教师" width="120" />
-      <el-table-column prop="credit" label="学分" width="80" />
-      <el-table-column prop="totalHours" label="学时" width="80" />
-      <el-table-column label="上课时间" min-width="180">
-        <template #default="{ row }">
-          周{{ weekLabel(row.weekDay) }} / {{ row.sectionDesc }} / {{ row.weekRange }}
-        </template>
-      </el-table-column>
-      <el-table-column label="上课地点" min-width="150">
-        <template #default="{ row }">
-          {{ row.buildingName || '-' }} {{ row.roomName || '' }}
-        </template>
-      </el-table-column>
-      <el-table-column label="人数" width="120">
-        <template #default="{ row }">
-          {{ row.selectedCount }}/{{ row.maxStudents }}
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="220" fixed="right">
-        <template #default="{ row }">
-          <div class="action-row">
-            <el-button
-              type="primary"
-              size="small"
-              :loading="submittingId === row.teachingClassId"
-              :disabled="!canSelect(row)"
-              @click="handleSelect(row)"
-            >
-              选课
-            </el-button>
-            <el-button size="small" :disabled="!canRequestSelection(row)" @click="openRequestDialog(row)">
-              申请补选
-            </el-button>
-          </div>
-        </template>
-      </el-table-column>
-    </el-table>
+    <el-empty v-if="!loading && courses.length === 0" description="暂无可选课程" />
+
+    <template v-else>
+      <el-table v-loading="loading" :data="pagedData" border>
+        <el-table-column prop="teachingClassId" label="教学班编号" width="120" />
+        <el-table-column prop="courseId" label="课程号" width="120" />
+        <el-table-column prop="courseName" label="课程名称" min-width="160" />
+        <el-table-column prop="courseType" label="课程种类" width="120" />
+        <el-table-column prop="teacherName" label="任课教师" width="120" />
+        <el-table-column prop="credit" label="学分" width="80" />
+        <el-table-column prop="totalHours" label="学时" width="80" />
+        <el-table-column label="上课时间" min-width="180">
+          <template #default="{ row }">
+            周{{ weekLabel(row.weekDay) }} / {{ row.sectionDesc }} / {{ row.weekRange }}
+          </template>
+        </el-table-column>
+        <el-table-column label="上课地点" min-width="150">
+          <template #default="{ row }">
+            {{ row.buildingName || '-' }} {{ row.roomName || '' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="人数" width="120">
+          <template #default="{ row }">
+            {{ row.selectedCount }}/{{ row.maxStudents }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="220" fixed="right">
+          <template #default="{ row }">
+            <div class="action-row">
+              <el-button
+                type="primary"
+                size="small"
+                :loading="submittingId === row.teachingClassId"
+                :disabled="!canSelect(row)"
+                @click="handleSelect(row)"
+              >
+                选课
+              </el-button>
+              <el-button size="small" :disabled="!canRequestSelection(row)" @click="openRequestDialog(row)">
+                申请补选
+              </el-button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="pager">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+    </template>
 
     <div class="request-section">
       <div class="sub-header">
@@ -156,11 +172,20 @@ import {
   selectCourse
 } from '../../api/student'
 import { useUserStore } from '../../stores/user'
+import { useClientPagination } from '../../composables/useClientPagination'
 
 const userStore = useUserStore()
 const loading = ref(false)
 const submittingId = ref(null)
 const courses = ref([])
+const {
+  currentPage,
+  pageSize,
+  total,
+  pagedData,
+  handleSizeChange,
+  handleCurrentChange
+} = useClientPagination(courses, 10)
 const selectionHint = ref('')
 const requests = ref([])
 const requestLoading = ref(false)
@@ -387,5 +412,11 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
 }
 </style>

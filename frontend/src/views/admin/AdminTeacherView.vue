@@ -13,27 +13,41 @@
 
     <el-empty v-if="!loading && teachers.length === 0" description="暂无教师数据" />
 
-    <el-table v-else v-loading="loading" :data="teachers" border>
-      <el-table-column prop="teacherId" label="工号" width="120" />
-      <el-table-column prop="teacherName" label="姓名" width="120" />
-      <el-table-column prop="titleName" label="职称" width="120" />
-      <el-table-column prop="education" label="学历" width="100" />
-      <el-table-column prop="departmentName" label="所属院系" min-width="150" />
-      <el-table-column prop="phone" label="联系电话" min-width="140" />
-      <el-table-column label="状态" width="100">
-        <template #default="{ row }">
-          <el-tag :type="row.status === '在职' ? 'success' : 'info'">{{ row.status }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
-        <template #default="{ row }">
-          <div class="action-row">
-            <el-button size="small" @click="openEditDialog(row)">编辑</el-button>
-            <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
-          </div>
-        </template>
-      </el-table-column>
-    </el-table>
+    <template v-else>
+      <el-table v-loading="loading" :data="pagedData" border>
+        <el-table-column prop="teacherId" label="工号" width="120" />
+        <el-table-column prop="teacherName" label="姓名" width="120" />
+        <el-table-column prop="titleName" label="职称" width="120" />
+        <el-table-column prop="education" label="学历" width="100" />
+        <el-table-column prop="departmentName" label="所属院系" min-width="150" />
+        <el-table-column prop="phone" label="联系电话" min-width="140" />
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.status === '在职' ? 'success' : 'info'">{{ row.status }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="180" fixed="right">
+          <template #default="{ row }">
+            <div class="action-row">
+              <el-button size="small" @click="openEditDialog(row)">编辑</el-button>
+              <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="pager">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+    </template>
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑教师' : '新增教师'" width="720px">
       <el-form :model="form" label-width="90px" class="grid-form">
@@ -94,9 +108,18 @@ import {
   getDepartmentOptions,
   updateAdminTeacher
 } from '../../api/admin'
+import { useClientPagination } from '../../composables/useClientPagination'
 
 const loading = ref(false)
 const teachers = ref([])
+const {
+  currentPage,
+  pageSize,
+  total,
+  pagedData,
+  handleSizeChange,
+  handleCurrentChange
+} = useClientPagination(teachers, 10)
 const departments = ref([])
 const dialogVisible = ref(false)
 const isEdit = ref(false)
@@ -217,5 +240,11 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 16px;
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
 }
 </style>

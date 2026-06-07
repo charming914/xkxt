@@ -668,7 +668,10 @@ public interface AdminMapper {
           AND cs.selection_status = '已选'
           AND t1.semester_id = t2.semester_id
           AND t1.week_day = t2.week_day
-          AND t1.section_desc = t2.section_desc
+          AND CAST(SUBSTRING_INDEX(t1.section_desc, '-', 1) AS UNSIGNED)
+              <= CAST(REPLACE(SUBSTRING_INDEX(t2.section_desc, '-', -1), '节', '') AS UNSIGNED)
+          AND CAST(SUBSTRING_INDEX(t2.section_desc, '-', 1) AS UNSIGNED)
+              <= CAST(REPLACE(SUBSTRING_INDEX(t1.section_desc, '-', -1), '节', '') AS UNSIGNED)
           AND cs.teaching_class_id <> #{teachingClassId}
         """)
     int countStudentTimeConflict(

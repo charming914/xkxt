@@ -13,7 +13,8 @@
 
     <el-empty v-if="!loading && classes.length === 0" description="当前暂无授课数据" />
 
-    <div v-else v-loading="loading" class="calendar-shell">
+    <template v-else>
+    <div v-loading="loading" class="calendar-shell">
       <div class="calendar-head empty-cell">时间段</div>
       <div v-for="day in weekDays" :key="day.value" class="calendar-head">周{{ day.label }}</div>
 
@@ -24,7 +25,7 @@
         </div>
         <div v-for="day in weekDays" :key="`${day.value}-${block.key}`" class="calendar-cell">
           <div
-            v-for="course in getClasses(day.value, block.key)"
+            v-for="course in getClasses(day.value, block)"
             :key="`${course.teachingClassId}-${course.courseName}`"
             class="course-card"
           >
@@ -39,6 +40,19 @@
         </div>
       </template>
     </div>
+      <div class="pager">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+    </template>
 
     <el-drawer v-model="detailVisible" size="64%" title="教学班详情">
       <div v-loading="detailLoading">
@@ -99,12 +113,21 @@ import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getTeachingClassDetail, getTeachingClasses, getTeachingClassStudents } from '../../api/teacher'
 import { useUserStore } from '../../stores/user'
+import { useClientPagination } from '../../composables/useClientPagination'
 
 const userStore = useUserStore()
 const loading = ref(false)
 const detailLoading = ref(false)
 const studentLoading = ref(false)
 const classes = ref([])
+const {
+  currentPage,
+  pageSize,
+  total,
+  pagedData,
+  handleSizeChange,
+  handleCurrentChange
+} = useClientPagination(classes, 10)
 const students = ref([])
 const selectedClass = ref(null)
 const detailVisible = ref(false)
@@ -118,27 +141,30 @@ const weekDays = [
   { value: 7, label: '日' }
 ]
 const timeBlocks = [
-  { key: 'morning', label: '上午', time: '1-4节' },
-  { key: 'afternoon', label: '下午', time: '5-8节' },
-  { key: 'evening', label: '晚上', time: '9-12节' }
+  { key: 's1_2', label: '第1-2节', time: '08:00-09:40', start: 1, end: 2 },
+  { key: 's3_4', label: '第3-4节', time: '10:00-11:40', start: 3, end: 4 },
+  { key: 's5_6', label: '第5-6节', time: '13:00-14:40', start: 5, end: 6 },
+  { key: 's7_8', label: '第7-8节', time: '15:00-16:40', start: 7, end: 8 },
+  { key: 's9_10', label: '第9-10节', time: '18:00-19:40', start: 9, end: 10 },
+  { key: 's11_12', label: '第11-12节', time: '20:00-21:40', start: 11, end: 12 }
 ]
 
-function resolveBlock(sectionDesc) {
-  const firstSection = parseInt(String(sectionDesc).split('-')[0], 10)
-  if (Number.isNaN(firstSection)) {
-    return 'afternoon'
+function parseSection(sectionDesc) {
+  const nums = String(sectionDesc).match(/\d+/g)
+  if (!nums || nums.length === 0) {
+    return { start: 0, end: 0 }
   }
-  if (firstSection <= 4) {
-    return 'morning'
-  }
-  if (firstSection <= 8) {
-    return 'afternoon'
-  }
-  return 'evening'
+  return { start: parseInt(nums[0], 10), end: parseInt(nums[nums.length - 1], 10) }
 }
 
-function getClasses(weekDay, blockKey) {
-  return classes.value.filter(item => item.weekDay === weekDay && resolveBlock(item.sectionDesc) === blockKey)
+function getClasses(weekDay, block) {
+  return pagedData.value.filter(item => {
+    if (item.weekDay !== weekDay) {
+      return false
+    }
+    const { start, end } = parseSection(item.sectionDesc)
+    return start <= block.end && block.start <= end
+  })
 }
 
 function formatWeekDay(weekDay) {
@@ -181,7 +207,15 @@ function exportTeacherTimetablePdf() {
   const semesterLabel = [...new Set(classes.value.map(item => item.semesterName).filter(Boolean))].join('、') || '全部学期'
   const rows = timeBlocks.map(block => {
     const cells = weekDays.map(day => {
-      const cards = getClasses(day.value, block.key).map(buildPrintableCourseCard).join('')
+      const cards = classes.value
+        .filter(item => {
+          if (item.weekDay !== day.value) {
+            return false
+          }
+          const { start, end } = parseSection(item.sectionDesc)
+          return start <= block.end && block.start <= end
+        })
+        .map(buildPrintableCourseCard).join('')
       return `<td>${cards || '<span class="empty-text">无课程</span>'}</td>`
     }).join('')
     return `
@@ -473,5 +507,11 @@ onMounted(() => {
   .toolbar-actions {
     display: none !important;
   }
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
 }
 </style>

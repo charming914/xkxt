@@ -13,7 +13,8 @@
 
     <el-empty v-if="!loading && students.length === 0" description="暂无学生数据" />
 
-    <el-table v-else v-loading="loading" :data="students" border>
+    <template v-else>
+      <el-table v-loading="loading" :data="pagedData" border>
       <el-table-column prop="studentId" label="学号" width="120" />
       <el-table-column prop="studentName" label="姓名" width="120" />
       <el-table-column prop="gender" label="性别" width="80" />
@@ -34,7 +35,20 @@
           </div>
         </template>
       </el-table-column>
-    </el-table>
+      </el-table>
+      <div class="pager">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+    </template>
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑学生' : '新增学生'" width="720px">
       <el-form :model="form" label-width="90px" class="grid-form">
@@ -108,9 +122,18 @@ import {
   getMajorOptions,
   updateAdminStudent
 } from '../../api/admin'
+import { useClientPagination } from '../../composables/useClientPagination'
 
 const loading = ref(false)
 const students = ref([])
+const {
+  currentPage,
+  pageSize,
+  total,
+  pagedData,
+  handleSizeChange,
+  handleCurrentChange
+} = useClientPagination(students, 10)
 const departments = ref([])
 const majors = ref([])
 const classes = ref([])
@@ -253,5 +276,11 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 16px;
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
 }
 </style>

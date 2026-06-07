@@ -23,7 +23,7 @@
         </div>
         <div v-for="day in weekDays" :key="`${day.value}-${block.key}`" class="calendar-cell">
           <div
-            v-for="course in getCourses(day.value, block.key)"
+            v-for="course in getCourses(day.value, block)"
             :key="`${course.teachingClassId}-${course.courseId}`"
             class="course-card"
           >
@@ -41,25 +41,40 @@
       <div class="sub-header">
         <h2>已选课程列表</h2>
       </div>
-      <el-table v-loading="loading" :data="selectedCourses" border>
-        <el-table-column prop="selectionId" label="选课编号" width="100" />
-        <el-table-column prop="courseId" label="课程号" width="120" />
-        <el-table-column prop="courseName" label="课程名称" min-width="150" />
-        <el-table-column prop="courseType" label="课程种类" width="120" />
-        <el-table-column prop="credit" label="学分" width="80" />
-        <el-table-column prop="teacherName" label="任课教师" width="110" />
-        <el-table-column label="上课时间" min-width="180">
-          <template #default="{ row }">
-            周{{ weekLabel(row.weekDay) }} / {{ row.sectionDesc }} / {{ row.weekRange }}
-          </template>
-        </el-table-column>
-        <el-table-column label="上课地点" min-width="140">
-          <template #default="{ row }">
-            {{ row.buildingName || '-' }} {{ row.roomName || '' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="selectionTime" label="选课时间" min-width="170" />
-      </el-table>
+      <el-empty v-if="!loading && selectedCourses.length === 0" description="当前暂无已选课程列表数据" />
+      <template v-else>
+        <el-table v-loading="loading" :data="pagedData" border>
+          <el-table-column prop="selectionId" label="选课编号" width="100" />
+          <el-table-column prop="courseId" label="课程号" width="120" />
+          <el-table-column prop="courseName" label="课程名称" min-width="150" />
+          <el-table-column prop="courseType" label="课程种类" width="120" />
+          <el-table-column prop="credit" label="学分" width="80" />
+          <el-table-column prop="teacherName" label="任课教师" width="110" />
+          <el-table-column label="上课时间" min-width="180">
+            <template #default="{ row }">
+              周{{ weekLabel(row.weekDay) }} / {{ row.sectionDesc }} / {{ row.weekRange }}
+            </template>
+          </el-table-column>
+          <el-table-column label="上课地点" min-width="140">
+            <template #default="{ row }">
+              {{ row.buildingName || '-' }} {{ row.roomName || '' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="selectionTime" label="选课时间" min-width="170" />
+        </el-table>
+        <div class="pager">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :total="total"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            background
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+          />
+        </div>
+      </template>
     </div>
   </section>
 </template>
@@ -68,10 +83,19 @@
 import { onMounted, ref } from 'vue'
 import { getSelectedCourses } from '../../api/student'
 import { useUserStore } from '../../stores/user'
+import { useClientPagination } from '../../composables/useClientPagination'
 
 const userStore = useUserStore()
 const loading = ref(false)
 const selectedCourses = ref([])
+const {
+  currentPage,
+  pageSize,
+  total,
+  pagedData,
+  handleSizeChange,
+  handleCurrentChange
+} = useClientPagination(selectedCourses, 10)
 const weekDays = [
   { value: 1, label: '一' },
   { value: 2, label: '二' },
@@ -82,9 +106,12 @@ const weekDays = [
   { value: 7, label: '日' }
 ]
 const timeBlocks = [
-  { key: 'morning', label: '上午', time: '1-4节' },
-  { key: 'afternoon', label: '下午', time: '5-8节' },
-  { key: 'evening', label: '晚上', time: '9-12节' }
+  { key: 's1_2', label: '第1-2节', time: '08:00-09:40', start: 1, end: 2 },
+  { key: 's3_4', label: '第3-4节', time: '10:00-11:40', start: 3, end: 4 },
+  { key: 's5_6', label: '第5-6节', time: '13:00-14:40', start: 5, end: 6 },
+  { key: 's7_8', label: '第7-8节', time: '15:00-16:40', start: 7, end: 8 },
+  { key: 's9_10', label: '第9-10节', time: '18:00-19:40', start: 9, end: 10 },
+  { key: 's11_12', label: '第11-12节', time: '20:00-21:40', start: 11, end: 12 }
 ]
 
 function weekLabel(weekDay) {
@@ -100,22 +127,22 @@ function weekLabel(weekDay) {
   return map[weekDay] || weekDay
 }
 
-function resolveBlock(sectionDesc) {
-  const firstSection = parseInt(String(sectionDesc).split('-')[0], 10)
-  if (Number.isNaN(firstSection)) {
-    return 'afternoon'
+function parseSection(sectionDesc) {
+  const nums = String(sectionDesc).match(/\d+/g)
+  if (!nums || nums.length === 0) {
+    return { start: 0, end: 0 }
   }
-  if (firstSection <= 4) {
-    return 'morning'
-  }
-  if (firstSection <= 8) {
-    return 'afternoon'
-  }
-  return 'evening'
+  return { start: parseInt(nums[0], 10), end: parseInt(nums[nums.length - 1], 10) }
 }
 
-function getCourses(weekDay, blockKey) {
-  return selectedCourses.value.filter(item => item.weekDay === weekDay && resolveBlock(item.sectionDesc) === blockKey)
+function getCourses(weekDay, block) {
+  return selectedCourses.value.filter(item => {
+    if (item.weekDay !== weekDay) {
+      return false
+    }
+    const { start, end } = parseSection(item.sectionDesc)
+    return start <= block.end && block.start <= end
+  })
 }
 
 async function loadSelectedCourses() {
@@ -211,6 +238,12 @@ onMounted(() => {
 
 .selected-section {
   margin-top: 28px;
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
 }
 </style>
 
