@@ -27,8 +27,11 @@ public class StudentController {
     private final StudentService studentService;
 
     @GetMapping("/courses/available")
-    public ApiResponse<List<Map<String, Object>>> availableCourses(StudentCourseQueryRequest query) {
-        return ApiResponse.success(studentService.availableCourses(query));
+    public ApiResponse<List<Map<String, Object>>> availableCourses(
+        StudentCourseQueryRequest query,
+        @RequestHeader(value = "X-Student-Id", defaultValue = "20240001") String studentId
+    ) {
+        return ApiResponse.success(studentService.availableCourses(query, studentId));
     }
 
     @GetMapping("/selected-courses")

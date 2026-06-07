@@ -65,9 +65,11 @@ const navItems = computed(() => {
   }
   if (canViewTeacher.value) {
     items.push(
+      { path: '/teacher/profile', label: '个人信息' },
       { path: '/teacher/classes', label: '教师授课' },
-      { path: '/teacher/scores', label: '教师成绩录入' },
-      { path: '/teacher/course-drop-requests', label: '退课审核' }
+      { path: '/teacher/scores', label: '学生成绩录入' },
+      { path: '/teacher/course-drop-requests', label: '退课审核' },
+      { path: '/teacher/schedule-adjust-requests', label: '调课申请' }
     )
   }
   if (canViewAdmin.value) {
@@ -78,6 +80,8 @@ const navItems = computed(() => {
       { path: '/admin/teaching-classes', label: '教学班管理' },
       { path: '/admin/course-selection-requests', label: '补选审核' },
       { path: '/admin/course-drop-requests', label: '退课审核' },
+      { path: '/admin/schedule-adjust-requests', label: '调课审核' },
+      { path: '/admin/score-change-requests', label: '成绩修改审核' },
       { path: '/admin/statistics', label: '统计分析' }
     )
   }

@@ -6,12 +6,8 @@ import com.school.student.dto.CourseSelectionRequestCreateRequest;
 import com.school.student.dto.SelectCourseRequest;
 import com.school.student.dto.StudentCourseQueryRequest;
 import com.school.student.mapper.StudentMapper;
-import java.sql.CallableStatement;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
-import javax.sql.DataSource;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,10 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class StudentService {
 
     private final StudentMapper studentMapper;
-    private final DataSource dataSource;
 
-    public List<Map<String, Object>> availableCourses(StudentCourseQueryRequest query) {
-        return studentMapper.selectAvailableCourses(query);
+    public List<Map<String, Object>> availableCourses(StudentCourseQueryRequest query, String studentId) {
+        return studentMapper.selectAvailableCourses(query, studentId);
     }
 
     public List<Map<String, Object>> selectedCourses(String studentId) {
@@ -35,15 +30,34 @@ public class StudentService {
         return studentMapper.selectDropCourses(studentId);
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void selectCourse(SelectCourseRequest request) {
-        try (Connection connection = dataSource.getConnection();
-             CallableStatement statement = connection.prepareCall("{call sp_select_course(?, ?)}")) {
-            statement.setString(1, request.getStudentId());
-            statement.setInt(2, request.getTeachingClassId());
-            statement.execute();
-        } catch (SQLException e) {
-            throw new BusinessException(resolveSelectCourseMessage(e.getMessage()));
+        String studentId = request.getStudentId();
+        Integer teachingClassId = request.getTeachingClassId();
+        if (studentMapper.countSelectedCourse(studentId, teachingClassId) > 0) {
+            throw new BusinessException("选课失败：你已选过该课程");
         }
+        if (studentMapper.countSelectableTeachingClass(teachingClassId) == 0) {
+            throw new BusinessException("选课失败：当前不在选课开放时间内或该教学班不可选");
+        }
+        if (studentMapper.countAvailableCapacity(teachingClassId) == 0) {
+            throw new BusinessException("选课失败：该教学班人数已满");
+        }
+        if (studentMapper.countStudentTimeConflict(studentId, teachingClassId) > 0) {
+            throw new BusinessException("选课失败：该课程与已选课程时间冲突");
+        }
+        if (studentMapper.countDroppedCourse(studentId, teachingClassId) > 0) {
+            studentMapper.deleteScore(studentId, teachingClassId);
+            studentMapper.restoreDroppedCourse(studentId, teachingClassId);
+        } else {
+            studentMapper.insertSelectedCourse(studentId, teachingClassId);
+        }
+        studentMapper.increaseSelectedCount(teachingClassId);
+        studentMapper.insertOperationLog(
+            studentId,
+            "选课",
+            "学生 " + studentId + " 选课成功，教学班编号：" + teachingClassId
+        );
     }
 
     public List<Map<String, Object>> timetable(String studentId) {
@@ -81,6 +95,7 @@ public class StudentService {
             if (updated == 0) {
                 throw new BusinessException("退课失败：未找到可退课程");
             }
+            studentMapper.deleteScore(studentId, teachingClassId);
             studentMapper.insertOperationLog(
                 studentId,
                 "退课",
@@ -120,25 +135,6 @@ public class StudentService {
 
     public List<Map<String, Object>> courseDropRequests(String studentId) {
         return studentMapper.selectCourseDropRequests(studentId);
-    }
-
-    private String resolveSelectCourseMessage(String rawMessage) {
-        if (rawMessage == null || rawMessage.isBlank()) {
-            return "选课失败，请稍后重试";
-        }
-        if (rawMessage.contains("选课时间冲突")) {
-            return "选课失败：该课程与已选课程时间冲突";
-        }
-        if (rawMessage.contains("当前不在选课时间范围内")) {
-            return "选课失败：当前不在选课开放时间内";
-        }
-        if (rawMessage.contains("人数已满")) {
-            return "选课失败：该教学班人数已满";
-        }
-        if (rawMessage.contains("已选该课程")) {
-            return "选课失败：你已选过该课程";
-        }
-        return "选课失败：" + rawMessage;
     }
 
     private String resolveDropCourseMessage(String rawMessage) {

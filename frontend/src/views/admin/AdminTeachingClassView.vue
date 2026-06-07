@@ -21,6 +21,10 @@
       <el-select v-model="filters.teacherId" clearable placeholder="按教师筛选">
         <el-option v-for="item in teachers" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
+      <el-select v-model="filters.classroomId" clearable placeholder="按教室筛选">
+        <el-option v-for="item in classrooms" :key="item.value" :label="item.label" :value="item.value" />
+      </el-select>
+      <el-button :disabled="filteredTeachingClasses.length === 0" @click="exportClassroomTimetable">导出教室课表</el-button>
       <el-button @click="resetFilters">重置筛选</el-button>
     </div>
 
@@ -167,7 +171,8 @@ const currentTeachingClassLabel = ref('')
 const filters = reactive({
   semesterId: null,
   courseId: '',
-  teacherId: ''
+  teacherId: '',
+  classroomId: ''
 })
 
 const weekDayOptions = [
@@ -199,8 +204,16 @@ const filteredTeachingClasses = computed(() => {
     const matchSemester = !filters.semesterId || item.semesterId === filters.semesterId
     const matchCourse = !filters.courseId || item.courseId === filters.courseId
     const matchTeacher = !filters.teacherId || item.teacherId === filters.teacherId
-    return matchSemester && matchCourse && matchTeacher
+    const matchClassroom = !filters.classroomId || item.classroomId === filters.classroomId
+    return matchSemester && matchCourse && matchTeacher && matchClassroom
   })
+})
+
+const selectedClassroomLabel = computed(() => {
+  if (!filters.classroomId) {
+    return '全部教室'
+  }
+  return classrooms.value.find(item => item.value === filters.classroomId)?.label || filters.classroomId
 })
 
 function weekLabel(weekDay) {
@@ -250,6 +263,60 @@ function resetFilters() {
   filters.semesterId = null
   filters.courseId = ''
   filters.teacherId = ''
+  filters.classroomId = ''
+}
+
+function classroomLabel(row) {
+  return [row.buildingName, row.roomName].filter(Boolean).join(' ') || '-'
+}
+
+function sectionOrder(sectionDesc) {
+  const matched = String(sectionDesc || '').match(/\d+/)
+  return matched ? Number(matched[0]) : 999
+}
+
+function escapeCsv(value) {
+  const text = value == null ? '' : String(value)
+  return `"${text.replace(/"/g, '""')}"`
+}
+
+function exportClassroomTimetable() {
+  if (filteredTeachingClasses.value.length === 0) {
+    ElMessage.warning('当前没有可导出的教室课表')
+    return
+  }
+
+  const headers = ['学期', '教室', '星期', '节次', '周次', '课程名称', '教学班编号', '任课教师', '开课日期', '容量', '状态']
+  const rows = [...filteredTeachingClasses.value]
+    .sort((a, b) => {
+      return String(a.semesterName || '').localeCompare(String(b.semesterName || ''), 'zh-Hans') ||
+        classroomLabel(a).localeCompare(classroomLabel(b), 'zh-Hans') ||
+        Number(a.weekDay || 0) - Number(b.weekDay || 0) ||
+        sectionOrder(a.sectionDesc) - sectionOrder(b.sectionDesc) ||
+        String(a.courseStartDate || '').localeCompare(String(b.courseStartDate || '')) ||
+        Number(a.teachingClassId || 0) - Number(b.teachingClassId || 0)
+    })
+    .map(row => [
+      row.semesterName,
+      classroomLabel(row),
+      `周${weekLabel(row.weekDay)}`,
+      row.sectionDesc,
+      row.weekRange,
+      row.courseName,
+      row.teachingClassId,
+      row.teacherName,
+      row.courseStartDate,
+      `${row.selectedCount ?? 0}/${row.maxStudents ?? ''}`,
+      row.status
+    ])
+  const content = [headers, ...rows].map(row => row.map(escapeCsv).join(',')).join('\n')
+  const blob = new Blob([`\uFEFF${content}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `classroom-timetable-${selectedClassroomLabel.value}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 function openCreateDialog() {

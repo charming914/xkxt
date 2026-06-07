@@ -30,6 +30,8 @@ public class AuthService {
         if (!matched) {
             throw new BusinessException("用户名或密码错误");
         }
+        boolean defaultPassword = "123456".equals(storedPassword) || passwordEncoder.matches("123456", storedPassword);
+        loginUser.setDefaultPassword(defaultPassword);
         loginUser.setPassword(null);
         return loginUser;
     }

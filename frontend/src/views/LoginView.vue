@@ -38,6 +38,8 @@ function buildUser(data) {
     realName: data.realName,
     roleCode: data.roleCode,
     token: data.token,
+    defaultPassword: Boolean(data.defaultPassword),
+    loginAt: Date.now(),
     refId: data.roleCode === 'STUDENT' || data.roleCode === 'TEACHER' ? data.username : null
   }
 }

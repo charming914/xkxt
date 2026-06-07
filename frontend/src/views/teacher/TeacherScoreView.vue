@@ -2,27 +2,66 @@
   <section class="page-card">
     <div class="page-header">
       <div>
-        <h1>教师成绩录入</h1>
+        <h1>学生成绩录入</h1>
         <p>当前登录教师：{{ userStore.realName }}（{{ userStore.refId }}）</p>
       </div>
       <el-button @click="loadScores">刷新成绩列表</el-button>
     </div>
 
-    <el-empty v-if="!loading && scores.length === 0" description="当前暂无成绩录入数据" />
+    <div class="score-toolbar">
+      <el-select v-model="selectedTeachingClassId" clearable placeholder="按教学班筛选" class="class-filter">
+        <el-option
+          v-for="item in classOptions"
+          :key="item.value"
+          :label="item.label"
+          :value="item.value"
+        />
+      </el-select>
+      <div class="toolbar-actions">
+        <el-button :disabled="filteredScores.length === 0" @click="exportScores">导出成绩</el-button>
+        <el-button :disabled="editableScores.length === 0" @click="handleBatchSave(0)">批量暂存</el-button>
+        <el-button type="primary" :disabled="editableScores.length === 0" @click="handleBatchSave(1)">批量提交</el-button>
+      </div>
+    </div>
 
-    <el-table v-else v-loading="loading" :data="scores" border>
+    <div class="summary-row">
+      <div class="summary-card">
+        <span>学生人数</span>
+        <strong>{{ scoreStats.total }}</strong>
+      </div>
+      <div class="summary-card">
+        <span>平均分</span>
+        <strong>{{ scoreStats.average }}</strong>
+      </div>
+      <div class="summary-card">
+        <span>最高分</span>
+        <strong>{{ scoreStats.max }}</strong>
+      </div>
+      <div class="summary-card">
+        <span>最低分</span>
+        <strong>{{ scoreStats.min }}</strong>
+      </div>
+      <div class="summary-card">
+        <span>及格率</span>
+        <strong>{{ scoreStats.passRate }}</strong>
+      </div>
+    </div>
+
+    <el-empty v-if="!loading && filteredScores.length === 0" description="当前暂无成绩录入数据" />
+
+    <el-table v-else v-loading="loading" :data="filteredScores" border>
       <el-table-column prop="teachingClassId" label="教学班编号" width="120" />
       <el-table-column prop="courseName" label="课程名称" min-width="160" />
       <el-table-column prop="studentId" label="学号" width="120" />
       <el-table-column prop="studentName" label="姓名" width="110" />
       <el-table-column label="平时成绩" width="130">
         <template #default="{ row }">
-          <el-input-number v-model="row.usualScore" :min="0" :max="100" :controls="false" />
+          <el-input-number v-model="row.usualScore" :min="0" :max="100" :controls="false" :disabled="Boolean(row.isSubmitted)" />
         </template>
       </el-table-column>
       <el-table-column label="考试成绩" width="130">
         <template #default="{ row }">
-          <el-input-number v-model="row.examScore" :min="0" :max="100" :controls="false" />
+          <el-input-number v-model="row.examScore" :min="0" :max="100" :controls="false" :disabled="Boolean(row.isSubmitted)" />
         </template>
       </el-table-column>
       <el-table-column prop="finalScore" label="总评成绩" width="110" />
@@ -34,27 +73,127 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="210" fixed="right">
+      <el-table-column label="操作" width="300" fixed="right">
         <template #default="{ row }">
           <div class="action-row">
-            <el-button size="small" @click="handleSave(row, 0)">暂存</el-button>
-            <el-button type="primary" size="small" @click="handleSave(row, 1)">提交</el-button>
+            <el-button size="small" :disabled="Boolean(row.isSubmitted)" @click="handleSave(row, 0)">暂存</el-button>
+            <el-button type="primary" size="small" :disabled="Boolean(row.isSubmitted)" @click="handleSave(row, 1)">提交</el-button>
+            <el-button size="small" type="warning" plain :disabled="!row.isSubmitted" @click="openScoreChangeDialog(row)">申请修改</el-button>
           </div>
         </template>
       </el-table-column>
     </el-table>
+
+    <div class="request-section">
+      <div class="sub-header">
+        <h2>成绩修改申请</h2>
+        <el-button @click="loadScoreChangeRequests">刷新申请</el-button>
+      </div>
+      <el-empty v-if="!requestLoading && scoreChangeRequests.length === 0" description="暂无成绩修改申请" />
+      <el-table v-else v-loading="requestLoading" :data="scoreChangeRequests" border>
+        <el-table-column prop="courseName" label="课程名称" min-width="150" />
+        <el-table-column prop="studentId" label="学号" width="120" />
+        <el-table-column prop="studentName" label="姓名" width="100" />
+        <el-table-column prop="originalFinalScore" label="原总评" width="100" />
+        <el-table-column prop="requestReason" label="申请原因" min-width="180" />
+        <el-table-column label="状态" width="110">
+          <template #default="{ row }">
+            <el-tag :type="requestStatusType(row.requestStatus)">{{ row.requestStatus }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="reviewComment" label="审核备注" min-width="160" />
+      </el-table>
+    </div>
+
+    <el-dialog v-model="scoreChangeVisible" title="申请修改已提交成绩" width="520px">
+      <el-form label-position="top">
+        <el-form-item label="成绩记录">
+          <el-input :model-value="selectedScoreLabel" disabled />
+        </el-form-item>
+        <el-form-item label="申请原因">
+          <el-input v-model.trim="scoreChangeReason" type="textarea" :rows="4" maxlength="200" show-word-limit />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="scoreChangeVisible = false">取消</el-button>
+        <el-button type="primary" :loading="requestSubmitting" @click="handleCreateScoreChangeRequest">提交申请</el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getTeacherScores, saveTeacherScore } from '../../api/teacher'
+import {
+  createTeacherScoreChangeRequest,
+  getTeacherScoreChangeRequests,
+  getTeacherScores,
+  saveTeacherScore,
+  saveTeacherScores
+} from '../../api/teacher'
 import { useUserStore } from '../../stores/user'
 
 const userStore = useUserStore()
 const loading = ref(false)
+const requestLoading = ref(false)
+const requestSubmitting = ref(false)
 const scores = ref([])
+const scoreChangeRequests = ref([])
+const selectedScore = ref(null)
+const scoreChangeReason = ref('')
+const scoreChangeVisible = ref(false)
+const selectedTeachingClassId = ref('')
+
+const classOptions = computed(() => {
+  const classes = new Map()
+  scores.value.forEach(item => {
+    classes.set(item.teachingClassId, `${item.teachingClassId} - ${item.courseName}`)
+  })
+  return Array.from(classes, ([value, label]) => ({ value, label }))
+})
+
+const filteredScores = computed(() => {
+  if (!selectedTeachingClassId.value) {
+    return scores.value
+  }
+  return scores.value.filter(item => item.teachingClassId === selectedTeachingClassId.value)
+})
+
+const editableScores = computed(() => filteredScores.value.filter(item => !item.isSubmitted))
+
+const selectedScoreLabel = computed(() => {
+  if (!selectedScore.value) {
+    return ''
+  }
+  return `${selectedScore.value.courseName} / ${selectedScore.value.studentName}（总评 ${selectedScore.value.finalScore ?? '-'}）`
+})
+
+const scoreStats = computed(() => {
+  const finalScores = filteredScores.value
+    .filter(item => item.finalScore != null)
+    .map(item => Number(item.finalScore))
+    .filter(item => !Number.isNaN(item))
+  const total = filteredScores.value.length
+  if (!finalScores.length) {
+    return {
+      total,
+      average: '-',
+      max: '-',
+      min: '-',
+      passRate: '0.00%'
+    }
+  }
+  const sum = finalScores.reduce((current, item) => current + item, 0)
+  const passed = finalScores.filter(item => item >= 60).length
+  return {
+    total,
+    average: (sum / finalScores.length).toFixed(2),
+    max: Math.max(...finalScores).toFixed(2),
+    min: Math.min(...finalScores).toFixed(2),
+    passRate: `${((passed / finalScores.length) * 100).toFixed(2)}%`
+  }
+})
 
 async function loadScores() {
   loading.value = true
@@ -70,7 +209,21 @@ async function loadScores() {
   }
 }
 
+async function loadScoreChangeRequests() {
+  requestLoading.value = true
+  try {
+    const response = await getTeacherScoreChangeRequests()
+    scoreChangeRequests.value = response.data || []
+  } finally {
+    requestLoading.value = false
+  }
+}
+
 async function handleSave(row, isSubmitted) {
+  if (row.isSubmitted) {
+    ElMessage.warning('已提交成绩不可重复修改')
+    return
+  }
   await saveTeacherScore({
     studentId: row.studentId,
     teachingClassId: row.teachingClassId,
@@ -82,8 +235,88 @@ async function handleSave(row, isSubmitted) {
   await loadScores()
 }
 
+async function handleBatchSave(isSubmitted) {
+  const payload = editableScores.value.map(row => ({
+    studentId: row.studentId,
+    teachingClassId: row.teachingClassId,
+    usualScore: Number(row.usualScore),
+    examScore: Number(row.examScore),
+    isSubmitted
+  }))
+  if (payload.length === 0) {
+    ElMessage.warning('当前没有可保存的成绩')
+    return
+  }
+  await saveTeacherScores(payload)
+  ElMessage.success(isSubmitted ? '成绩批量提交成功' : '成绩批量暂存成功')
+  await loadScores()
+}
+
+function requestStatusType(status) {
+  if (status === '已通过') return 'success'
+  if (status === '已驳回') return 'danger'
+  return 'warning'
+}
+
+function openScoreChangeDialog(row) {
+  selectedScore.value = row
+  scoreChangeReason.value = ''
+  scoreChangeVisible.value = true
+}
+
+async function handleCreateScoreChangeRequest() {
+  if (!selectedScore.value) {
+    return
+  }
+  if (!scoreChangeReason.value) {
+    ElMessage.warning('请填写申请原因')
+    return
+  }
+  requestSubmitting.value = true
+  try {
+    await createTeacherScoreChangeRequest({
+      scoreId: selectedScore.value.scoreId,
+      requestReason: scoreChangeReason.value
+    })
+    ElMessage.success('成绩修改申请提交成功')
+    scoreChangeVisible.value = false
+    await loadScoreChangeRequests()
+  } finally {
+    requestSubmitting.value = false
+  }
+}
+
+function escapeCsv(value) {
+  const text = value == null ? '' : String(value)
+  return `"${text.replace(/"/g, '""')}"`
+}
+
+function exportScores() {
+  const headers = ['教学班编号', '课程名称', '学号', '姓名', '平时成绩', '考试成绩', '总评成绩', '绩点', '提交状态']
+  const rows = filteredScores.value.map(row => [
+    row.teachingClassId,
+    row.courseName,
+    row.studentId,
+    row.studentName,
+    row.usualScore,
+    row.examScore,
+    row.finalScore,
+    row.gpaPoint,
+    row.isSubmitted ? '已提交' : '未提交'
+  ])
+  const content = [headers, ...rows].map(row => row.map(escapeCsv).join(',')).join('\n')
+  const blob = new Blob([`\uFEFF${content}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `teacher-scores-${selectedTeachingClassId.value || 'all'}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 onMounted(() => {
   loadScores()
+  loadScoreChangeRequests()
 })
 </script>
 
@@ -96,8 +329,75 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
+.score-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.class-filter {
+  width: 280px;
+}
+
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.summary-card {
+  padding: 16px;
+  border-radius: 8px;
+  background: #f8fbfd;
+  border: 1px solid #c8ecff;
+}
+
+.summary-card span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.summary-card strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--sky-700);
+  font-size: 24px;
+}
+
+.toolbar-actions,
 .action-row {
   display: flex;
-  gap: 8px;
+  gap: 10px;
+}
+
+.request-section {
+  margin-top: 28px;
+}
+
+.sub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 720px) {
+  .score-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .class-filter {
+    width: 100%;
+  }
+
+  .summary-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

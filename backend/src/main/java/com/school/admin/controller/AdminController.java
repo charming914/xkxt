@@ -6,6 +6,7 @@ import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
+import com.school.admin.dto.ScoreSubmitSettingRequest;
 import com.school.admin.service.AdminService;
 import com.school.common.api.ApiResponse;
 import com.school.common.dto.CourseDropReviewRequest;
@@ -181,6 +182,33 @@ public class AdminController {
         return ApiResponse.success("选课设置更新成功", null);
     }
 
+    @GetMapping("/score-submit-setting")
+    public ApiResponse<Map<String, Object>> currentScoreSubmitSetting() {
+        return ApiResponse.success(adminService.currentScoreSubmitSetting());
+    }
+
+    @PutMapping("/score-submit-setting")
+    public ApiResponse<Void> updateScoreSubmitSetting(@Valid @RequestBody ScoreSubmitSettingRequest request) {
+        adminService.updateScoreSubmitSetting(request);
+        return ApiResponse.success("成绩提交时间更新成功", null);
+    }
+
+    @GetMapping("/scores/submitted")
+    public ApiResponse<List<Map<String, Object>>> submittedScores() {
+        return ApiResponse.success(adminService.submittedScores());
+    }
+
+    @GetMapping("/score-change-requests")
+    public ApiResponse<List<Map<String, Object>>> scoreChangeRequests() {
+        return ApiResponse.success(adminService.scoreChangeRequests());
+    }
+
+    @PutMapping("/scores/{scoreId}/rollback")
+    public ApiResponse<Void> rollbackSubmittedScore(@PathVariable Long scoreId) {
+        adminService.rollbackSubmittedScore(scoreId);
+        return ApiResponse.success("成绩已退回，可由教师重新修改提交", null);
+    }
+
     @GetMapping("/course-selection-requests")
     public ApiResponse<List<Map<String, Object>>> courseSelectionRequests() {
         return ApiResponse.success(adminService.courseSelectionRequests());
@@ -189,6 +217,11 @@ public class AdminController {
     @GetMapping("/course-drop-requests")
     public ApiResponse<List<Map<String, Object>>> courseDropRequests() {
         return ApiResponse.success(adminService.courseDropRequests());
+    }
+
+    @GetMapping("/schedule-adjust-requests")
+    public ApiResponse<List<Map<String, Object>>> scheduleAdjustRequests() {
+        return ApiResponse.success(adminService.scheduleAdjustRequests());
     }
 
     @PutMapping("/course-selection-requests/{requestId}/review")
@@ -209,5 +242,25 @@ public class AdminController {
     ) {
         adminService.reviewCourseDropRequest(dropRequestId, request, username);
         return ApiResponse.success("退课申请处理成功", null);
+    }
+
+    @PutMapping("/schedule-adjust-requests/{adjustRequestId}/review")
+    public ApiResponse<Void> reviewScheduleAdjustRequest(
+        @PathVariable Long adjustRequestId,
+        @Valid @RequestBody CourseSelectionRequestReviewRequest request,
+        @RequestHeader(value = "X-Username", defaultValue = "admin") String username
+    ) {
+        adminService.reviewScheduleAdjustRequest(adjustRequestId, request, username);
+        return ApiResponse.success("调课申请处理成功", null);
+    }
+
+    @PutMapping("/score-change-requests/{scoreChangeRequestId}/review")
+    public ApiResponse<Void> reviewScoreChangeRequest(
+        @PathVariable Long scoreChangeRequestId,
+        @Valid @RequestBody CourseSelectionRequestReviewRequest request,
+        @RequestHeader(value = "X-Username", defaultValue = "admin") String username
+    ) {
+        adminService.reviewScoreChangeRequest(scoreChangeRequestId, request, username);
+        return ApiResponse.success("成绩修改申请处理成功", null);
     }
 }

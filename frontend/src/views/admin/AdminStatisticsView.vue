@@ -49,6 +49,46 @@
       </div>
     </div>
 
+    <div class="setting-card">
+      <div class="setting-header">
+        <div>
+          <h2>成绩提交设置</h2>
+          <p>管理员设置当前学期教师提交成绩的时间窗口。</p>
+        </div>
+        <div class="toolbar">
+          <el-button @click="loadScoreSetting">刷新设置</el-button>
+          <el-button type="primary" @click="handleSaveScoreSetting">保存设置</el-button>
+        </div>
+      </div>
+
+      <div class="setting-grid">
+        <div class="setting-item">
+          <span class="setting-label">当前学期</span>
+          <strong>{{ scoreSetting.semesterName || '-' }}</strong>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">成绩提交开始时间</span>
+          <el-date-picker
+            v-model="scoreSetting.scoreSubmitStart"
+            type="datetime"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            placeholder="选择开始时间"
+          />
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">成绩提交结束时间</span>
+          <el-date-picker
+            v-model="scoreSetting.scoreSubmitEnd"
+            type="datetime"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            placeholder="选择结束时间"
+          />
+        </div>
+      </div>
+    </div>
+
     <div class="page-header">
       <div>
         <h1>统计分析</h1>
@@ -95,6 +135,32 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <div class="page-header score-header">
+      <div>
+        <h1>已提交成绩</h1>
+        <p>管理员可将已提交成绩退回为可修改状态。</p>
+      </div>
+      <el-button @click="loadSubmittedScores">刷新成绩</el-button>
+    </div>
+
+    <el-empty v-if="!scoreLoading && submittedScores.length === 0" description="暂无已提交成绩" />
+    <el-table v-else v-loading="scoreLoading" :data="submittedScores" border>
+      <el-table-column prop="scoreId" label="成绩编号" width="100" />
+      <el-table-column prop="semesterName" label="学期" width="130" />
+      <el-table-column prop="courseName" label="课程名称" min-width="150" />
+      <el-table-column prop="teacherName" label="任课教师" width="110" />
+      <el-table-column prop="studentId" label="学号" width="120" />
+      <el-table-column prop="studentName" label="姓名" width="100" />
+      <el-table-column prop="usualScore" label="平时成绩" width="100" />
+      <el-table-column prop="examScore" label="考试成绩" width="100" />
+      <el-table-column prop="finalScore" label="总评成绩" width="100" />
+      <el-table-column label="操作" width="110" fixed="right">
+        <template #default="{ row }">
+          <el-button size="small" type="warning" plain @click="handleRollback(row)">退回</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
   </section>
 </template>
 
@@ -103,17 +169,28 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   getAdminCourseSelectionStatistics,
+  getScoreSubmitSetting,
+  getSubmittedScores,
   getCourseSelectionSetting,
+  rollbackSubmittedScore,
+  updateScoreSubmitSetting,
   updateCourseSelectionSetting
 } from '../../api/admin'
 
 const loading = ref(false)
+const scoreLoading = ref(false)
 const statistics = ref([])
+const submittedScores = ref([])
 const setting = reactive({
   semesterName: '',
   courseSelectStart: '',
   courseSelectEnd: '',
   teachingClassStatus: '未开始'
+})
+const scoreSetting = reactive({
+  semesterName: '',
+  scoreSubmitStart: '',
+  scoreSubmitEnd: ''
 })
 
 const isCourseSelectionOpen = computed({
@@ -163,6 +240,21 @@ async function loadSetting() {
   Object.assign(setting, response.data || {})
 }
 
+async function loadScoreSetting() {
+  const response = await getScoreSubmitSetting()
+  Object.assign(scoreSetting, response.data || {})
+}
+
+async function loadSubmittedScores() {
+  scoreLoading.value = true
+  try {
+    const response = await getSubmittedScores()
+    submittedScores.value = response.data || []
+  } finally {
+    scoreLoading.value = false
+  }
+}
+
 async function handleSaveSetting() {
   await updateCourseSelectionSetting({
     courseSelectStart: setting.courseSelectStart,
@@ -173,9 +265,26 @@ async function handleSaveSetting() {
   await loadSetting()
 }
 
+async function handleSaveScoreSetting() {
+  await updateScoreSubmitSetting({
+    scoreSubmitStart: scoreSetting.scoreSubmitStart,
+    scoreSubmitEnd: scoreSetting.scoreSubmitEnd
+  })
+  ElMessage.success('成绩提交时间更新成功')
+  await loadScoreSetting()
+}
+
+async function handleRollback(row) {
+  await rollbackSubmittedScore(row.scoreId)
+  ElMessage.success('成绩已退回')
+  await loadSubmittedScores()
+}
+
 onMounted(() => {
   loadSetting()
+  loadScoreSetting()
   loadStatistics()
+  loadSubmittedScores()
 })
 </script>
 
@@ -219,6 +328,10 @@ onMounted(() => {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 20px;
+}
+
+.score-header {
+  margin-top: 24px;
 }
 
 .toolbar {

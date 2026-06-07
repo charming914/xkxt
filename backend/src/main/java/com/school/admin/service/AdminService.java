@@ -5,6 +5,7 @@ import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
+import com.school.admin.dto.ScoreSubmitSettingRequest;
 import static com.school.common.support.CourseDropReviewSupport.resolveDropCourseMessage;
 import static com.school.common.support.CourseDropReviewSupport.resolveReviewStatus;
 
@@ -161,12 +162,126 @@ public class AdminService {
         adminMapper.updateTeachingClassStatusBySemesterId(semesterId, request.getTeachingClassStatus());
     }
 
+    public Map<String, Object> currentScoreSubmitSetting() {
+        Map<String, Object> setting = adminMapper.selectCurrentScoreSubmitSetting();
+        if (setting == null) {
+            throw new BusinessException("当前学期不存在");
+        }
+        return setting;
+    }
+
+    @Transactional
+    public void updateScoreSubmitSetting(ScoreSubmitSettingRequest request) {
+        Map<String, Object> setting = adminMapper.selectCurrentScoreSubmitSetting();
+        if (setting == null) {
+            throw new BusinessException("当前学期不存在");
+        }
+        Integer semesterId = ((Number) setting.get("semesterId")).intValue();
+        adminMapper.updateScoreSubmitTime(semesterId, request);
+    }
+
+    public List<Map<String, Object>> submittedScores() {
+        return adminMapper.selectSubmittedScores();
+    }
+
+    public List<Map<String, Object>> scoreChangeRequests() {
+        return adminMapper.selectScoreChangeRequests();
+    }
+
+    @Transactional
+    public void rollbackSubmittedScore(Long scoreId) {
+        if (adminMapper.rollbackSubmittedScore(scoreId) == 0) {
+            throw new BusinessException("成绩不存在或已处于可修改状态");
+        }
+    }
+
     public List<Map<String, Object>> courseSelectionRequests() {
         return adminMapper.selectCourseSelectionRequests();
     }
 
     public List<Map<String, Object>> courseDropRequests() {
         return adminMapper.selectCourseDropRequests();
+    }
+
+    public List<Map<String, Object>> scheduleAdjustRequests() {
+        return adminMapper.selectScheduleAdjustRequests();
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void reviewScoreChangeRequest(
+        Long scoreChangeRequestId,
+        CourseSelectionRequestReviewRequest request,
+        String adminUsername
+    ) {
+        Map<String, Object> scoreChangeRequest = adminMapper.selectScoreChangeRequestById(scoreChangeRequestId);
+        if (scoreChangeRequest == null) {
+            throw new BusinessException("成绩修改申请不存在");
+        }
+        if (!"待审核".equals(scoreChangeRequest.get("requestStatus"))) {
+            throw new BusinessException("该成绩修改申请已处理，请勿重复审核");
+        }
+
+        Integer adminUserId = adminMapper.selectUserIdByUsername(adminUsername);
+        if (adminUserId == null) {
+            throw new BusinessException("管理员账号不存在");
+        }
+
+        String action = request.getAction();
+        if ("APPROVE".equalsIgnoreCase(action)) {
+            Long scoreId = ((Number) scoreChangeRequest.get("scoreId")).longValue();
+            adminMapper.rollbackSubmittedScore(scoreId);
+            adminMapper.updateScoreChangeRequestStatus(scoreChangeRequestId, "已通过", request.getReviewComment(), adminUserId);
+            return;
+        }
+
+        if ("REJECT".equalsIgnoreCase(action)) {
+            adminMapper.updateScoreChangeRequestStatus(scoreChangeRequestId, "已驳回", request.getReviewComment(), adminUserId);
+            return;
+        }
+
+        throw new BusinessException("不支持的审核动作");
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void reviewScheduleAdjustRequest(
+        Long adjustRequestId,
+        CourseSelectionRequestReviewRequest request,
+        String adminUsername
+    ) {
+        Map<String, Object> adjustRequest = adminMapper.selectScheduleAdjustRequestById(adjustRequestId);
+        if (adjustRequest == null) {
+            throw new BusinessException("调课申请不存在");
+        }
+        if (!"待审核".equals(adjustRequest.get("requestStatus"))) {
+            throw new BusinessException("该调课申请已处理，请勿重复审核");
+        }
+
+        Integer adminUserId = adminMapper.selectUserIdByUsername(adminUsername);
+        if (adminUserId == null) {
+            throw new BusinessException("管理员账号不存在");
+        }
+
+        String action = request.getAction();
+        if ("APPROVE".equalsIgnoreCase(action)) {
+            Integer teachingClassId = ((Number) adjustRequest.get("teachingClassId")).intValue();
+            Integer weekDay = ((Number) adjustRequest.get("requestedWeekDay")).intValue();
+            String sectionDesc = (String) adjustRequest.get("requestedSectionDesc");
+            String weekRange = (String) adjustRequest.get("requestedWeekRange");
+            String classroomId = (String) adjustRequest.get("requestedClassroomId");
+            if (adminMapper.countTeachingClassRoomConflict(teachingClassId, weekDay, sectionDesc, classroomId) > 0) {
+                throw new BusinessException("审核失败：目标教室在该时间段已被占用");
+            }
+            adminMapper.applyScheduleAdjustRequest(teachingClassId, weekDay, sectionDesc, weekRange, classroomId);
+            adminMapper.updateScheduleAdjustRequestStatus(adjustRequestId, "已通过", request.getReviewComment(), adminUserId);
+            return;
+        }
+
+        if ("REJECT".equalsIgnoreCase(action)) {
+            adminMapper.updateScheduleAdjustRequestStatus(adjustRequestId, "已驳回", request.getReviewComment(), adminUserId);
+            return;
+        }
+
+        throw new BusinessException("不支持的审核动作");
     }
 
     @Transactional
@@ -199,7 +314,12 @@ public class AdminService {
             if (adminMapper.countStudentTimeConflict(studentId, teachingClassId) > 0) {
                 throw new BusinessException("审核失败：该课程与学生当前课表存在时间冲突");
             }
-            adminMapper.insertCourseSelectionByAdmin(studentId, teachingClassId);
+            if (adminMapper.countDroppedCourse(studentId, teachingClassId) > 0) {
+                adminMapper.deleteScore(studentId, teachingClassId);
+                adminMapper.restoreDroppedCourseByAdmin(studentId, teachingClassId);
+            } else {
+                adminMapper.insertCourseSelectionByAdmin(studentId, teachingClassId);
+            }
             adminMapper.increaseSelectedCount(teachingClassId);
             adminMapper.updateCourseSelectionRequestStatus(requestId, "已通过", request.getReviewComment(), reviewedBy);
             return;
@@ -254,6 +374,7 @@ public class AdminService {
         Integer teachingClassId = ((Number) dropRequest.get("teachingClassId")).intValue();
         try {
             adminMapper.dropSelectedCourse(studentId, teachingClassId);
+            adminMapper.deleteScore(studentId, teachingClassId);
         } catch (RuntimeException e) {
             throw new BusinessException(resolveDropCourseMessage(e.getMessage()));
         }
