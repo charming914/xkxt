@@ -38,8 +38,8 @@ public class TeacherService {
         }
     }
 
-    public List<Map<String, Object>> teachingClasses(String teacherId) {
-        return teacherMapper.selectTeachingClasses(teacherId);
+    public List<Map<String, Object>> teachingClasses(String teacherId, boolean includeAllSemesters) {
+        return teacherMapper.selectTeachingClasses(teacherId, includeAllSemesters);
     }
 
     public List<Map<String, Object>> scores(String teacherId) {

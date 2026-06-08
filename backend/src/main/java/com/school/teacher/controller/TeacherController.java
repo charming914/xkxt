@@ -55,9 +55,10 @@ public class TeacherController {
 
     @GetMapping("/teaching-classes")
     public ApiResponse<List<Map<String, Object>>> teachingClasses(
-        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId,
+        @RequestParam(value = "includeAllSemesters", defaultValue = "false") boolean includeAllSemesters
     ) {
-        return ApiResponse.success(teacherService.teachingClasses(teacherId));
+        return ApiResponse.success(teacherService.teachingClasses(teacherId, includeAllSemesters));
     }
 
     @GetMapping("/scores")

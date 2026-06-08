@@ -237,6 +237,8 @@
 说明：
 - 录入 `usual_score` 和 `exam_score` 后
 - 触发器自动计算 `final_score`、`gpa_point`
+- 绩点采用 11 档规则：90/85/82/78/75/72/68/66/64/60 分分别对应 4.0/3.7/3.3/3.0/2.7/2.3/2.0/1.7/1.5/1.0，低于 60 为 0.0。
+- 页面展示评价符号时与学生成绩视图一致：`4.0/A`、`3.7/A-`、`3.3/B+`、`3.0/B`、`2.7/B-`、`2.3/C+`、`2.0/C`、`1.7/C-`、`1.5/D`、`1.0/D-`、`0.0/F`。
 - 学生退课或重新加入曾退选课程时，对应成绩记录会被删除，重新加入后需要重新录入成绩
 
 常用 DTO：
@@ -317,6 +319,8 @@
 - 当前实现不允许调整周次，`requested_week_range` 必须与原周次一致。
 - `requested_section_desc` 的节次跨度必须与原节次一致。
 - 教室占用不单独建表，来源于 `teaching_class` 的同学期、同星期、节次区间和教室记录；查询空教室时会排除节次重叠的占用。
+- 教师提交调课申请和管理员审核通过调课申请时，会检查同一教师在目标星期和节次是否已有其它教学班课程。
+- 教师可撤销本人状态为 `待审核` 的调课申请，撤销后 `request_status = '已撤销'`。
 - 管理员导出的教室课表同样由 `teaching_class` 的教室、星期、节次、周次和课程安排生成，不新增独立课表实体。
 
 ## 18. score_change_request
@@ -347,7 +351,65 @@
 - 教师只能对本人授课教学班中已提交的成绩发起修改申请。
 - 管理员审核通过后，系统将对应成绩退回为未提交状态，教师可重新修改并提交。
 
-## 19. operation_log
+## 19. exam_arrangement
+说明：考试安排表
+
+字段：
+- `exam_id`：考试安排编号，主键
+- `teaching_class_id`：教学班编号
+- `exam_date`：考试日期
+- `start_time`：考试开始时间
+- `end_time`：考试结束时间
+- `classroom_id`：考试教室
+- `exam_status`：考试状态
+- `created_at`：创建时间
+- `updated_at`：更新时间
+
+建议 Java 类名：
+- `ExamArrangement`
+
+说明：
+- 每个教学班最多对应一条考试安排，`teaching_class_id` 有唯一约束。
+- 考试教室占用来源于 `exam_arrangement` 自身的考试日期、时间段和教室字段，不再单独维护考试占用表。
+- 管理员修改考试安排、教师提交考试修改申请和管理员审核考试修改申请时，都会基于考试日期和时间段检查教室占用。
+- 同一教师在同一考试时间段不能有两门本人教授课程考试。
+
+## 20. exam_change_request
+说明：考试安排修改申请表
+
+字段：
+- `exam_change_request_id`：考试修改申请编号，主键
+- `exam_id`：考试安排编号
+- `teaching_class_id`：教学班编号
+- `teacher_id`：申请教师工号
+- `original_exam_date`：原考试日期
+- `original_start_time`：原开始时间
+- `original_end_time`：原结束时间
+- `original_classroom_id`：原考试教室
+- `requested_exam_date`：申请后考试日期
+- `requested_start_time`：申请后开始时间
+- `requested_end_time`：申请后结束时间
+- `requested_classroom_id`：申请后考试教室
+- `request_reason`：申请原因
+- `request_status`：申请状态
+- `review_comment`：审核备注
+- `reviewed_by`：审核管理员用户编号
+- `reviewed_at`：审核时间
+- `created_at`：申请时间
+- `updated_at`：更新时间
+
+建议 Java 类名：
+- `ExamChangeRequest`
+
+说明：
+- 教师只能对本人授课课程的考试安排发起修改申请。
+- 同一考试存在待审核修改申请时不能重复提交。
+- `request_status` 可为 `待审核`、`已通过`、`已驳回`、`已撤销`。
+- 教师可撤销本人状态为 `待审核` 的考试修改申请。
+- 提交申请和管理员审核通过时，系统都会检查目标教室在申请后日期和时间段是否被其它考试占用。
+- 提交申请和管理员审核通过时，系统都会检查申请教师在申请后日期和时间段是否已有其它考试。
+
+## 21. operation_log
 说明：操作日志表
 
 字段：
@@ -360,7 +422,7 @@
 建议 Java 类名：
 - `OperationLog`
 
-## 20. 视图
+## 22. 视图
 
 ### `v_student_timetable`
 用途：
@@ -372,7 +434,7 @@
 - 学生查看成绩
 - 管理员查看成绩明细
 
-## 21. 建议的 Java 分层结构
+## 23. 建议的 Java 分层结构
 
 实体类：
 - `entity`
@@ -392,6 +454,8 @@
   - `CourseSelectionRequest`
   - `CourseDropRequest`
   - `ScheduleAdjustRequest`
+  - `ExamArrangement`
+  - `ExamChangeRequest`
   - `ScoreChangeRequest`
   - `Score`
   - `OperationLog`
@@ -409,7 +473,7 @@
 - `dto`
 - `vo`
 
-## 22. 优先开发的核心实体
+## 24. 优先开发的核心实体
 
 如果你先做系统主流程，建议优先写这几个实体：
 - `SysUser`

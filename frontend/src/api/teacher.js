@@ -29,10 +29,11 @@ export function getTeacherCurrentSemester() {
   })
 }
 
-export function getTeachingClasses() {
+export function getTeachingClasses(params) {
   return request({
     url: '/teacher/teaching-classes',
-    method: 'get'
+    method: 'get',
+    params
   })
 }
 

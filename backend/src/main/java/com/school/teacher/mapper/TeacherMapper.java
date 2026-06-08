@@ -17,9 +17,16 @@ import org.apache.ibatis.annotations.Delete;
 public interface TeacherMapper {
 
     @Select("""
+        <script>
         SELECT
             tc.teaching_class_id AS teachingClassId,
+            sem.semester_id AS semesterId,
             sem.semester_name AS semesterName,
+            sem.start_date AS semesterStartDate,
+            sem.end_date AS semesterEndDate,
+            sem.course_select_start AS courseSelectStart,
+            sem.course_select_end AS courseSelectEnd,
+            sem.is_current AS isCurrent,
             c.course_name AS courseName,
             c.course_id AS courseId,
             c.course_type AS courseType,
@@ -37,10 +44,16 @@ public interface TeacherMapper {
         JOIN course c ON tc.course_id = c.course_id
         LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
         WHERE tc.teacher_id = #{teacherId}
+        <if test="includeAllSemesters == false">
           AND sem.is_current = 1
-        ORDER BY sem.semester_name, tc.week_day, tc.section_desc
+        </if>
+        ORDER BY sem.semester_id DESC, tc.week_day, tc.section_desc
+        </script>
         """)
-    List<Map<String, Object>> selectTeachingClasses(@Param("teacherId") String teacherId);
+    List<Map<String, Object>> selectTeachingClasses(
+        @Param("teacherId") String teacherId,
+        @Param("includeAllSemesters") boolean includeAllSemesters
+    );
 
     @Select("""
         SELECT
@@ -77,7 +90,13 @@ public interface TeacherMapper {
     @Select("""
         SELECT
             tc.teaching_class_id AS teachingClassId,
+            sem.semester_id AS semesterId,
             sem.semester_name AS semesterName,
+            sem.start_date AS semesterStartDate,
+            sem.end_date AS semesterEndDate,
+            sem.course_select_start AS courseSelectStart,
+            sem.course_select_end AS courseSelectEnd,
+            sem.is_current AS isCurrent,
             c.course_id AS courseId,
             c.course_name AS courseName,
             c.course_type AS courseType,
