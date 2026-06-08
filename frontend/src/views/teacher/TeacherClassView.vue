@@ -85,6 +85,7 @@
           <el-descriptions-item label="课程类型">{{ selectedClass.courseType }}</el-descriptions-item>
           <el-descriptions-item label="学分">{{ selectedClass.credit }}</el-descriptions-item>
           <el-descriptions-item label="考核方式">{{ selectedClass.assessmentMethod || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="平时:考试">{{ scoreRatioLabel(selectedClass) }}</el-descriptions-item>
           <el-descriptions-item label="学期">
             {{ selectedClass.semesterName }}
             <el-tag v-if="Number(selectedClass.isCurrent) === 1" class="inline-tag" type="success">当前</el-tag>
@@ -257,6 +258,13 @@ function statusTagType(status) {
 
 function classroomLabel(row) {
   return [row.buildingName, row.roomName].filter(Boolean).join(' ') || '-'
+}
+
+function scoreRatioLabel(row) {
+  if (row?.usualRatio == null || row?.examRatio == null) {
+    return '-'
+  }
+  return `${row.usualRatio} : ${row.examRatio}`
 }
 
 function escapeHtml(value) {
