@@ -8,6 +8,7 @@ import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.dto.ExamUpdateRequest;
+import com.school.admin.dto.MakeupExamArrangeRequest;
 import com.school.admin.dto.ScoreReviewRequestReviewRequest;
 import com.school.admin.dto.ScoreSubmitSettingRequest;
 import com.school.admin.dto.SemesterRequest;
@@ -281,14 +282,14 @@ public class AdminController {
     }
 
     @PutMapping("/makeup-requests/{requestId}/review")
-    @OperationLog(type = "补考审核", action = "审核补考申请")
+    @OperationLog(type = "补考教室安排", action = "安排补考教室")
     public ApiResponse<Void> reviewMakeupExamRequest(
         @PathVariable Long requestId,
-        @Valid @RequestBody AcademicRequestReviewRequest request,
+        @Valid @RequestBody MakeupExamArrangeRequest request,
         @RequestHeader(value = "X-Username", defaultValue = "admin") String username
     ) {
         adminService.reviewMakeupExamRequest(requestId, request, username);
-        return ApiResponse.success("补考申请处理成功", null);
+        return ApiResponse.success("补考教室安排处理成功", null);
     }
 
     @PutMapping("/makeup-requests/{requestId}/result")

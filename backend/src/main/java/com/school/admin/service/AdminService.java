@@ -7,6 +7,7 @@ import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
 import com.school.admin.dto.ExamUpdateRequest;
+import com.school.admin.dto.MakeupExamArrangeRequest;
 import com.school.admin.dto.ScoreReviewRequestReviewRequest;
 import com.school.admin.dto.ScoreSubmitSettingRequest;
 import com.school.admin.dto.SemesterRequest;
@@ -24,6 +25,9 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -145,33 +149,83 @@ public class AdminService {
     @Transactional(rollbackFor = Exception.class)
     public void reviewMakeupExamRequest(
         Long requestId,
-        AcademicRequestReviewRequest request,
+        MakeupExamArrangeRequest request,
         String adminUsername
     ) {
         Map<String, Object> makeupRequest = adminMapper.selectMakeupExamRequestById(requestId);
         if (makeupRequest == null) {
             throw new BusinessException("补考申请不存在");
         }
-        if (!"待审核".equals(makeupRequest.get("requestStatus"))) {
-            throw new BusinessException("该补考申请已处理，请勿重复审核");
+        if (!"待管理员排教室".equals(makeupRequest.get("requestStatus"))) {
+            throw new BusinessException("该补考申请尚未进入管理员排教室环节");
+        }
+        if (!"已确认".equals(makeupRequest.get("teacherStatus"))) {
+            throw new BusinessException("任课教师确认后才能安排补考教室");
         }
         Integer adminUserId = resolveAdminUserId(adminUsername);
-        String reviewStatus = resolveReviewStatus(request.getAction());
-        String resultStatus = "已通过".equals(reviewStatus)
-            ? normalizeMakeupResult(request.getResultStatus(), "待考试")
-            : "未安排";
-        adminMapper.updateMakeupExamReview(
-            requestId,
-            reviewStatus,
-            resultStatus,
-            request.getReviewComment(),
-            adminUserId
-        );
-        adminMapper.insertOperationLog(
-            adminUserId,
-            "补考审核",
-            "管理员处理补考申请，申请编号：" + requestId + "，结果：" + reviewStatus
-        );
+
+        String action = request.getAction();
+        if ("APPROVE".equalsIgnoreCase(action)) {
+            if (request.getClassroomId() == null || request.getClassroomId().isBlank()) {
+                throw new BusinessException("请选择补考教室");
+            }
+            LocalDateTime confirmedExamTime = parseDateTimeValue(
+                makeupRequest.get("confirmedExamTime"),
+                "教师确认补考时间"
+            );
+            LocalDateTime endTime = confirmedExamTime.plusHours(2);
+            String examDate = confirmedExamTime.toLocalDate().toString();
+            String startClock = formatTime(confirmedExamTime);
+            String endClock = formatTime(endTime);
+            String classroomId = request.getClassroomId();
+            if (adminMapper.countExamRoomConflict(0L, examDate, startClock, endClock, classroomId) > 0
+                || adminMapper.countMakeupExamRoomConflict(
+                    requestId,
+                    formatDateTime(confirmedExamTime),
+                    formatDateTime(endTime),
+                    classroomId
+                ) > 0) {
+                throw new BusinessException("安排失败：目标教室在该时间段已被占用");
+            }
+            adminMapper.updateMakeupExamArrangement(
+                requestId,
+                "已安排",
+                "已安排",
+                request.getReviewComment(),
+                classroomId,
+                "待考试",
+                adminUserId
+            );
+            adminMapper.insertOperationLog(
+                adminUserId,
+                "补考教室安排",
+                "管理员安排补考教室，申请编号：" + requestId + "，教室：" + classroomId
+            );
+            return;
+        }
+
+        if ("REJECT".equalsIgnoreCase(action)) {
+            if (request.getReviewComment() == null || request.getReviewComment().isBlank()) {
+                throw new BusinessException("驳回补考教室申请需要填写理由");
+            }
+            adminMapper.updateMakeupExamArrangement(
+                requestId,
+                "已驳回",
+                "已驳回",
+                request.getReviewComment(),
+                null,
+                "未安排",
+                adminUserId
+            );
+            adminMapper.insertOperationLog(
+                adminUserId,
+                "补考教室安排",
+                "管理员驳回补考教室申请，申请编号：" + requestId
+            );
+            return;
+        }
+
+        throw new BusinessException("不支持的处理动作");
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -180,8 +234,9 @@ public class AdminService {
         if (makeupRequest == null) {
             throw new BusinessException("补考申请不存在");
         }
-        if (!"已通过".equals(makeupRequest.get("requestStatus"))) {
-            throw new BusinessException("只有已通过审核的补考申请可以登记结果");
+        if (!"已安排".equals(makeupRequest.get("requestStatus"))
+            && !"已通过".equals(makeupRequest.get("requestStatus"))) {
+            throw new BusinessException("只有已安排的补考申请可以登记结果");
         }
         String resultStatus = normalizeMakeupResult(request.getResultStatus(), null);
         if (adminMapper.updateMakeupExamResult(requestId, resultStatus) == 0) {
@@ -360,6 +415,7 @@ public class AdminService {
         if (setting == null) {
             throw new BusinessException("当前学期不存在");
         }
+        validateMakeupRequestWindow(request);
         Integer semesterId = ((Number) setting.get("semesterId")).intValue();
         adminMapper.updateCourseSelectionTime(semesterId, request);
     }
@@ -654,6 +710,54 @@ public class AdminService {
             throw new BusinessException("补考结果只能是待考试、已通过、未通过或未安排");
         }
         return value;
+    }
+
+    private void validateMakeupRequestWindow(CourseSelectionSettingRequest request) {
+        boolean hasStart = request.getMakeupRequestStart() != null && !request.getMakeupRequestStart().isBlank();
+        boolean hasEnd = request.getMakeupRequestEnd() != null && !request.getMakeupRequestEnd().isBlank();
+        if (!hasStart && !hasEnd) {
+            return;
+        }
+        if (!hasStart || !hasEnd) {
+            throw new BusinessException("补考申请开始和结束时间必须同时填写");
+        }
+        LocalDateTime start = parseDateTime(request.getMakeupRequestStart(), "补考申请开始时间");
+        LocalDateTime end = parseDateTime(request.getMakeupRequestEnd(), "补考申请结束时间");
+        if (!end.isAfter(start)) {
+            throw new BusinessException("补考申请结束时间必须晚于开始时间");
+        }
+        if (end.isAfter(start.plusDays(7))) {
+            throw new BusinessException("补考申请开放时间不能超过一周");
+        }
+    }
+
+    private LocalDateTime parseDateTime(String value, String fieldName) {
+        try {
+            return LocalDateTime.parse(value.trim().replace(' ', 'T'));
+        } catch (DateTimeParseException e) {
+            throw new BusinessException(fieldName + "格式不正确");
+        }
+    }
+
+    private LocalDateTime parseDateTimeValue(Object value, String fieldName) {
+        if (value == null) {
+            throw new BusinessException(fieldName + "未设置");
+        }
+        if (value instanceof LocalDateTime dateTime) {
+            return dateTime;
+        }
+        if (value instanceof java.sql.Timestamp timestamp) {
+            return timestamp.toLocalDateTime();
+        }
+        return parseDateTime(value.toString(), fieldName);
+    }
+
+    private String formatDateTime(LocalDateTime value) {
+        return value.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    }
+
+    private String formatTime(LocalDateTime value) {
+        return value.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
     }
 
     private void createUserIfNecessary(String username, String realName, String userType, String roleCode) {

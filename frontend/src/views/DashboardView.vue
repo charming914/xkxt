@@ -43,6 +43,10 @@
             <span>退课待审核</span>
             <strong>{{ teacherTodos.pendingDropRequests || 0 }}</strong>
           </div>
+          <RouterLink to="/teacher/makeup-requests" class="todo-item todo-link">
+            <span>补考待确认</span>
+            <strong>{{ teacherTodos.pendingMakeupRequests || 0 }}</strong>
+          </RouterLink>
           <el-tooltip
             :disabled="scoreSubmitWindowOpen"
             content="当前不在相关事务的开放时间内"
@@ -125,6 +129,12 @@
               {{ adminOverview.pendingScoreChangeRequests || 0 }}
             </strong>
           </RouterLink>
+          <RouterLink class="todo-item link-item" to="/admin/remediation-requests">
+            <span>补考教室待排</span>
+            <strong :class="{ pending: adminOverview.pendingMakeupRoomRequests > 0 }">
+              {{ adminOverview.pendingMakeupRoomRequests || 0 }}
+            </strong>
+          </RouterLink>
         </div>
       </article>
 
@@ -158,6 +168,11 @@
             <span>已选课程</span>
             <strong>{{ studentTodos.selectedCourseCount || 0 }}</strong>
             <small>查看课程安排</small>
+          </RouterLink>
+          <RouterLink to="/student/remediation" class="todo-item todo-link">
+            <span>可选重修班</span>
+            <strong>{{ studentTodos.openRetakeClassCount || 0 }}</strong>
+            <small>按开放时间选课</small>
           </RouterLink>
           <RouterLink to="/student/scores" class="todo-item todo-link">
             <span>平均绩点</span>
@@ -199,7 +214,8 @@ const pendingTotal = computed(() => {
     Number(o.pendingSelectionRequests || 0) +
     Number(o.pendingDropRequests || 0) +
     Number(o.pendingScheduleRequests || 0) +
-    Number(o.pendingScoreChangeRequests || 0)
+    Number(o.pendingScoreChangeRequests || 0) +
+    Number(o.pendingMakeupRoomRequests || 0)
   )
 })
 
@@ -279,6 +295,7 @@ async function loadStudentTodos() {
   try {
     const response = await getStudentTodos()
     studentTodos.value = response.data || {}
+    showRetakeClassReminder()
   } finally {
     studentTodoLoading.value = false
   }
@@ -299,6 +316,22 @@ function showScoreSubmitReminder() {
     ? `当前处于成绩录入时间范围内。未录入成绩 ${missingScores} 条，未提交成绩 ${unsubmittedScores} 条，请及时处理。`
     : '当前处于成绩录入时间范围内，暂无未录入或未提交成绩。'
   ElMessageBox.alert(message, '成绩录入提醒', {
+    type: 'warning',
+    confirmButtonText: '知道了'
+  })
+}
+
+function showRetakeClassReminder() {
+  const count = Number(studentTodos.value.openRetakeClassCount || 0)
+  if (count <= 0) {
+    return
+  }
+  const reminderKey = `retake-class-reminder-${userStore.userId}-${userStore.loginAt || 'current'}`
+  if (sessionStorage.getItem(reminderKey)) {
+    return
+  }
+  sessionStorage.setItem(reminderKey, '1')
+  ElMessageBox.alert(`当前有 ${count} 个重修班处于可选时间内，请按需及时选课。`, '重修班选课提醒', {
     type: 'warning',
     confirmButtonText: '知道了'
   })

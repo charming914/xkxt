@@ -29,6 +29,13 @@ export function getStudentCurrentSemester() {
   })
 }
 
+export function getStudentSemesters() {
+  return request({
+    url: '/student/semesters',
+    method: 'get'
+  })
+}
+
 export function getAvailableCourses(params) {
   return request({
     url: '/student/courses/available',
@@ -67,17 +74,19 @@ export function deleteCoursePlan(planId) {
   })
 }
 
-export function getStudentTimetable() {
+export function getStudentTimetable(params) {
   return request({
     url: '/student/timetable',
-    method: 'get'
+    method: 'get',
+    params
   })
 }
 
-export function getStudentScores() {
+export function getStudentScores(params) {
   return request({
     url: '/student/scores',
-    method: 'get'
+    method: 'get',
+    params
   })
 }
 
@@ -125,6 +134,13 @@ export function getRetakeRequests() {
   })
 }
 
+export function getRetakeClasses() {
+  return request({
+    url: '/student/retake-classes',
+    method: 'get'
+  })
+}
+
 export function createRetakeRequest(data) {
   return request({
     url: '/student/retake-requests',
@@ -155,10 +171,11 @@ export function getCourseSelectionRequests() {
   })
 }
 
-export function getSelectedCourses() {
+export function getSelectedCourses(params) {
   return request({
     url: '/student/selected-courses',
-    method: 'get'
+    method: 'get',
+    params
   })
 }
 
@@ -191,9 +208,10 @@ export function getCourseDropRequests() {
   })
 }
 
-export function getStudentExams() {
+export function getStudentExams(params) {
   return request({
     url: '/student/exams',
-    method: 'get'
+    method: 'get',
+    params
   })
 }

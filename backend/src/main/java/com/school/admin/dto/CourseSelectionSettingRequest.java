@@ -11,4 +11,8 @@ public class CourseSelectionSettingRequest {
 
     @NotBlank(message = "选课结束时间不能为空")
     private String courseSelectEnd;
+
+    private String makeupRequestStart;
+
+    private String makeupRequestEnd;
 }

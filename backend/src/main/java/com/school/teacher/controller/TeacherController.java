@@ -3,6 +3,7 @@ package com.school.teacher.controller;
 import com.school.common.api.ApiResponse;
 import com.school.common.dto.CourseDropReviewRequest;
 import com.school.teacher.dto.ExamChangeRequestCreateRequest;
+import com.school.teacher.dto.MakeupExamReviewRequest;
 import com.school.teacher.dto.ScheduleAdjustRequestCreateRequest;
 import com.school.teacher.dto.ScoreChangeRequestCreateRequest;
 import com.school.teacher.dto.ScoreBatchSaveRequest;
@@ -117,6 +118,13 @@ public class TeacherController {
         return ApiResponse.success(teacherService.courseDropRequests(teacherId));
     }
 
+    @GetMapping("/makeup-requests")
+    public ApiResponse<List<Map<String, Object>>> makeupExamRequests(
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        return ApiResponse.success(teacherService.makeupExamRequests(teacherId));
+    }
+
     @GetMapping("/classroom-options")
     public ApiResponse<List<Map<String, Object>>> classroomOptions() {
         return ApiResponse.success(teacherService.classroomOptions());
@@ -203,6 +211,16 @@ public class TeacherController {
     ) {
         teacherService.reviewCourseDropRequest(dropRequestId, request, teacherId);
         return ApiResponse.success("退课申请审核成功", null);
+    }
+
+    @PutMapping("/makeup-requests/{requestId}/review")
+    public ApiResponse<Void> reviewMakeupExamRequest(
+        @PathVariable Long requestId,
+        @Valid @RequestBody MakeupExamReviewRequest request,
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        teacherService.reviewMakeupExamRequest(requestId, request, teacherId);
+        return ApiResponse.success("补考申请确认成功", null);
     }
 
     @GetMapping("/exams")

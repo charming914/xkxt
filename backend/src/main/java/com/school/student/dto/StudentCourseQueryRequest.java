@@ -6,6 +6,8 @@ import lombok.Data;
 @Data
 public class StudentCourseQueryRequest {
 
+    private Integer semesterId;
+
     private String teacherName;
 
     private String courseName;

@@ -25,6 +25,16 @@
 
     <el-form :model="queryForm" label-width="88px" class="query-panel">
       <div class="query-grid">
+        <el-form-item label="学期">
+          <el-select v-model="queryForm.semesterId" clearable placeholder="选择学期">
+            <el-option
+              v-for="semester in semesters"
+              :key="semester.semesterId"
+              :label="semester.semesterName"
+              :value="semester.semesterId"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="老师名称">
           <el-input v-model="queryForm.teacherName" clearable placeholder="按老师名称查询" />
         </el-form-item>
@@ -87,7 +97,7 @@
             {{ row.selectedCount }}/{{ row.maxStudents }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="320" fixed="right">
+        <el-table-column label="操作" width="390" fixed="right">
           <template #default="{ row }">
             <div class="action-cell">
               <div class="action-row">
@@ -99,6 +109,15 @@
                   @click="handleSelect(row)"
                 >
                   选课
+                </el-button>
+                <el-button
+                  type="danger"
+                  size="small"
+                  :loading="droppingId === row.teachingClassId"
+                  :disabled="!canDrop(row)"
+                  @click="handleDrop(row)"
+                >
+                  退课
                 </el-button>
                 <el-button size="small" :disabled="!canRequestSelection(row)" @click="openRequestDialog(row)">
                   申请补选
@@ -173,12 +192,14 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   createCoursePlan,
   createCourseSelectionRequest,
+  dropCourse,
   getAvailableCourses,
   getCourseSelectionRequests,
+  getStudentSemesters,
   selectCourse
 } from '../../api/student'
 import { useClientPagination } from '../../composables/useClientPagination'
@@ -187,6 +208,7 @@ import { useUserStore } from '../../stores/user'
 const userStore = useUserStore()
 const loading = ref(false)
 const submittingId = ref(null)
+const droppingId = ref(null)
 const courses = ref([])
 const {
   currentPage,
@@ -197,12 +219,14 @@ const {
   handleCurrentChange
 } = useClientPagination(courses, 10)
 const selectionHint = ref('')
+const semesters = ref([])
 const requests = ref([])
 const requestLoading = ref(false)
 const dialogVisible = ref(false)
 const selectedCourse = ref(null)
 const requestReason = ref('')
 const queryForm = reactive({
+  semesterId: '',
   teacherName: '',
   courseName: '',
   courseId: '',
@@ -247,8 +271,8 @@ const courseEmptyDescription = computed(() => {
   if (queryForm.courseName || queryForm.courseId) {
     return '未找到该课程的可选教学班，请检查课程名称或课程号'
   }
-  if (queryForm.courseType || queryForm.credit || queryForm.weekDay || queryForm.sectionDesc) {
-    return '暂无符合筛选条件的可选课程，请调整课程种类、学分、星期或节次'
+  if (queryForm.semesterId || queryForm.courseType || queryForm.credit || queryForm.weekDay || queryForm.sectionDesc) {
+    return '暂无符合筛选条件的可选课程，请调整学期、课程种类、学分、星期或节次'
   }
   return '当前暂无可选课程，可能选课时间未到、已结束，或当前学期没有开放教学班'
 })
@@ -284,6 +308,7 @@ function buildQueryParams() {
 
 function resetQuery() {
   Object.assign(queryForm, {
+    semesterId: defaultSemesterId(),
     teacherName: '',
     courseName: '',
     courseId: '',
@@ -321,6 +346,10 @@ function canRequestSelection(row) {
 
 function canAddPlan(row) {
   return !row.alreadySelected && Number(row.hasCoursePlan) !== 1
+}
+
+function canDrop(row) {
+  return Boolean(row.alreadySelected)
 }
 
 function selectionReason(row) {
@@ -395,6 +424,31 @@ async function handleCreatePlan(row) {
   await loadCourses()
 }
 
+async function handleDrop(row) {
+  if (!canDrop(row)) {
+    ElMessage.warning('未选该课程，不能退课')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(`确认退选 ${row.courseName} 吗？`, '确认退课', {
+      type: 'warning',
+      confirmButtonText: '确认退课',
+      cancelButtonText: '取消'
+    })
+  } catch {
+    return
+  }
+  droppingId.value = row.teachingClassId
+  selectionHint.value = ''
+  try {
+    const response = await dropCourse(row.teachingClassId)
+    ElMessage.success(response.message || '退课成功')
+    await loadCourses()
+  } finally {
+    droppingId.value = null
+  }
+}
+
 function openRequestDialog(row) {
   if (!canRequestSelection(row)) {
     ElMessage.warning('该课程当前不需要或不能提交补选申请')
@@ -423,7 +477,21 @@ async function handleCreateRequest() {
   await loadRequests()
 }
 
-onMounted(() => {
+function defaultSemesterId() {
+  const current = semesters.value.find(item => Number(item.isCurrent) === 1)
+  return current?.semesterId ?? ''
+}
+
+async function loadSemesters() {
+  const response = await getStudentSemesters()
+  semesters.value = response.data || []
+  if (!queryForm.semesterId) {
+    queryForm.semesterId = defaultSemesterId()
+  }
+}
+
+onMounted(async () => {
+  await loadSemesters()
   loadCourses()
   loadRequests()
 })

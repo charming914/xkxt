@@ -102,6 +102,7 @@ public interface AdminMapper {
             tc.week_day AS weekDay,
             tc.section_desc AS sectionDesc,
             tc.week_range AS weekRange,
+            COALESCE(tc.is_retake_class, 0) AS isRetakeClass,
             tc.max_students AS maxStudents,
             tc.selected_count AS selectedCount,
             CASE
@@ -221,11 +222,11 @@ public interface AdminMapper {
     @Insert("""
         INSERT INTO teaching_class (
             semester_id, course_id, teacher_id, classroom_id,
-            course_start_date, week_day, section_desc, week_range, max_students, selected_count
+            course_start_date, week_day, section_desc, week_range, is_retake_class, max_students, selected_count
         )
         SELECT
             #{targetSemesterId}, course_id, teacher_id, classroom_id,
-            NULL, week_day, section_desc, week_range, max_students, 0
+            NULL, week_day, section_desc, week_range, COALESCE(is_retake_class, 0), max_students, 0
         FROM teaching_class
         WHERE semester_id = #{sourceSemesterId}
         """)
@@ -359,10 +360,11 @@ public interface AdminMapper {
     @Insert("""
         INSERT INTO teaching_class (
             semester_id, course_id, teacher_id, classroom_id,
-            course_start_date, week_day, section_desc, week_range, max_students, selected_count
+            course_start_date, week_day, section_desc, week_range, is_retake_class, max_students, selected_count
         ) VALUES (
             #{request.semesterId}, #{request.courseId}, #{request.teacherId}, NULLIF(#{request.classroomId}, ''),
-            #{request.courseStartDate}, #{request.weekDay}, #{request.sectionDesc}, #{request.weekRange}, #{request.maxStudents}, 0
+            #{request.courseStartDate}, #{request.weekDay}, #{request.sectionDesc}, #{request.weekRange},
+            COALESCE(#{request.isRetakeClass}, 0), #{request.maxStudents}, 0
         )
         """)
     int insertTeachingClass(@Param("request") AdminTeachingClassRequest request);
@@ -377,6 +379,7 @@ public interface AdminMapper {
             week_day = #{request.weekDay},
             section_desc = #{request.sectionDesc},
             week_range = #{request.weekRange},
+            is_retake_class = COALESCE(#{request.isRetakeClass}, 0),
             max_students = #{request.maxStudents}
         WHERE teaching_class_id = #{teachingClassId}
         """)
@@ -443,6 +446,8 @@ public interface AdminMapper {
             semester_name AS semesterName,
             course_select_start AS courseSelectStart,
             course_select_end AS courseSelectEnd,
+            makeup_request_start AS makeupRequestStart,
+            makeup_request_end AS makeupRequestEnd,
             is_current AS isCurrent
         FROM semester
         WHERE is_current = 1
@@ -453,7 +458,9 @@ public interface AdminMapper {
     @Update("""
         UPDATE semester
         SET course_select_start = #{request.courseSelectStart},
-            course_select_end = #{request.courseSelectEnd}
+            course_select_end = #{request.courseSelectEnd},
+            makeup_request_start = NULLIF(#{request.makeupRequestStart}, ''),
+            makeup_request_end = NULLIF(#{request.makeupRequestEnd}, '')
         WHERE semester_id = #{semesterId}
         """)
     int updateCourseSelectionTime(
@@ -1009,7 +1016,10 @@ public interface AdminMapper {
             (SELECT COUNT(*) FROM schedule_adjust_request
                 WHERE request_status = '待审核') AS pendingScheduleRequests,
             (SELECT COUNT(*) FROM score_change_request
-                WHERE request_status = '待审核') AS pendingScoreChangeRequests
+                WHERE request_status = '待审核') AS pendingScoreChangeRequests,
+            (SELECT COUNT(*) FROM makeup_exam_request
+                WHERE request_status = '待管理员排教室'
+                  AND admin_status = '待安排') AS pendingMakeupRoomRequests
         """)
     Map<String, Object> selectDashboardOverview();
 
@@ -1095,23 +1105,45 @@ public interface AdminMapper {
             mer.student_id AS studentId,
             s.student_name AS studentName,
             mer.score_id AS scoreId,
+            tc.teaching_class_id AS teachingClassId,
             sem.semester_name AS semesterName,
             c.course_id AS courseId,
             c.course_name AS courseName,
+            t.teacher_id AS teacherId,
+            t.teacher_name AS teacherName,
             sc.final_score AS finalScore,
             mer.request_reason AS requestReason,
             mer.request_status AS requestStatus,
+            mer.teacher_status AS teacherStatus,
+            mer.teacher_comment AS teacherComment,
+            mer.admin_status AS adminStatus,
+            mer.admin_comment AS adminComment,
             mer.result_status AS resultStatus,
             mer.review_comment AS reviewComment,
+            mer.requested_exam_time AS requestedExamTime,
+            mer.confirmed_exam_time AS confirmedExamTime,
+            mer.classroom_id AS classroomId,
+            cl.building_name AS buildingName,
+            cl.room_name AS roomName,
             mer.created_at AS createdAt,
-            mer.reviewed_at AS reviewedAt
+            mer.reviewed_at AS reviewedAt,
+            mer.teacher_reviewed_at AS teacherReviewedAt,
+            mer.admin_reviewed_at AS adminReviewedAt
         FROM makeup_exam_request mer
         JOIN student s ON mer.student_id = s.student_id
         JOIN score sc ON mer.score_id = sc.score_id
         JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
         JOIN semester sem ON tc.semester_id = sem.semester_id
         JOIN course c ON tc.course_id = c.course_id
-        ORDER BY CASE mer.request_status WHEN '待审核' THEN 1 WHEN '已通过' THEN 2 ELSE 3 END,
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        LEFT JOIN classroom cl ON mer.classroom_id = cl.classroom_id
+        ORDER BY CASE mer.request_status
+                    WHEN '待教师确认' THEN 1
+                    WHEN '待管理员排教室' THEN 2
+                    WHEN '已安排' THEN 3
+                    WHEN '已通过' THEN 4
+                    ELSE 5
+                 END,
                  mer.created_at DESC,
                  mer.request_id DESC
         """)
@@ -1122,7 +1154,11 @@ public interface AdminMapper {
             request_id AS requestId,
             student_id AS studentId,
             score_id AS scoreId,
+            requested_exam_time AS requestedExamTime,
+            confirmed_exam_time AS confirmedExamTime,
             request_status AS requestStatus,
+            teacher_status AS teacherStatus,
+            admin_status AS adminStatus,
             result_status AS resultStatus
         FROM makeup_exam_request
         WHERE request_id = #{requestId}
@@ -1133,19 +1169,42 @@ public interface AdminMapper {
     @Update("""
         UPDATE makeup_exam_request
         SET request_status = #{requestStatus},
-            result_status = #{resultStatus},
-            review_comment = #{reviewComment},
+            admin_status = #{adminStatus},
+            admin_comment = #{adminComment},
+            admin_reviewed_by = #{reviewedBy},
+            admin_reviewed_at = NOW(),
             reviewed_by = #{reviewedBy},
             reviewed_at = NOW(),
+            classroom_id = NULLIF(#{classroomId}, ''),
+            result_status = #{resultStatus},
             updated_at = NOW()
         WHERE request_id = #{requestId}
         """)
-    int updateMakeupExamReview(
+    int updateMakeupExamArrangement(
         @Param("requestId") Long requestId,
         @Param("requestStatus") String requestStatus,
+        @Param("adminStatus") String adminStatus,
+        @Param("adminComment") String adminComment,
+        @Param("classroomId") String classroomId,
         @Param("resultStatus") String resultStatus,
-        @Param("reviewComment") String reviewComment,
         @Param("reviewedBy") Integer reviewedBy
+    );
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM makeup_exam_request mer
+        WHERE NULLIF(#{classroomId}, '') IS NOT NULL
+          AND mer.classroom_id = NULLIF(#{classroomId}, '')
+          AND mer.request_id <> #{requestId}
+          AND mer.request_status = '已安排'
+          AND mer.confirmed_exam_time < #{endDateTime}
+          AND #{startDateTime} < DATE_ADD(mer.confirmed_exam_time, INTERVAL 2 HOUR)
+        """)
+    int countMakeupExamRoomConflict(
+        @Param("requestId") Long requestId,
+        @Param("startDateTime") String startDateTime,
+        @Param("endDateTime") String endDateTime,
+        @Param("classroomId") String classroomId
     );
 
     @Update("""
@@ -1153,7 +1212,7 @@ public interface AdminMapper {
         SET result_status = #{resultStatus},
             updated_at = NOW()
         WHERE request_id = #{requestId}
-          AND request_status = '已通过'
+          AND request_status IN ('已安排', '已通过')
         """)
     int updateMakeupExamResult(
         @Param("requestId") Long requestId,

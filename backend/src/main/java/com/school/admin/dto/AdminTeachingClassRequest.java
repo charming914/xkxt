@@ -34,4 +34,6 @@ public class AdminTeachingClassRequest {
 
     @NotNull(message = "容量不能为空")
     private Integer maxStudents;
+
+    private Integer isRetakeClass;
 }

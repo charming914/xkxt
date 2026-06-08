@@ -4,6 +4,7 @@ import LoginView from '../views/LoginView.vue'
 import LayoutView from '../layouts/LayoutView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import StudentProfileView from '../views/student/StudentProfileView.vue'
+import StudentSemesterView from '../views/student/StudentSemesterView.vue'
 import StudentCourseView from '../views/student/StudentCourseView.vue'
 import StudentCoursePlanView from '../views/student/StudentCoursePlanView.vue'
 import StudentSelectedCourseView from '../views/student/StudentSelectedCourseView.vue'
@@ -16,6 +17,7 @@ import StudentAcademicProgressView from '../views/student/StudentAcademicProgres
 import TeacherClassView from '../views/teacher/TeacherClassView.vue'
 import TeacherScoreView from '../views/teacher/TeacherScoreView.vue'
 import TeacherDropRequestView from '../views/teacher/TeacherDropRequestView.vue'
+import TeacherMakeupRequestView from '../views/teacher/TeacherMakeupRequestView.vue'
 import TeacherProfileView from '../views/teacher/TeacherProfileView.vue'
 import TeacherScheduleRequestView from '../views/teacher/TeacherScheduleRequestView.vue'
 import TeacherExamView from '../views/teacher/TeacherExamView.vue'
@@ -66,6 +68,12 @@ const routes = [
         path: 'student/profile',
         name: 'student-profile',
         component: StudentProfileView,
+        meta: { roles: ['STUDENT'] }
+      },
+      {
+        path: 'student/semesters',
+        name: 'student-semesters',
+        component: StudentSemesterView,
         meta: { roles: ['STUDENT'] }
       },
       {
@@ -144,6 +152,12 @@ const routes = [
         path: 'teacher/course-drop-requests',
         name: 'teacher-course-drop-requests',
         component: TeacherDropRequestView,
+        meta: { roles: ['TEACHER'] }
+      },
+      {
+        path: 'teacher/makeup-requests',
+        name: 'teacher-makeup-requests',
+        component: TeacherMakeupRequestView,
         meta: { roles: ['TEACHER'] }
       },
       {

@@ -4,11 +4,15 @@ import com.school.common.exception.BusinessException;
 import com.school.student.dto.AcademicRequestCreateRequest;
 import com.school.student.dto.CourseDropRequestCreateRequest;
 import com.school.student.dto.CourseSelectionRequestCreateRequest;
+import com.school.student.dto.MakeupExamRequestCreateRequest;
 import com.school.student.dto.ScoreReviewRequestCreateRequest;
 import com.school.student.dto.SelectCourseRequest;
 import com.school.student.dto.StudentCourseQueryRequest;
 import com.school.student.dto.StudentProfileUpdateRequest;
 import com.school.student.mapper.StudentMapper;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -62,6 +66,18 @@ public class StudentService {
         return semester;
     }
 
+    public List<Map<String, Object>> semesters(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
+        try {
+            return studentMapper.selectStudentSemesters(studentId);
+        } catch (RuntimeException e) {
+            if (isMissingExamArrangementTable(e)) {
+                return studentMapper.selectStudentSemestersWithoutExams(studentId);
+            }
+            throw e;
+        }
+    }
+
     public List<Map<String, Object>> coursePlans(String username, String fallbackStudentId) {
         String studentId = resolveStudentId(username, fallbackStudentId);
         return studentMapper.selectCoursePlans(studentId);
@@ -108,21 +124,42 @@ public class StudentService {
     public void createMakeupExamRequest(
         String username,
         String fallbackStudentId,
-        AcademicRequestCreateRequest request
+        MakeupExamRequestCreateRequest request
     ) {
         String studentId = resolveStudentId(username, fallbackStudentId);
         Long scoreId = request.getScoreId();
         if (studentMapper.countFailedSubmittedScore(studentId, scoreId) == 0) {
             throw new BusinessException("只能对本人未通过且已提交的成绩申请补考");
         }
+        LocalDateTime requestedExamTime = parseDateTime(request.getRequestedExamTime(), "补考时间");
+        Map<String, Object> makeupWindow = studentMapper.selectMakeupRequestWindow(scoreId);
+        LocalDateTime requestStart = parseDateTimeValue(makeupWindow == null ? null : makeupWindow.get("makeupRequestStart"));
+        LocalDateTime requestEnd = parseDateTimeValue(makeupWindow == null ? null : makeupWindow.get("makeupRequestEnd"));
+        if (requestStart == null || requestEnd == null) {
+            throw new BusinessException("当前课程未开放补考申请");
+        }
+        LocalDateTime effectiveRequestEnd = minDateTime(requestEnd, requestStart.plusDays(7));
+        LocalDateTime now = LocalDateTime.now();
+        if (now.isBefore(requestStart) || now.isAfter(effectiveRequestEnd)) {
+            throw new BusinessException("补考申请只能在开放后一周内提交");
+        }
+        LocalDateTime latestExamTime = requestStart.plusDays(14);
+        if (requestedExamTime.isBefore(requestStart) || requestedExamTime.isAfter(latestExamTime)) {
+            throw new BusinessException("补考时间必须在补考开放后的两周内");
+        }
         if (studentMapper.countActiveMakeupRequest(studentId, scoreId) > 0) {
             throw new BusinessException("该课程已有补考申请或补考记录");
         }
-        studentMapper.insertMakeupExamRequest(studentId, scoreId, request.getRequestReason());
+        studentMapper.insertMakeupExamRequest(
+            studentId,
+            scoreId,
+            request.getRequestReason(),
+            formatDateTime(requestedExamTime)
+        );
         studentMapper.insertOperationLog(
             studentId,
             "补考申请",
-            "学生 " + studentId + " 提交补考申请，成绩编号：" + scoreId
+            "学生 " + studentId + " 提交补考申请，成绩编号：" + scoreId + "，申请时间：" + formatDateTime(requestedExamTime)
         );
     }
 
@@ -156,6 +193,11 @@ public class StudentService {
         return studentMapper.selectAcademicProgress(studentId);
     }
 
+    public List<Map<String, Object>> retakeClasses(String username, String fallbackStudentId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
+        return studentMapper.selectRetakeClasses(studentId);
+    }
+
     public List<Map<String, Object>> availableCourses(
         StudentCourseQueryRequest query,
         String username,
@@ -165,9 +207,13 @@ public class StudentService {
         return studentMapper.selectAvailableCourses(query, studentId);
     }
 
-    public List<Map<String, Object>> selectedCourses(String username, String fallbackStudentId) {
+    public List<Map<String, Object>> selectedCourses(
+        String username,
+        String fallbackStudentId,
+        Integer semesterId
+    ) {
         String studentId = resolveStudentId(username, fallbackStudentId);
-        return studentMapper.selectSelectedCourses(studentId);
+        return studentMapper.selectSelectedCourses(studentId, semesterId);
     }
 
     public List<Map<String, Object>> dropCourses(String username, String fallbackStudentId) {
@@ -205,23 +251,34 @@ public class StudentService {
         );
     }
 
-    public List<Map<String, Object>> timetable(String username, String fallbackStudentId) {
+    public List<Map<String, Object>> timetable(
+        String username,
+        String fallbackStudentId,
+        Integer semesterId
+    ) {
         String studentId = resolveStudentId(username, fallbackStudentId);
-        return studentMapper.selectTimetable(studentId);
+        return studentMapper.selectTimetable(studentId, semesterId);
     }
 
-    public List<Map<String, Object>> exams(String username, String fallbackStudentId) {
-        String studentId = resolveStudentId(username, fallbackStudentId);
-        return studentMapper.selectExams(studentId);
-    }
-
-    public List<Map<String, Object>> scores(String username, String fallbackStudentId) {
+    public List<Map<String, Object>> exams(String username, String fallbackStudentId, Integer semesterId) {
         String studentId = resolveStudentId(username, fallbackStudentId);
         try {
-            return studentMapper.selectScores(studentId);
+            return studentMapper.selectExams(studentId, semesterId);
+        } catch (RuntimeException e) {
+            if (isMissingExamArrangementTable(e)) {
+                return List.of();
+            }
+            throw e;
+        }
+    }
+
+    public List<Map<String, Object>> scores(String username, String fallbackStudentId, Integer semesterId) {
+        String studentId = resolveStudentId(username, fallbackStudentId);
+        try {
+            return studentMapper.selectScores(studentId, semesterId);
         } catch (RuntimeException e) {
             if (isMissingScoreReviewTable(e)) {
-                return studentMapper.selectScoresWithoutReview(studentId);
+                return studentMapper.selectScoresWithoutReview(studentId, semesterId);
             }
             throw e;
         }
@@ -373,7 +430,55 @@ public class StudentService {
         return second;
     }
 
+    private LocalDateTime parseDateTime(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new BusinessException(fieldName + "不能为空");
+        }
+        try {
+            return LocalDateTime.parse(value.trim().replace(' ', 'T'));
+        } catch (DateTimeParseException e) {
+            throw new BusinessException(fieldName + "格式不正确");
+        }
+    }
+
+    private LocalDateTime parseDateTimeValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof LocalDateTime dateTime) {
+            return dateTime;
+        }
+        if (value instanceof java.sql.Timestamp timestamp) {
+            return timestamp.toLocalDateTime();
+        }
+        String normalized = value.toString().trim();
+        if (normalized.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(normalized.replace(' ', 'T'));
+        } catch (DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    private LocalDateTime minDateTime(LocalDateTime first, LocalDateTime second) {
+        return first.isBefore(second) ? first : second;
+    }
+
+    private String formatDateTime(LocalDateTime value) {
+        return value.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    }
+
     private boolean isMissingScoreReviewTable(RuntimeException e) {
+        return isMissingTable(e, "score_review_request");
+    }
+
+    private boolean isMissingExamArrangementTable(RuntimeException e) {
+        return isMissingTable(e, "exam_arrangement");
+    }
+
+    private boolean isMissingTable(RuntimeException e, String tableName) {
         StringBuilder messages = new StringBuilder();
         Throwable current = e;
         while (current != null) {
@@ -383,7 +488,7 @@ public class StudentService {
             current = current.getCause();
         }
         String message = messages.toString();
-        return message.contains("score_review_request")
+        return message.contains(tableName)
             && (message.contains("doesn't exist")
                 || message.contains("does not exist")
                 || message.contains("不存在"));
