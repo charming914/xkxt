@@ -41,6 +41,26 @@
             placeholder="选择结束时间"
           />
         </div>
+        <div class="setting-item">
+          <span class="setting-label">补考申请开始时间</span>
+          <el-date-picker
+            v-model="setting.makeupRequestStart"
+            type="datetime"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            placeholder="选择开始时间"
+          />
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">补考申请结束时间</span>
+          <el-date-picker
+            v-model="setting.makeupRequestEnd"
+            type="datetime"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            placeholder="开放不超过一周"
+          />
+        </div>
       </div>
     </div>
 
@@ -210,7 +230,9 @@ const scorePaged = useClientPagination(submittedScores, 10)
 const setting = reactive({
   semesterName: '',
   courseSelectStart: '',
-  courseSelectEnd: ''
+  courseSelectEnd: '',
+  makeupRequestStart: '',
+  makeupRequestEnd: ''
 })
 const scoreSetting = reactive({
   semesterName: '',
@@ -295,7 +317,9 @@ async function loadSubmittedScores() {
 async function handleSaveSetting() {
   await updateCourseSelectionSetting({
     courseSelectStart: setting.courseSelectStart,
-    courseSelectEnd: setting.courseSelectEnd
+    courseSelectEnd: setting.courseSelectEnd,
+    makeupRequestStart: setting.makeupRequestStart,
+    makeupRequestEnd: setting.makeupRequestEnd
   })
   ElMessage.success('选课设置更新成功')
   await loadSetting()

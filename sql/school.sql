@@ -115,6 +115,8 @@ CREATE TABLE semester (
     course_select_end DATETIME NOT NULL COMMENT '选课结束时间',
     score_submit_start DATETIME NULL COMMENT '成绩提交开始时间',
     score_submit_end DATETIME NULL COMMENT '成绩提交结束时间',
+    makeup_request_start DATETIME NULL COMMENT '补考申请开放开始时间',
+    makeup_request_end DATETIME NULL COMMENT '补考申请开放结束时间',
     is_current TINYINT NOT NULL DEFAULT 0 COMMENT '是否当前学期',
     PRIMARY KEY (semester_id),
     UNIQUE KEY uk_semester_name (semester_name)
@@ -156,6 +158,7 @@ CREATE TABLE teaching_class (
     week_day TINYINT NOT NULL COMMENT '星期几',
     section_desc VARCHAR(20) NOT NULL COMMENT '节次',
     week_range VARCHAR(30) NOT NULL COMMENT '周次范围',
+    is_retake_class TINYINT NOT NULL DEFAULT 0 COMMENT '是否重修班：0否，1是',
     max_students INT NOT NULL DEFAULT 60 COMMENT '容量上限',
     selected_count INT NOT NULL DEFAULT 0 COMMENT '已选人数',
     status VARCHAR(20) NOT NULL DEFAULT '未开始' COMMENT '教学班状态',
@@ -370,10 +373,11 @@ JOIN sys_role r ON (
 
 INSERT INTO semester (
     semester_name, school_year, term_code, start_date, end_date,
-    course_select_start, course_select_end, score_submit_start, score_submit_end, is_current
+    course_select_start, course_select_end, score_submit_start, score_submit_end,
+    makeup_request_start, makeup_request_end, is_current
 ) VALUES
-('2025-2026-1', '2025-2026', '1', '2025-09-01', '2026-01-20', '2025-08-20 08:00:00', '2025-09-10 23:59:59', '2026-01-01 08:00:00', '2026-01-31 23:59:59', 0),
-('2025-2026-2', '2025-2026', '2', '2026-02-23', '2026-07-10', '2026-02-10 08:00:00', '2026-03-05 23:59:59', '2026-06-01 08:00:00', '2026-07-20 23:59:59', 1);
+('2025-2026-1', '2025-2026', '1', '2025-09-01', '2026-01-20', '2025-08-20 08:00:00', '2025-09-10 23:59:59', '2026-01-01 08:00:00', '2026-01-31 23:59:59', '2026-01-21 08:00:00', '2026-01-27 23:59:59', 0),
+('2025-2026-2', '2025-2026', '2', '2026-02-23', '2026-07-10', '2026-02-10 08:00:00', '2026-03-05 23:59:59', '2026-06-01 08:00:00', '2026-07-20 23:59:59', '2026-07-11 08:00:00', '2026-07-17 23:59:59', 1);
 
 INSERT INTO course (
     course_id, course_name, course_type, credit, total_hours,
@@ -394,12 +398,12 @@ INSERT INTO classroom (classroom_id, building_name, room_name, capacity) VALUES
 
 INSERT INTO teaching_class (
     semester_id, course_id, teacher_id, classroom_id,
-    course_start_date, week_day, section_desc, week_range, max_students, selected_count, status
+    course_start_date, week_day, section_desc, week_range, is_retake_class, max_students, selected_count, status
 ) VALUES
-(2, '08305002', 'T0101', 'LAB1', '2026-03-01', 3, '1-2节', '1-16周', 50, 0, '选课中'),
-(2, '08305003', 'T0102', 'R102', '2026-03-01', 5, '5-6节', '1-16周', 60, 0, '选课中'),
-(2, '08302001', 'T0201', 'R201', '2026-03-01', 1, '5-6节', '1-16周', 80, 0, '选课中'),
-(2, '08305001', 'T0103', 'R101', '2026-03-01', 2, '1-2节', '1-16周', 60, 0, '选课中');
+(2, '08305002', 'T0101', 'LAB1', '2026-03-01', 3, '1-2节', '1-16周', 0, 50, 0, '选课中'),
+(2, '08305003', 'T0102', 'R102', '2026-03-01', 5, '5-6节', '1-16周', 0, 60, 0, '选课中'),
+(2, '08302001', 'T0201', 'R201', '2026-03-01', 1, '5-6节', '1-16周', 0, 80, 0, '选课中'),
+(2, '08305001', 'T0103', 'R101', '2026-03-01', 2, '1-2节', '1-16周', 0, 60, 0, '选课中');
 
 INSERT INTO course_selection (student_id, teaching_class_id, selection_time, selection_status) VALUES
 ('20240001', 3, NOW(), '已选'),

@@ -4,6 +4,7 @@ import com.school.common.api.ApiResponse;
 import com.school.student.dto.AcademicRequestCreateRequest;
 import com.school.student.dto.CourseDropRequestCreateRequest;
 import com.school.student.dto.CourseSelectionRequestCreateRequest;
+import com.school.student.dto.MakeupExamRequestCreateRequest;
 import com.school.student.dto.ScoreReviewRequestCreateRequest;
 import com.school.student.dto.SelectCourseRequest;
 import com.school.student.dto.StudentCourseQueryRequest;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/student")
@@ -59,6 +61,14 @@ public class StudentController {
     @GetMapping("/current-semester")
     public ApiResponse<Map<String, Object>> currentSemester() {
         return ApiResponse.success(studentService.currentSemester());
+    }
+
+    @GetMapping("/semesters")
+    public ApiResponse<List<Map<String, Object>>> semesters(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
+    ) {
+        return ApiResponse.success(studentService.semesters(username, studentId));
     }
 
     @GetMapping("/courses/available")
@@ -100,10 +110,11 @@ public class StudentController {
 
     @GetMapping("/selected-courses")
     public ApiResponse<List<Map<String, Object>>> selectedCourses(
+        @RequestParam(value = "semesterId", required = false) Integer semesterId,
         @RequestHeader(value = "X-Username", required = false) String username,
         @RequestHeader(value = "X-Student-Id", required = false) String studentId
     ) {
-        return ApiResponse.success(studentService.selectedCourses(username, studentId));
+        return ApiResponse.success(studentService.selectedCourses(username, studentId, semesterId));
     }
 
     @PostMapping("/course-selections")
@@ -128,26 +139,29 @@ public class StudentController {
 
     @GetMapping("/timetable")
     public ApiResponse<List<Map<String, Object>>> timetable(
+        @RequestParam(value = "semesterId", required = false) Integer semesterId,
         @RequestHeader(value = "X-Username", required = false) String username,
         @RequestHeader(value = "X-Student-Id", required = false) String studentId
     ) {
-        return ApiResponse.success(studentService.timetable(username, studentId));
+        return ApiResponse.success(studentService.timetable(username, studentId, semesterId));
     }
 
     @GetMapping("/exams")
     public ApiResponse<List<Map<String, Object>>> exams(
+        @RequestParam(value = "semesterId", required = false) Integer semesterId,
         @RequestHeader(value = "X-Username", required = false) String username,
         @RequestHeader(value = "X-Student-Id", required = false) String studentId
     ) {
-        return ApiResponse.success(studentService.exams(username, studentId));
+        return ApiResponse.success(studentService.exams(username, studentId, semesterId));
     }
 
     @GetMapping("/scores")
     public ApiResponse<List<Map<String, Object>>> scores(
+        @RequestParam(value = "semesterId", required = false) Integer semesterId,
         @RequestHeader(value = "X-Username", required = false) String username,
         @RequestHeader(value = "X-Student-Id", required = false) String studentId
     ) {
-        return ApiResponse.success(studentService.scores(username, studentId));
+        return ApiResponse.success(studentService.scores(username, studentId, semesterId));
     }
 
     @PostMapping("/course-selection-requests")
@@ -232,10 +246,18 @@ public class StudentController {
     public ApiResponse<Void> createMakeupExamRequest(
         @RequestHeader(value = "X-Username", required = false) String username,
         @RequestHeader(value = "X-Student-Id", required = false) String studentId,
-        @Valid @RequestBody AcademicRequestCreateRequest request
+        @Valid @RequestBody MakeupExamRequestCreateRequest request
     ) {
         studentService.createMakeupExamRequest(username, studentId, request);
         return ApiResponse.success("补考申请已提交", null);
+    }
+
+    @GetMapping("/retake-classes")
+    public ApiResponse<List<Map<String, Object>>> retakeClasses(
+        @RequestHeader(value = "X-Username", required = false) String username,
+        @RequestHeader(value = "X-Student-Id", required = false) String studentId
+    ) {
+        return ApiResponse.success(studentService.retakeClasses(username, studentId));
     }
 
     @GetMapping("/retake-requests")

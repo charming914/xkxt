@@ -6,6 +6,7 @@ import static com.school.common.support.CourseDropReviewSupport.resolveReviewSta
 import com.school.common.dto.CourseDropReviewRequest;
 import com.school.common.exception.BusinessException;
 import com.school.teacher.dto.ExamChangeRequestCreateRequest;
+import com.school.teacher.dto.MakeupExamReviewRequest;
 import com.school.teacher.dto.ScheduleAdjustRequestCreateRequest;
 import com.school.teacher.dto.ScoreChangeRequestCreateRequest;
 import com.school.teacher.dto.ScoreInputRequest;
@@ -86,6 +87,10 @@ public class TeacherService {
 
     public List<Map<String, Object>> courseDropRequests(String teacherId) {
         return teacherMapper.selectCourseDropRequests(teacherId);
+    }
+
+    public List<Map<String, Object>> makeupExamRequests(String teacherId) {
+        return teacherMapper.selectMakeupExamRequests(teacherId);
     }
 
     public List<Map<String, Object>> classroomOptions() {
@@ -216,6 +221,55 @@ public class TeacherService {
             teacherId
         );
         dropCourseIfFullyApproved(dropRequestId, dropRequest);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void reviewMakeupExamRequest(
+        Long requestId,
+        MakeupExamReviewRequest request,
+        String teacherId
+    ) {
+        Map<String, Object> makeupRequest = teacherMapper.selectMakeupExamRequestById(requestId);
+        if (makeupRequest == null) {
+            throw new BusinessException("补考申请不存在");
+        }
+        if (!teacherId.equals(makeupRequest.get("teacherId"))) {
+            throw new BusinessException("只能确认本人授课课程的补考申请");
+        }
+        if (!"待教师确认".equals(makeupRequest.get("requestStatus"))) {
+            throw new BusinessException("该补考申请已处理，请勿重复确认");
+        }
+        if (!"待确认".equals(makeupRequest.get("teacherStatus"))) {
+            throw new BusinessException("你已处理过该补考申请");
+        }
+
+        String action = request.getAction();
+        if ("APPROVE".equalsIgnoreCase(action)) {
+            teacherMapper.updateTeacherMakeupReview(
+                requestId,
+                "已确认",
+                request.getReviewComment(),
+                teacherId,
+                "待管理员排教室"
+            );
+            return;
+        }
+
+        if ("REJECT".equalsIgnoreCase(action)) {
+            if (request.getReviewComment() == null || request.getReviewComment().isBlank()) {
+                throw new BusinessException("驳回补考申请需要填写理由");
+            }
+            teacherMapper.updateTeacherMakeupReview(
+                requestId,
+                "已驳回",
+                request.getReviewComment(),
+                teacherId,
+                "已驳回"
+            );
+            return;
+        }
+
+        throw new BusinessException("不支持的确认动作");
     }
 
     private void dropCourseIfFullyApproved(Long dropRequestId, Map<String, Object> dropRequest) {

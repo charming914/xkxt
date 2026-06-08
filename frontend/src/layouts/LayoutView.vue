@@ -107,6 +107,7 @@ const navItems = computed(() => {
   if (canViewStudent.value) {
     items.push(
       { path: '/student/profile', label: '个人信息' },
+      { path: '/student/semesters', label: '学期总览' },
       { path: '/student/courses', label: '学生选课' },
       { path: '/student/course-plans', label: '选课计划' },
       { path: '/student/selected-courses', label: '已选课程' },
@@ -128,6 +129,7 @@ const navItems = computed(() => {
         label: '审核处理',
         children: [
           { path: '/teacher/course-drop-requests', label: '退课审核' },
+          { path: '/teacher/makeup-requests', label: '补考确认' },
           { path: '/teacher/schedule-adjust-requests', label: '调课申请' }
         ]
       }

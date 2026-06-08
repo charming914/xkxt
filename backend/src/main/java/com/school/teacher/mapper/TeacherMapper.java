@@ -200,6 +200,13 @@ public interface TeacherMapper {
                AND cdr.request_status = '待审核'
                AND cdr.teacher_status = '待审核') AS pendingDropRequests,
             (SELECT COUNT(*)
+             FROM makeup_exam_request mer
+             JOIN score sc ON mer.score_id = sc.score_id
+             JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+             WHERE tc.teacher_id = #{teacherId}
+               AND mer.request_status = '待教师确认'
+               AND mer.teacher_status = '待确认') AS pendingMakeupRequests,
+            (SELECT COUNT(*)
              FROM course_selection cs
              JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
              JOIN semester sem ON tc.semester_id = sem.semester_id
@@ -477,6 +484,80 @@ public interface TeacherMapper {
     int insertScoreChangeRequest(
         @Param("teacherId") String teacherId,
         @Param("request") ScoreChangeRequestCreateRequest request
+    );
+
+    @Select("""
+        SELECT
+            mer.request_id AS requestId,
+            mer.student_id AS studentId,
+            s.student_name AS studentName,
+            mer.score_id AS scoreId,
+            sem.semester_name AS semesterName,
+            c.course_id AS courseId,
+            c.course_name AS courseName,
+            sc.final_score AS finalScore,
+            mer.request_reason AS requestReason,
+            mer.request_status AS requestStatus,
+            mer.teacher_status AS teacherStatus,
+            mer.teacher_comment AS teacherComment,
+            mer.admin_status AS adminStatus,
+            mer.result_status AS resultStatus,
+            mer.requested_exam_time AS requestedExamTime,
+            mer.confirmed_exam_time AS confirmedExamTime,
+            mer.created_at AS createdAt,
+            mer.teacher_reviewed_at AS teacherReviewedAt
+        FROM makeup_exam_request mer
+        JOIN student s ON mer.student_id = s.student_id
+        JOIN score sc ON mer.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        WHERE tc.teacher_id = #{teacherId}
+        ORDER BY CASE mer.request_status
+                    WHEN '待教师确认' THEN 1
+                    WHEN '待管理员排教室' THEN 2
+                    WHEN '已安排' THEN 3
+                    ELSE 4
+                 END,
+                 mer.created_at DESC,
+                 mer.request_id DESC
+        """)
+    List<Map<String, Object>> selectMakeupExamRequests(@Param("teacherId") String teacherId);
+
+    @Select("""
+        SELECT
+            mer.request_id AS requestId,
+            mer.request_status AS requestStatus,
+            mer.teacher_status AS teacherStatus,
+            tc.teacher_id AS teacherId
+        FROM makeup_exam_request mer
+        JOIN score sc ON mer.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        WHERE mer.request_id = #{requestId}
+        LIMIT 1
+        """)
+    Map<String, Object> selectMakeupExamRequestById(@Param("requestId") Long requestId);
+
+    @Update("""
+        UPDATE makeup_exam_request
+        SET teacher_status = #{teacherStatus},
+            teacher_comment = #{teacherComment},
+            teacher_reviewed_by = #{teacherId},
+            teacher_reviewed_at = NOW(),
+            request_status = #{requestStatus},
+            confirmed_exam_time = CASE
+                WHEN #{teacherStatus} = '已确认' THEN requested_exam_time
+                ELSE NULL
+            END,
+            updated_at = NOW()
+        WHERE request_id = #{requestId}
+        """)
+    int updateTeacherMakeupReview(
+        @Param("requestId") Long requestId,
+        @Param("teacherStatus") String teacherStatus,
+        @Param("teacherComment") String teacherComment,
+        @Param("teacherId") String teacherId,
+        @Param("requestStatus") String requestStatus
     );
 
     @Select("""

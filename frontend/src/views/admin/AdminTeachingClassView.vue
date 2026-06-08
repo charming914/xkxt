@@ -35,6 +35,12 @@
         <el-table-column prop="teachingClassId" label="教学班编号" width="120" />
         <el-table-column prop="semesterName" label="学期" min-width="120" />
         <el-table-column prop="courseName" label="课程名称" min-width="150" />
+        <el-table-column label="班型" width="100">
+          <template #default="{ row }">
+            <el-tag v-if="Number(row.isRetakeClass) === 1" type="warning">重修班</el-tag>
+            <el-tag v-else type="info">普通班</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="courseStartDate" label="开课日期" width="120" />
         <el-table-column prop="teacherName" label="任课教师" width="110" />
         <el-table-column label="上课时间" min-width="170">
@@ -124,6 +130,15 @@
         <el-form-item label="周次">
           <el-input v-model="form.weekRange" placeholder="例如：1-16周" />
         </el-form-item>
+        <el-form-item label="重修班">
+          <el-switch
+            v-model="form.isRetakeClass"
+            :active-value="1"
+            :inactive-value="0"
+            active-text="是"
+            inactive-text="否"
+          />
+        </el-form-item>
         <el-form-item label="容量">
           <el-input-number v-model="form.maxStudents" :min="1" />
         </el-form-item>
@@ -207,6 +222,7 @@ const form = reactive({
   weekDay: 1,
   sectionDesc: '1-4节',
   weekRange: '1-16周',
+  isRetakeClass: 0,
   maxStudents: 60
 })
 
@@ -280,6 +296,7 @@ function resetForm() {
     weekDay: 1,
     sectionDesc: '1-4节',
     weekRange: '1-16周',
+    isRetakeClass: 0,
     maxStudents: 60
   })
 }
@@ -311,7 +328,7 @@ function exportClassroomTimetable() {
     return
   }
 
-  const headers = ['学期', '教室', '星期', '节次', '周次', '课程名称', '教学班编号', '任课教师', '开课日期', '容量', '状态']
+  const headers = ['学期', '教室', '星期', '节次', '周次', '课程名称', '班型', '教学班编号', '任课教师', '开课日期', '容量', '状态']
   const rows = [...filteredTeachingClasses.value]
     .sort((a, b) => {
       return String(a.semesterName || '').localeCompare(String(b.semesterName || ''), 'zh-Hans') ||
@@ -328,6 +345,7 @@ function exportClassroomTimetable() {
       row.sectionDesc,
       row.weekRange,
       row.courseName,
+      Number(row.isRetakeClass) === 1 ? '重修班' : '普通班',
       row.teachingClassId,
       row.teacherName,
       row.courseStartDate,
@@ -363,6 +381,7 @@ function openEditDialog(row) {
     weekDay: row.weekDay,
     sectionDesc: row.sectionDesc,
     weekRange: row.weekRange,
+    isRetakeClass: Number(row.isRetakeClass) === 1 ? 1 : 0,
     maxStudents: row.maxStudents
   })
   dialogVisible.value = true

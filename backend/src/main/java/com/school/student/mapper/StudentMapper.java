@@ -108,6 +108,30 @@ public interface StudentMapper {
              WHERE sc.student_id = #{studentId}
                AND sc.is_submitted = 1
                AND sc.final_score < 60) AS failedScoreCount,
+            (SELECT COUNT(DISTINCT tc.teaching_class_id)
+             FROM score sc
+             JOIN teaching_class failed_tc ON sc.teaching_class_id = failed_tc.teaching_class_id
+             JOIN teaching_class tc ON tc.course_id = failed_tc.course_id
+             JOIN semester sem ON tc.semester_id = sem.semester_id
+             WHERE sc.student_id = #{studentId}
+               AND sc.is_submitted = 1
+               AND sc.final_score < 60
+               AND COALESCE(tc.is_retake_class, 0) = 1
+               AND NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM makeup_exam_request passed_makeup
+                   WHERE passed_makeup.student_id = sc.student_id
+                     AND passed_makeup.score_id = sc.score_id
+                     AND passed_makeup.result_status = '已通过'
+               )
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM course_selection selected
+                   WHERE selected.student_id = #{studentId}
+                     AND selected.teaching_class_id = tc.teaching_class_id
+                     AND selected.selection_status = '已选'
+               )) AS openRetakeClassCount,
             (SELECT ROUND(SUM(c.credit * sc.gpa_point) / NULLIF(SUM(c.credit), 0), 2)
              FROM score sc
              JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
@@ -162,6 +186,30 @@ public interface StudentMapper {
              WHERE sc.student_id = #{studentId}
                AND sc.is_submitted = 1
                AND sc.final_score < 60) AS failedScoreCount,
+            (SELECT COUNT(DISTINCT tc.teaching_class_id)
+             FROM score sc
+             JOIN teaching_class failed_tc ON sc.teaching_class_id = failed_tc.teaching_class_id
+             JOIN teaching_class tc ON tc.course_id = failed_tc.course_id
+             JOIN semester sem ON tc.semester_id = sem.semester_id
+             WHERE sc.student_id = #{studentId}
+               AND sc.is_submitted = 1
+               AND sc.final_score < 60
+               AND COALESCE(tc.is_retake_class, 0) = 1
+               AND NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM makeup_exam_request passed_makeup
+                   WHERE passed_makeup.student_id = sc.student_id
+                     AND passed_makeup.score_id = sc.score_id
+                     AND passed_makeup.result_status = '已通过'
+               )
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM course_selection selected
+                   WHERE selected.student_id = #{studentId}
+                     AND selected.teaching_class_id = tc.teaching_class_id
+                     AND selected.selection_status = '已选'
+               )) AS openRetakeClassCount,
             (SELECT ROUND(SUM(c.credit * sc.gpa_point) / NULLIF(SUM(c.credit), 0), 2)
              FROM score sc
              JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
@@ -187,9 +235,70 @@ public interface StudentMapper {
     Map<String, Object> selectTodoSummaryWithoutReview(@Param("studentId") String studentId);
 
     @Select("""
+        SELECT
+            sem.semester_id AS semesterId,
+            sem.semester_name AS semesterName,
+            sem.school_year AS schoolYear,
+            sem.term_code AS termCode,
+            sem.start_date AS startDate,
+            sem.end_date AS endDate,
+            sem.is_current AS isCurrent,
+            (SELECT COUNT(*)
+             FROM course_selection cs
+             JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+             WHERE cs.student_id = #{studentId}
+               AND cs.selection_status = '已选'
+               AND tc.semester_id = sem.semester_id) AS selectedCourseCount,
+            (SELECT COUNT(*)
+             FROM score sc
+             JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+             WHERE sc.student_id = #{studentId}
+               AND sc.is_submitted = 1
+               AND tc.semester_id = sem.semester_id) AS scoreCount,
+            (SELECT COUNT(*)
+             FROM exam_arrangement ea
+             JOIN teaching_class tc ON ea.teaching_class_id = tc.teaching_class_id
+             JOIN course_selection cs ON cs.teaching_class_id = tc.teaching_class_id
+             WHERE cs.student_id = #{studentId}
+               AND cs.selection_status = '已选'
+               AND tc.semester_id = sem.semester_id) AS examCount
+        FROM semester sem
+        ORDER BY sem.is_current DESC, sem.start_date DESC, sem.semester_id DESC
+        """)
+    List<Map<String, Object>> selectStudentSemesters(@Param("studentId") String studentId);
+
+    @Select("""
+        SELECT
+            sem.semester_id AS semesterId,
+            sem.semester_name AS semesterName,
+            sem.school_year AS schoolYear,
+            sem.term_code AS termCode,
+            sem.start_date AS startDate,
+            sem.end_date AS endDate,
+            sem.is_current AS isCurrent,
+            (SELECT COUNT(*)
+             FROM course_selection cs
+             JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+             WHERE cs.student_id = #{studentId}
+               AND cs.selection_status = '已选'
+               AND tc.semester_id = sem.semester_id) AS selectedCourseCount,
+            (SELECT COUNT(*)
+             FROM score sc
+             JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+             WHERE sc.student_id = #{studentId}
+               AND sc.is_submitted = 1
+               AND tc.semester_id = sem.semester_id) AS scoreCount,
+            0 AS examCount
+        FROM semester sem
+        ORDER BY sem.is_current DESC, sem.start_date DESC, sem.semester_id DESC
+        """)
+    List<Map<String, Object>> selectStudentSemestersWithoutExams(@Param("studentId") String studentId);
+
+    @Select("""
         <script>
         SELECT
             tc.teaching_class_id AS teachingClassId,
+            sem.semester_id AS semesterId,
             sem.semester_name AS semesterName,
             c.course_id AS courseId,
             c.course_name AS courseName,
@@ -317,7 +426,10 @@ public interface StudentMapper {
         JOIN course c ON tc.course_id = c.course_id
         JOIN teacher t ON tc.teacher_id = t.teacher_id
         LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
-        WHERE NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+        WHERE 1 = 1
+          <if test="query.semesterId != null">
+            AND tc.semester_id = #{query.semesterId}
+          </if>
           <if test="query.teacherName != null and query.teacherName != ''">
             AND t.teacher_name LIKE CONCAT('%', #{query.teacherName}, '%')
           </if>
@@ -353,11 +465,13 @@ public interface StudentMapper {
     );
 
     @Select("""
+        <script>
         SELECT
             cs.selection_id AS selectionId,
             cs.selection_time AS selectionTime,
             cs.selection_status AS selectionStatus,
             tc.teaching_class_id AS teachingClassId,
+            sem.semester_id AS semesterId,
             sem.semester_name AS semesterName,
             c.course_id AS courseId,
             c.course_name AS courseName,
@@ -378,10 +492,21 @@ public interface StudentMapper {
         LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
         WHERE cs.student_id = #{studentId}
           AND cs.selection_status = '已选'
-          AND (sem.is_current = 1 OR sem.end_date >= CURDATE())
-        ORDER BY tc.week_day, tc.section_desc
+          <choose>
+            <when test="semesterId != null">
+              AND tc.semester_id = #{semesterId}
+            </when>
+            <otherwise>
+              AND (sem.is_current = 1 OR sem.end_date >= CURDATE())
+            </otherwise>
+          </choose>
+        ORDER BY sem.start_date DESC, tc.week_day, tc.section_desc
+        </script>
         """)
-    List<Map<String, Object>> selectSelectedCourses(@Param("studentId") String studentId);
+    List<Map<String, Object>> selectSelectedCourses(
+        @Param("studentId") String studentId,
+        @Param("semesterId") Integer semesterId
+    );
 
     @Select("""
         SELECT
@@ -447,6 +572,7 @@ public interface StudentMapper {
     List<Map<String, Object>> selectDropCourses(@Param("studentId") String studentId);
 
     @Select("""
+        <script>
         SELECT
             cs.student_id AS studentId,
             s.student_name AS studentName,
@@ -468,12 +594,24 @@ public interface StudentMapper {
         LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
         WHERE cs.student_id = #{studentId}
           AND cs.selection_status = '已选'
-          AND sem.is_current = 1
+          <choose>
+            <when test="semesterId != null">
+              AND tc.semester_id = #{semesterId}
+            </when>
+            <otherwise>
+              AND sem.is_current = 1
+            </otherwise>
+          </choose>
         ORDER BY tc.week_day, tc.section_desc
+        </script>
         """)
-    List<Map<String, Object>> selectTimetable(@Param("studentId") String studentId);
+    List<Map<String, Object>> selectTimetable(
+        @Param("studentId") String studentId,
+        @Param("semesterId") Integer semesterId
+    );
 
     @Select("""
+        <script>
         SELECT
             sc.score_id AS scoreId,
             sc.student_id AS studentId,
@@ -532,11 +670,19 @@ public interface StudentMapper {
           )
         WHERE sc.student_id = #{studentId}
           AND sc.is_submitted = 1
+          <if test="semesterId != null">
+            AND tc.semester_id = #{semesterId}
+          </if>
         ORDER BY sem.semester_name DESC, c.course_name
+        </script>
         """)
-    List<Map<String, Object>> selectScores(@Param("studentId") String studentId);
+    List<Map<String, Object>> selectScores(
+        @Param("studentId") String studentId,
+        @Param("semesterId") Integer semesterId
+    );
 
     @Select("""
+        <script>
         SELECT
             sc.score_id AS scoreId,
             sc.student_id AS studentId,
@@ -584,9 +730,16 @@ public interface StudentMapper {
         JOIN teacher t ON tc.teacher_id = t.teacher_id
         WHERE sc.student_id = #{studentId}
           AND sc.is_submitted = 1
+          <if test="semesterId != null">
+            AND tc.semester_id = #{semesterId}
+          </if>
         ORDER BY sem.semester_name DESC, c.course_name
+        </script>
         """)
-    List<Map<String, Object>> selectScoresWithoutReview(@Param("studentId") String studentId);
+    List<Map<String, Object>> selectScoresWithoutReview(
+        @Param("studentId") String studentId,
+        @Param("semesterId") Integer semesterId
+    );
 
     @Insert("""
         INSERT INTO course_selection_request (student_id, teaching_class_id, request_reason)
@@ -923,18 +1076,37 @@ public interface StudentMapper {
         FROM makeup_exam_request
         WHERE student_id = #{studentId}
           AND score_id = #{scoreId}
-          AND request_status IN ('待审核', '已通过')
+          AND request_status NOT IN ('已驳回', '教师已驳回', '管理员已驳回')
         """)
     int countActiveMakeupRequest(@Param("studentId") String studentId, @Param("scoreId") Long scoreId);
 
+    @Select("""
+        SELECT
+            sem.makeup_request_start AS makeupRequestStart,
+            sem.makeup_request_end AS makeupRequestEnd
+        FROM score sc
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        WHERE sc.score_id = #{scoreId}
+        LIMIT 1
+        """)
+    Map<String, Object> selectMakeupRequestWindow(@Param("scoreId") Long scoreId);
+
     @Insert("""
-        INSERT INTO makeup_exam_request (student_id, score_id, request_reason)
-        VALUES (#{studentId}, #{scoreId}, #{requestReason})
+        INSERT INTO makeup_exam_request (
+            student_id, score_id, request_reason, requested_exam_time,
+            request_status, teacher_status, admin_status, result_status
+        )
+        VALUES (
+            #{studentId}, #{scoreId}, #{requestReason}, #{requestedExamTime},
+            '待教师确认', '待确认', '待安排', '未安排'
+        )
         """)
     int insertMakeupExamRequest(
         @Param("studentId") String studentId,
         @Param("scoreId") Long scoreId,
-        @Param("requestReason") String requestReason
+        @Param("requestReason") String requestReason,
+        @Param("requestedExamTime") String requestedExamTime
     );
 
     @Select("""
@@ -942,7 +1114,7 @@ public interface StudentMapper {
         FROM makeup_exam_request
         WHERE student_id = #{studentId}
           AND score_id = #{scoreId}
-          AND request_status = '已通过'
+          AND request_status IN ('已安排', '已通过')
           AND result_status = '未通过'
         """)
     int countFailedMakeupResult(@Param("studentId") String studentId, @Param("scoreId") Long scoreId);
@@ -977,10 +1149,16 @@ public interface StudentMapper {
             t.teacher_name AS teacherName,
             sc.final_score AS finalScore,
             makeup.request_status AS makeupStatus,
+            makeup.teacher_status AS makeupTeacherStatus,
+            makeup.admin_status AS makeupAdminStatus,
             makeup.result_status AS makeupResultStatus,
+            makeup.requested_exam_time AS requestedExamTime,
+            makeup.confirmed_exam_time AS confirmedExamTime,
             retake.request_status AS retakeStatus,
             CASE
-                WHEN makeup.request_id IS NULL OR makeup.request_status = '已驳回' THEN 1
+                WHEN makeup.request_id IS NULL
+                  OR makeup.request_status IN ('已驳回', '教师已驳回', '管理员已驳回')
+                THEN 1
                 ELSE 0
             END AS canApplyMakeup,
             CASE
@@ -989,7 +1167,7 @@ public interface StudentMapper {
                     FROM makeup_exam_request mer
                     WHERE mer.student_id = sc.student_id
                       AND mer.score_id = sc.score_id
-                      AND mer.request_status = '已通过'
+                      AND mer.request_status IN ('已安排', '已通过')
                       AND mer.result_status = '未通过'
                 )
                  AND (retake.request_id IS NULL OR retake.request_status = '已驳回')
@@ -1031,10 +1209,21 @@ public interface StudentMapper {
             mer.score_id AS scoreId,
             mer.request_reason AS requestReason,
             mer.request_status AS requestStatus,
+            mer.teacher_status AS teacherStatus,
+            mer.teacher_comment AS teacherComment,
+            mer.admin_status AS adminStatus,
+            mer.admin_comment AS adminComment,
             mer.result_status AS resultStatus,
             mer.review_comment AS reviewComment,
+            mer.requested_exam_time AS requestedExamTime,
+            mer.confirmed_exam_time AS confirmedExamTime,
+            mer.classroom_id AS classroomId,
+            cl.building_name AS buildingName,
+            cl.room_name AS roomName,
             mer.created_at AS createdAt,
             mer.reviewed_at AS reviewedAt,
+            mer.teacher_reviewed_at AS teacherReviewedAt,
+            mer.admin_reviewed_at AS adminReviewedAt,
             sem.semester_name AS semesterName,
             c.course_id AS courseId,
             c.course_name AS courseName,
@@ -1044,6 +1233,7 @@ public interface StudentMapper {
         JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
         JOIN semester sem ON tc.semester_id = sem.semester_id
         JOIN course c ON tc.course_id = c.course_id
+        LEFT JOIN classroom cl ON mer.classroom_id = cl.classroom_id
         WHERE mer.student_id = #{studentId}
         ORDER BY mer.created_at DESC, mer.request_id DESC
         """)
@@ -1071,6 +1261,106 @@ public interface StudentMapper {
         ORDER BY crr.created_at DESC, crr.request_id DESC
         """)
     List<Map<String, Object>> selectRetakeRequests(@Param("studentId") String studentId);
+
+    @Select("""
+        SELECT DISTINCT
+            tc.teaching_class_id AS teachingClassId,
+            sem.semester_name AS semesterName,
+            c.course_id AS courseId,
+            c.course_name AS courseName,
+            c.course_type AS courseType,
+            c.credit AS credit,
+            c.total_hours AS totalHours,
+            t.teacher_name AS teacherName,
+            tc.week_day AS weekDay,
+            tc.section_desc AS sectionDesc,
+            tc.week_range AS weekRange,
+            tc.course_start_date AS courseStartDate,
+            tc.max_students AS maxStudents,
+            tc.selected_count AS selectedCount,
+            cl.building_name AS buildingName,
+            cl.room_name AS roomName,
+            sem.course_select_start AS courseSelectStart,
+            sem.course_select_end AS courseSelectEnd,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM course_selection selected
+                    WHERE selected.student_id = #{studentId}
+                      AND selected.teaching_class_id = tc.teaching_class_id
+                      AND selected.selection_status = '已选'
+                ) THEN 0
+                WHEN NOW() NOT BETWEEN sem.course_select_start AND sem.course_select_end THEN 0
+                WHEN tc.selected_count >= tc.max_students THEN 0
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM course_selection selected
+                    JOIN teaching_class selected_tc ON selected.teaching_class_id = selected_tc.teaching_class_id
+                    WHERE selected.student_id = #{studentId}
+                      AND selected.selection_status = '已选'
+                      AND selected_tc.semester_id = tc.semester_id
+                      AND selected_tc.week_day = tc.week_day
+                      AND selected_tc.teaching_class_id != tc.teaching_class_id
+                      AND NOT (
+                          CAST(REPLACE(SUBSTRING_INDEX(selected_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                              < CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
+                          OR CAST(SUBSTRING_INDEX(selected_tc.section_desc, '-', 1) AS UNSIGNED)
+                              > CAST(REPLACE(SUBSTRING_INDEX(tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                      )
+                ) THEN 0
+                ELSE 1
+            END AS canSelectRetake,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM course_selection selected
+                    WHERE selected.student_id = #{studentId}
+                      AND selected.teaching_class_id = tc.teaching_class_id
+                      AND selected.selection_status = '已选'
+                ) THEN '已选择该重修班'
+                WHEN NOW() < sem.course_select_start THEN '重修班选课未开始'
+                WHEN NOW() > sem.course_select_end THEN '重修班选课已结束'
+                WHEN tc.selected_count >= tc.max_students THEN '重修班容量已满'
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM course_selection selected
+                    JOIN teaching_class selected_tc ON selected.teaching_class_id = selected_tc.teaching_class_id
+                    WHERE selected.student_id = #{studentId}
+                      AND selected.selection_status = '已选'
+                      AND selected_tc.semester_id = tc.semester_id
+                      AND selected_tc.week_day = tc.week_day
+                      AND selected_tc.teaching_class_id != tc.teaching_class_id
+                      AND NOT (
+                          CAST(REPLACE(SUBSTRING_INDEX(selected_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                              < CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
+                          OR CAST(SUBSTRING_INDEX(selected_tc.section_desc, '-', 1) AS UNSIGNED)
+                              > CAST(REPLACE(SUBSTRING_INDEX(tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                      )
+                ) THEN '与已选课程时间冲突'
+                ELSE '可选重修班'
+            END AS retakeActionReason
+        FROM score sc
+        JOIN teaching_class failed_tc ON sc.teaching_class_id = failed_tc.teaching_class_id
+        JOIN teaching_class tc ON tc.course_id = failed_tc.course_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
+        JOIN course c ON tc.course_id = c.course_id
+        JOIN teacher t ON tc.teacher_id = t.teacher_id
+        LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
+        WHERE sc.student_id = #{studentId}
+          AND sc.is_submitted = 1
+          AND sc.final_score < 60
+          AND COALESCE(tc.is_retake_class, 0) = 1
+          AND NOT EXISTS (
+              SELECT 1
+              FROM makeup_exam_request passed_makeup
+              WHERE passed_makeup.student_id = sc.student_id
+                AND passed_makeup.score_id = sc.score_id
+                AND passed_makeup.result_status = '已通过'
+          )
+          AND (sem.is_current = 1 OR sem.end_date >= CURDATE())
+        ORDER BY sem.semester_name DESC, c.course_name, tc.week_day, tc.section_desc
+        """)
+    List<Map<String, Object>> selectRetakeClasses(@Param("studentId") String studentId);
 
     @Select("""
         SELECT
@@ -1112,9 +1402,11 @@ public interface StudentMapper {
     List<Map<String, Object>> selectAcademicProgress(@Param("studentId") String studentId);
 
     @Select("""
+        <script>
         SELECT
             ea.exam_id AS examId,
             ea.teaching_class_id AS teachingClassId,
+            sem.semester_id AS semesterId,
             sem.semester_name AS semesterName,
             c.course_id AS courseId,
             c.course_name AS courseName,
@@ -1137,8 +1429,19 @@ public interface StudentMapper {
         LEFT JOIN classroom cl ON ea.classroom_id = cl.classroom_id
         WHERE cs.student_id = #{studentId}
           AND cs.selection_status = '已选'
-          AND sem.is_current = 1
+          <choose>
+            <when test="semesterId != null">
+              AND tc.semester_id = #{semesterId}
+            </when>
+            <otherwise>
+              AND sem.is_current = 1
+            </otherwise>
+          </choose>
         ORDER BY ea.exam_date, ea.start_time, c.course_name
+        </script>
         """)
-    List<Map<String, Object>> selectExams(@Param("studentId") String studentId);
+    List<Map<String, Object>> selectExams(
+        @Param("studentId") String studentId,
+        @Param("semesterId") Integer semesterId
+    );
 }

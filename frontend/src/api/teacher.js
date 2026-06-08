@@ -156,6 +156,21 @@ export function reviewTeacherCourseDropRequest(dropRequestId, data) {
   })
 }
 
+export function getTeacherMakeupRequests() {
+  return request({
+    url: '/teacher/makeup-requests',
+    method: 'get'
+  })
+}
+
+export function reviewTeacherMakeupRequest(requestId, data) {
+  return request({
+    url: `/teacher/makeup-requests/${requestId}/review`,
+    method: 'put',
+    data
+  })
+}
+
 export function getTeacherExams() {
   return request({
     url: '/teacher/exams',
