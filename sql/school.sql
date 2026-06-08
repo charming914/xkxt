@@ -127,6 +127,8 @@ CREATE TABLE course (
     credit DECIMAL(4,1) NOT NULL COMMENT '学分',
     total_hours INT NOT NULL COMMENT '总学时',
     assessment_method VARCHAR(20) NOT NULL DEFAULT '考试' COMMENT '考核方式',
+    usual_ratio TINYINT NOT NULL DEFAULT 40 COMMENT '平时成绩占比(%)',
+    exam_ratio TINYINT NOT NULL DEFAULT 60 COMMENT '考试成绩占比(%)',
     department_id VARCHAR(10) NOT NULL COMMENT '开课院系',
     is_required TINYINT NOT NULL DEFAULT 1 COMMENT '是否必修',
     description VARCHAR(200) NULL COMMENT '课程说明',
@@ -427,6 +429,9 @@ CREATE TRIGGER trg_score_before_insert
 BEFORE INSERT ON score
 FOR EACH ROW
 BEGIN
+    DECLARE v_usual_ratio TINYINT DEFAULT 40;
+    DECLARE v_exam_ratio  TINYINT DEFAULT 60;
+
     IF NEW.usual_score IS NOT NULL AND (NEW.usual_score < 0 OR NEW.usual_score > 100) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '平时成绩必须在0到100之间';
     END IF;
@@ -436,7 +441,13 @@ BEGIN
     END IF;
 
     IF NEW.usual_score IS NOT NULL AND NEW.exam_score IS NOT NULL THEN
-        SET NEW.final_score = ROUND(NEW.usual_score * 0.4 + NEW.exam_score * 0.6, 2);
+        SELECT c.usual_ratio, c.exam_ratio
+        INTO v_usual_ratio, v_exam_ratio
+        FROM teaching_class tc
+        JOIN course c ON tc.course_id = c.course_id
+        WHERE tc.teaching_class_id = NEW.teaching_class_id;
+
+        SET NEW.final_score = ROUND(NEW.usual_score * v_usual_ratio / 100 + NEW.exam_score * v_exam_ratio / 100, 2);
         SET NEW.gpa_point = CASE
             WHEN NEW.final_score >= 90 THEN 4.0
             WHEN NEW.final_score >= 85 THEN 3.7
@@ -461,6 +472,9 @@ CREATE TRIGGER trg_score_before_update
 BEFORE UPDATE ON score
 FOR EACH ROW
 BEGIN
+    DECLARE v_usual_ratio TINYINT DEFAULT 40;
+    DECLARE v_exam_ratio  TINYINT DEFAULT 60;
+
     IF NEW.usual_score IS NOT NULL AND (NEW.usual_score < 0 OR NEW.usual_score > 100) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '平时成绩必须在0到100之间';
     END IF;
@@ -470,7 +484,13 @@ BEGIN
     END IF;
 
     IF NEW.usual_score IS NOT NULL AND NEW.exam_score IS NOT NULL THEN
-        SET NEW.final_score = ROUND(NEW.usual_score * 0.4 + NEW.exam_score * 0.6, 2);
+        SELECT c.usual_ratio, c.exam_ratio
+        INTO v_usual_ratio, v_exam_ratio
+        FROM teaching_class tc
+        JOIN course c ON tc.course_id = c.course_id
+        WHERE tc.teaching_class_id = NEW.teaching_class_id;
+
+        SET NEW.final_score = ROUND(NEW.usual_score * v_usual_ratio / 100 + NEW.exam_score * v_exam_ratio / 100, 2);
         SET NEW.gpa_point = CASE
             WHEN NEW.final_score >= 90 THEN 4.0
             WHEN NEW.final_score >= 85 THEN 3.7

@@ -84,6 +84,8 @@ public interface TeacherMapper {
             c.credit AS credit,
             c.total_hours AS totalHours,
             c.assessment_method AS assessmentMethod,
+            c.usual_ratio AS usualRatio,
+            c.exam_ratio AS examRatio,
             d.department_name AS departmentName,
             tc.week_day AS weekDay,
             tc.section_desc AS sectionDesc,
