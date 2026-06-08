@@ -143,6 +143,13 @@ public class TeacherService {
     }
 
     @Transactional(rollbackFor = Exception.class)
+    public void cancelScheduleAdjustRequest(String teacherId, Long adjustRequestId) {
+        if (teacherMapper.cancelScheduleAdjustRequest(teacherId, adjustRequestId) == 0) {
+            throw new BusinessException("调课申请不存在或已处理，无法撤销");
+        }
+    }
+
+    @Transactional(rollbackFor = Exception.class)
     public void reviewCourseDropRequest(
         Long dropRequestId,
         CourseDropReviewRequest request,
@@ -237,6 +244,13 @@ public class TeacherService {
         }
         if (teacherMapper.insertExamChangeRequest(teacherId, request) == 0) {
             throw new BusinessException("考试修改申请提交失败");
+        }
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void cancelExamChangeRequest(String teacherId, Long examChangeRequestId) {
+        if (teacherMapper.cancelExamChangeRequest(teacherId, examChangeRequestId) == 0) {
+            throw new BusinessException("考试修改申请不存在或已处理，无法撤销");
         }
     }
 

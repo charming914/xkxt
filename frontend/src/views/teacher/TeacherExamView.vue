@@ -58,6 +58,20 @@
         </template>
       </el-table-column>
       <el-table-column prop="reviewComment" label="审核备注" min-width="160" />
+      <el-table-column label="操作" width="110" fixed="right">
+        <template #default="{ row }">
+          <el-button
+            size="small"
+            type="danger"
+            plain
+            :disabled="row.requestStatus !== '待审核'"
+            :loading="cancelingId === row.examChangeRequestId"
+            @click="handleCancel(row)"
+          >
+            撤销
+          </el-button>
+        </template>
+      </el-table-column>
     </el-table>
 
     <el-dialog v-model="requestVisible" title="申请修改考试安排" width="460px">
@@ -114,8 +128,9 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
+  cancelTeacherExamChangeRequest,
   createTeacherExamChangeRequest,
   getTeacherClassroomOptions,
   getTeacherExamChangeRequests,
@@ -124,6 +139,7 @@ import {
 
 const loading = ref(false)
 const saving = ref(false)
+const cancelingId = ref(null)
 const exams = ref([])
 const requests = ref([])
 const classroomOptions = ref([])
@@ -154,6 +170,9 @@ function statusType(status) {
   }
   if (status === '已驳回') {
     return 'danger'
+  }
+  if (status === '已撤销') {
+    return 'info'
   }
   return 'warning'
 }
@@ -212,6 +231,25 @@ async function handleSubmit() {
     await loadData()
   } finally {
     saving.value = false
+  }
+}
+
+async function handleCancel(row) {
+  if (row.requestStatus !== '待审核') {
+    return
+  }
+  await ElMessageBox.confirm('确认撤销该考试修改申请？', '撤销确认', {
+    confirmButtonText: '撤销',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
+  cancelingId.value = row.examChangeRequestId
+  try {
+    await cancelTeacherExamChangeRequest(row.examChangeRequestId)
+    ElMessage.success('考试修改申请已撤销')
+    await loadData()
+  } finally {
+    cancelingId.value = null
   }
 }
 

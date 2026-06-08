@@ -147,6 +147,15 @@ public class TeacherController {
         return ApiResponse.success("调课申请提交成功", null);
     }
 
+    @PutMapping("/schedule-adjust-requests/{adjustRequestId}/cancel")
+    public ApiResponse<Void> cancelScheduleAdjustRequest(
+        @PathVariable Long adjustRequestId,
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        teacherService.cancelScheduleAdjustRequest(teacherId, adjustRequestId);
+        return ApiResponse.success("调课申请已撤销", null);
+    }
+
     @GetMapping("/score-change-requests")
     public ApiResponse<List<Map<String, Object>>> scoreChangeRequests(
         @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
@@ -194,5 +203,14 @@ public class TeacherController {
     ) {
         teacherService.createExamChangeRequest(teacherId, request);
         return ApiResponse.success("考试修改申请提交成功", null);
+    }
+
+    @PutMapping("/exam-change-requests/{examChangeRequestId}/cancel")
+    public ApiResponse<Void> cancelExamChangeRequest(
+        @PathVariable Long examChangeRequestId,
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        teacherService.cancelExamChangeRequest(teacherId, examChangeRequestId);
+        return ApiResponse.success("考试修改申请已撤销", null);
     }
 }

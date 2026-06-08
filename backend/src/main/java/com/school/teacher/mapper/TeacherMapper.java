@@ -350,6 +350,19 @@ public interface TeacherMapper {
         @Param("request") ScheduleAdjustRequestCreateRequest request
     );
 
+    @Update("""
+        UPDATE schedule_adjust_request
+        SET request_status = '已撤销',
+            updated_at = NOW()
+        WHERE adjust_request_id = #{adjustRequestId}
+          AND teacher_id = #{teacherId}
+          AND request_status = '待审核'
+        """)
+    int cancelScheduleAdjustRequest(
+        @Param("teacherId") String teacherId,
+        @Param("adjustRequestId") Long adjustRequestId
+    );
+
     @Insert("""
         INSERT INTO score (
             student_id, teaching_class_id, usual_score, exam_score, is_submitted, entered_at
@@ -667,5 +680,18 @@ public interface TeacherMapper {
     int insertExamChangeRequest(
         @Param("teacherId") String teacherId,
         @Param("request") ExamChangeRequestCreateRequest request
+    );
+
+    @Update("""
+        UPDATE exam_change_request
+        SET request_status = '已撤销',
+            updated_at = NOW()
+        WHERE exam_change_request_id = #{examChangeRequestId}
+          AND teacher_id = #{teacherId}
+          AND request_status = '待审核'
+        """)
+    int cancelExamChangeRequest(
+        @Param("teacherId") String teacherId,
+        @Param("examChangeRequestId") Long examChangeRequestId
     );
 }

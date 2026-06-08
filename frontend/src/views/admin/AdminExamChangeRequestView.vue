@@ -110,6 +110,9 @@ function statusType(status) {
   if (status === '已驳回') {
     return 'danger'
   }
+  if (status === '已撤销') {
+    return 'info'
+  }
   return 'warning'
 }
 

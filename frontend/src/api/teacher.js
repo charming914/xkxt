@@ -118,6 +118,13 @@ export function createTeacherScheduleAdjustRequest(data) {
   })
 }
 
+export function cancelTeacherScheduleAdjustRequest(adjustRequestId) {
+  return request({
+    url: `/teacher/schedule-adjust-requests/${adjustRequestId}/cancel`,
+    method: 'put'
+  })
+}
+
 export function getTeacherCourseDropRequests() {
   return request({
     url: '/teacher/course-drop-requests',
@@ -152,5 +159,12 @@ export function createTeacherExamChangeRequest(data) {
     url: '/teacher/exam-change-requests',
     method: 'post',
     data
+  })
+}
+
+export function cancelTeacherExamChangeRequest(examChangeRequestId) {
+  return request({
+    url: `/teacher/exam-change-requests/${examChangeRequestId}/cancel`,
+    method: 'put'
   })
 }
