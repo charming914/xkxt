@@ -95,7 +95,7 @@
             value-format="HH:mm:ss"
             placeholder="开始时间"
             style="width: 100%"
-            @change="loadAvailableExamClassrooms"
+            @change="handleStartTimeChange"
           />
         </el-form-item>
         <el-form-item label="结束时间">
@@ -225,9 +225,34 @@ async function loadAvailableExamClassrooms() {
     if (form.requestedClassroomId && !classroomOptions.value.some(item => item.value === form.requestedClassroomId)) {
       form.requestedClassroomId = ''
     }
+  } catch {
+    classroomOptions.value = []
+    form.requestedClassroomId = ''
   } finally {
     classroomLoading.value = false
   }
+}
+
+function addHoursToTime(time, hours) {
+  if (!time) {
+    return ''
+  }
+  const parts = String(time).split(':').map(item => Number(item))
+  if (parts.length < 2 || parts.some(item => Number.isNaN(item))) {
+    return ''
+  }
+  const totalMinutes = (parts[0] * 60 + parts[1] + hours * 60) % (24 * 60)
+  const nextHour = String(Math.floor(totalMinutes / 60)).padStart(2, '0')
+  const nextMinute = String(totalMinutes % 60).padStart(2, '0')
+  const second = String(parts[2] || 0).padStart(2, '0')
+  return `${nextHour}:${nextMinute}:${second}`
+}
+
+async function handleStartTimeChange() {
+  if (form.requestedStartTime) {
+    form.requestedEndTime = addHoursToTime(form.requestedStartTime, 2)
+  }
+  await loadAvailableExamClassrooms()
 }
 
 async function openRequest(row) {

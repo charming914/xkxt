@@ -128,7 +128,7 @@ public class TeacherService {
             throw new BusinessException("开始时间必须早于结束时间");
         }
         if (teacherMapper.countTeacherExamConflict(teacherId, examId, examDate, startTime, endTime) > 0) {
-            return List.of();
+            throw new BusinessException("申请时间冲突");
         }
         return teacherMapper.selectAvailableExamClassroomOptions(examId, examDate, startTime, endTime);
     }
