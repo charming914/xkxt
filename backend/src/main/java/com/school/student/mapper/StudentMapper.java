@@ -389,6 +389,43 @@ public interface StudentMapper {
             END AS hasCoursePlan,
             CASE
                 WHEN EXISTS (
+                    SELECT 1
+                    FROM course_selection selected
+                    JOIN teaching_class selected_tc ON selected.teaching_class_id = selected_tc.teaching_class_id
+                    WHERE selected.student_id = #{studentId}
+                      AND selected.selection_status = '已选'
+                      AND selected_tc.semester_id = tc.semester_id
+                      AND selected_tc.week_day = tc.week_day
+                      AND selected_tc.teaching_class_id != tc.teaching_class_id
+                      AND NOT (
+                          CAST(REPLACE(SUBSTRING_INDEX(selected_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                              &lt; CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
+                          OR CAST(SUBSTRING_INDEX(selected_tc.section_desc, '-', 1) AS UNSIGNED)
+                              > CAST(REPLACE(SUBSTRING_INDEX(tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                      )
+                )
+                THEN 1 ELSE 0
+            END AS hasSelectedTimeConflict,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM student_course_plan plan
+                    JOIN teaching_class plan_tc ON plan.teaching_class_id = plan_tc.teaching_class_id
+                    WHERE plan.student_id = #{studentId}
+                      AND plan_tc.semester_id = tc.semester_id
+                      AND plan_tc.week_day = tc.week_day
+                      AND plan_tc.teaching_class_id != tc.teaching_class_id
+                      AND NOT (
+                          CAST(REPLACE(SUBSTRING_INDEX(plan_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                              &lt; CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
+                          OR CAST(SUBSTRING_INDEX(plan_tc.section_desc, '-', 1) AS UNSIGNED)
+                              > CAST(REPLACE(SUBSTRING_INDEX(tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                      )
+                )
+                THEN 1 ELSE 0
+            END AS hasPlanTimeConflict,
+            CASE
+                WHEN EXISTS (
                     SELECT 1 FROM course_selection selected
                     WHERE selected.student_id = #{studentId}
                       AND selected.teaching_class_id = tc.teaching_class_id
@@ -527,20 +564,22 @@ public interface StudentMapper {
             cl.building_name AS buildingName,
             cl.room_name AS roomName,
             CASE
-                WHEN tc.course_start_date IS NULL THEN 'FORBIDDEN'
+                WHEN tc.course_start_date IS NULL THEN 'DIRECT'
+                WHEN CURDATE() < tc.course_start_date THEN 'DIRECT'
                 WHEN CURDATE() <= DATE_ADD(tc.course_start_date, INTERVAL 7 DAY) THEN 'DIRECT'
                 WHEN CURDATE() <= DATE_ADD(tc.course_start_date, INTERVAL 21 DAY) THEN 'REQUEST'
                 ELSE 'FORBIDDEN'
             END AS dropMode,
             CASE
-                WHEN tc.course_start_date IS NULL THEN '课程开课日期未设置，无法退课'
+                WHEN tc.course_start_date IS NULL THEN '新学期未设置开课时间，可直接退课'
+                WHEN CURDATE() < tc.course_start_date THEN '课程尚未开课，可直接退课'
                 WHEN CURDATE() <= DATE_ADD(tc.course_start_date, INTERVAL 7 DAY) THEN '可直接退课'
                 WHEN CURDATE() <= DATE_ADD(tc.course_start_date, INTERVAL 21 DAY) THEN '需提交退课申请'
                 ELSE '已超过开课三周，不能退课'
             END AS dropModeLabel,
             CASE
-                WHEN tc.course_start_date IS NOT NULL
-                 AND CURDATE() <= DATE_ADD(tc.course_start_date, INTERVAL 7 DAY)
+                WHEN tc.course_start_date IS NULL
+                  OR CURDATE() <= DATE_ADD(tc.course_start_date, INTERVAL 7 DAY)
                 THEN 1 ELSE 0
             END AS canDropDirectly,
             CASE
@@ -817,6 +856,27 @@ public interface StudentMapper {
         @Param("teachingClassId") Integer teachingClassId
     );
 
+    @Select("""
+        SELECT COUNT(*)
+        FROM student_course_plan plan
+        JOIN teaching_class planned_tc ON plan.teaching_class_id = planned_tc.teaching_class_id
+        JOIN teaching_class target_tc ON target_tc.teaching_class_id = #{teachingClassId}
+        WHERE plan.student_id = #{studentId}
+          AND planned_tc.semester_id = target_tc.semester_id
+          AND planned_tc.week_day = target_tc.week_day
+          AND planned_tc.teaching_class_id <> target_tc.teaching_class_id
+          AND NOT (
+              CAST(REPLACE(SUBSTRING_INDEX(planned_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                  < CAST(SUBSTRING_INDEX(target_tc.section_desc, '-', 1) AS UNSIGNED)
+              OR CAST(SUBSTRING_INDEX(planned_tc.section_desc, '-', 1) AS UNSIGNED)
+                  > CAST(REPLACE(SUBSTRING_INDEX(target_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+          )
+        """)
+    int countCoursePlanTimeConflict(
+        @Param("studentId") String studentId,
+        @Param("teachingClassId") Integer teachingClassId
+    );
+
     @Insert("""
         INSERT INTO course_selection (student_id, teaching_class_id, selection_status)
         VALUES (#{studentId}, #{teachingClassId}, '已选')
@@ -1024,6 +1084,7 @@ public interface StudentMapper {
             plan.plan_id AS planId,
             plan.created_at AS createdAt,
             tc.teaching_class_id AS teachingClassId,
+            sem.semester_id AS semesterId,
             sem.semester_name AS semesterName,
             c.course_id AS courseId,
             c.course_name AS courseName,

@@ -122,7 +122,12 @@
                 <el-button size="small" :disabled="!canRequestSelection(row)" @click="openRequestDialog(row)">
                   申请补选
                 </el-button>
-                <el-button size="small" :disabled="!canAddPlan(row)" @click="handleCreatePlan(row)">
+                <el-button
+                  size="small"
+                  :disabled="!canAddPlan(row)"
+                  :title="planDisabledReason(row)"
+                  @click="handleCreatePlan(row)"
+                >
                   加入计划
                 </el-button>
               </div>
@@ -345,7 +350,15 @@ function canRequestSelection(row) {
 }
 
 function canAddPlan(row) {
-  return !row.alreadySelected && Number(row.hasCoursePlan) !== 1
+  return planDisabledReason(row) === ''
+}
+
+function planDisabledReason(row) {
+  if (row.alreadySelected) return '该课程已选，无需加入选课计划'
+  if (Number(row.hasCoursePlan) === 1) return '该课程已在选课计划中'
+  if (Number(row.hasSelectedTimeConflict) === 1) return '该课程与当前已选课程时间冲突，不能加入选课计划'
+  if (Number(row.hasPlanTimeConflict) === 1) return '该课程与选课计划中已有课程时间冲突，不能加入选课计划'
+  return ''
 }
 
 function canDrop(row) {
@@ -361,6 +374,9 @@ function selectionReason(row) {
   }
   if (row.hasPendingSelectionRequest) {
     return '补选申请待审核'
+  }
+  if (Number(row.hasSelectedTimeConflict) === 1) {
+    return '与当前已选课程时间冲突'
   }
   if (canSelect(row)) {
     return '可直接选课'
@@ -413,7 +429,7 @@ async function handleSelect(row) {
 
 async function handleCreatePlan(row) {
   if (!canAddPlan(row)) {
-    ElMessage.warning('该课程已选或已在选课计划中')
+    ElMessage.warning(planDisabledReason(row) || '该课程不能加入选课计划')
     return
   }
   const response = await createCoursePlan({

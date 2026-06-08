@@ -87,12 +87,21 @@ public class StudentService {
     public void createCoursePlan(String username, String fallbackStudentId, SelectCourseRequest request) {
         String studentId = resolveStudentId(username, firstNonBlank(fallbackStudentId, request.getStudentId()));
         Integer teachingClassId = request.getTeachingClassId();
+        if (studentMapper.countSelectedCourse(studentId, teachingClassId) > 0) {
+            throw new BusinessException("该课程已选，无需加入选课计划");
+        }
         if (studentMapper.countCoursePlan(studentId, teachingClassId) > 0) {
             throw new BusinessException("该课程已在选课计划中");
         }
         if (studentMapper.countSelectableTeachingClass(teachingClassId) == 0
             && studentMapper.countAvailableCapacity(teachingClassId) == 0) {
             throw new BusinessException("教学班不存在或不可加入计划");
+        }
+        if (studentMapper.countStudentTimeConflict(studentId, teachingClassId) > 0) {
+            throw new BusinessException("该课程与当前已选课程时间冲突，不能加入选课计划");
+        }
+        if (studentMapper.countCoursePlanTimeConflict(studentId, teachingClassId) > 0) {
+            throw new BusinessException("该课程与选课计划中已有课程时间冲突，不能加入选课计划");
         }
         studentMapper.insertCoursePlan(studentId, teachingClassId);
     }
@@ -507,8 +516,8 @@ public class StudentService {
         if (rawMessage.contains("开课超过一周")) {
             return "退课失败：开课超过一周，需教师和管理员均同意后才能退课";
         }
-        if (rawMessage.contains("开课一周内可直接退课")) {
-            return "提交失败：开课一周内可直接退课，无需提交申请";
+        if (rawMessage.contains("可直接退课")) {
+            return "提交失败：该课程可直接退课，无需提交申请";
         }
         if (rawMessage.contains("未选该课程")) {
             return "退课失败：未选该课程";
