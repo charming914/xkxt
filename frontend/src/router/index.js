@@ -9,7 +9,6 @@ import StudentCourseView from '../views/student/StudentCourseView.vue'
 import StudentCoursePlanView from '../views/student/StudentCoursePlanView.vue'
 import StudentSelectedCourseView from '../views/student/StudentSelectedCourseView.vue'
 import StudentDropCourseView from '../views/student/StudentDropCourseView.vue'
-import StudentTimetableView from '../views/student/StudentTimetableView.vue'
 import StudentScoreView from '../views/student/StudentScoreView.vue'
 import StudentExamView from '../views/student/StudentExamView.vue'
 import StudentRemediationView from '../views/student/StudentRemediationView.vue'
@@ -103,7 +102,7 @@ const routes = [
       {
         path: 'student/timetable',
         name: 'student-timetable',
-        component: StudentTimetableView,
+        redirect: '/student/semesters',
         meta: { roles: ['STUDENT'] }
       },
       {

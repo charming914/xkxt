@@ -84,8 +84,10 @@ public interface StudentMapper {
             (SELECT COUNT(*)
              FROM course_selection cs
              JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+             JOIN semester today_sem ON tc.semester_id = today_sem.semester_id
              WHERE cs.student_id = #{studentId}
                AND cs.selection_status = '已选'
+               AND today_sem.is_current = 1
                AND tc.week_day = WEEKDAY(CURDATE()) + 1) AS todayCourseCount,
             (SELECT COUNT(*)
              FROM course_selection_request csr
@@ -146,10 +148,12 @@ public interface StudentMapper {
             (SELECT CONCAT(c.course_name, '（', t.teacher_name, '，', tc.section_desc, '）')
              FROM course_selection cs
              JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+             JOIN semester next_sem ON tc.semester_id = next_sem.semester_id
              JOIN course c ON tc.course_id = c.course_id
              JOIN teacher t ON tc.teacher_id = t.teacher_id
              WHERE cs.student_id = #{studentId}
                AND cs.selection_status = '已选'
+               AND next_sem.is_current = 1
                AND tc.week_day = WEEKDAY(CURDATE()) + 1
              ORDER BY CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
              LIMIT 1) AS nextCourseLabel
@@ -165,8 +169,10 @@ public interface StudentMapper {
             (SELECT COUNT(*)
              FROM course_selection cs
              JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+             JOIN semester today_sem ON tc.semester_id = today_sem.semester_id
              WHERE cs.student_id = #{studentId}
                AND cs.selection_status = '已选'
+               AND today_sem.is_current = 1
                AND tc.week_day = WEEKDAY(CURDATE()) + 1) AS todayCourseCount,
             (SELECT COUNT(*)
              FROM course_selection_request csr
@@ -224,10 +230,12 @@ public interface StudentMapper {
             (SELECT CONCAT(c.course_name, '（', t.teacher_name, '，', tc.section_desc, '）')
              FROM course_selection cs
              JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+             JOIN semester next_sem ON tc.semester_id = next_sem.semester_id
              JOIN course c ON tc.course_id = c.course_id
              JOIN teacher t ON tc.teacher_id = t.teacher_id
              WHERE cs.student_id = #{studentId}
                AND cs.selection_status = '已选'
+               AND next_sem.is_current = 1
                AND tc.week_day = WEEKDAY(CURDATE()) + 1
              ORDER BY CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
              LIMIT 1) AS nextCourseLabel
