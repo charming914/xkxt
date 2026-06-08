@@ -803,6 +803,9 @@ public class AdminService {
                 && adminMapper.countExamRoomConflict(examId, examDate, startTime, endTime, classroomId) > 0) {
                 throw new BusinessException("审核失败：目标教室在该时段已被占用");
             }
+            if (adminMapper.countExamTeacherConflict(examId, examDate, startTime, endTime) > 0) {
+                throw new BusinessException("审核失败：申请时间冲突");
+            }
             adminMapper.updateExam(examId, examDate, startTime, endTime, classroomId);
             adminMapper.updateExamChangeRequestStatus(examChangeRequestId, "已通过", request.getReviewComment(), adminUserId);
             return;

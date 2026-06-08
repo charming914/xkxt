@@ -1281,6 +1281,25 @@ public interface AdminMapper {
         @Param("classroomId") String classroomId
     );
 
+    @Select("""
+        SELECT COUNT(*)
+        FROM exam_arrangement target
+        JOIN teaching_class target_tc ON target.teaching_class_id = target_tc.teaching_class_id
+        JOIN exam_arrangement ea ON ea.exam_id <> target.exam_id
+        JOIN teaching_class tc ON ea.teaching_class_id = tc.teaching_class_id
+        WHERE target.exam_id = #{examId}
+          AND tc.teacher_id = target_tc.teacher_id
+          AND ea.exam_date = #{examDate}
+          AND ea.start_time < #{endTime}
+          AND #{startTime} < ea.end_time
+        """)
+    int countExamTeacherConflict(
+        @Param("examId") Long examId,
+        @Param("examDate") String examDate,
+        @Param("startTime") String startTime,
+        @Param("endTime") String endTime
+    );
+
     @Update("""
         UPDATE exam_arrangement
         SET exam_date = #{examDate},

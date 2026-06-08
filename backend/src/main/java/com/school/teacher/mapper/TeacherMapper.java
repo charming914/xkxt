@@ -599,6 +599,42 @@ public interface TeacherMapper {
     int countPendingExamChangeRequest(@Param("examId") Long examId);
 
     @Select("""
+        SELECT COUNT(*)
+        FROM exam_arrangement ea
+        WHERE NULLIF(#{classroomId}, '') IS NOT NULL
+          AND ea.classroom_id = NULLIF(#{classroomId}, '')
+          AND ea.exam_date = #{examDate}
+          AND ea.exam_id <> #{examId}
+          AND ea.start_time < #{endTime}
+          AND #{startTime} < ea.end_time
+        """)
+    int countExamRoomConflict(
+        @Param("examId") Long examId,
+        @Param("examDate") String examDate,
+        @Param("startTime") String startTime,
+        @Param("endTime") String endTime,
+        @Param("classroomId") String classroomId
+    );
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM exam_arrangement ea
+        JOIN teaching_class tc ON ea.teaching_class_id = tc.teaching_class_id
+        WHERE tc.teacher_id = #{teacherId}
+          AND ea.exam_id <> #{examId}
+          AND ea.exam_date = #{examDate}
+          AND ea.start_time < #{endTime}
+          AND #{startTime} < ea.end_time
+        """)
+    int countTeacherExamConflict(
+        @Param("teacherId") String teacherId,
+        @Param("examId") Long examId,
+        @Param("examDate") String examDate,
+        @Param("startTime") String startTime,
+        @Param("endTime") String endTime
+    );
+
+    @Select("""
         SELECT
             ea.exam_id AS examId,
             ea.teaching_class_id AS teachingClassId,

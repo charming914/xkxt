@@ -213,6 +213,25 @@ public class TeacherService {
         if (request.getRequestedStartTime().compareTo(request.getRequestedEndTime()) >= 0) {
             throw new BusinessException("开始时间必须早于结束时间");
         }
+        boolean roomConflict = request.getRequestedClassroomId() != null
+            && !request.getRequestedClassroomId().isBlank()
+            && teacherMapper.countExamRoomConflict(
+                request.getExamId(),
+                request.getRequestedExamDate(),
+                request.getRequestedStartTime(),
+                request.getRequestedEndTime(),
+                request.getRequestedClassroomId()
+            ) > 0;
+        boolean teacherConflict = teacherMapper.countTeacherExamConflict(
+            teacherId,
+            request.getExamId(),
+            request.getRequestedExamDate(),
+            request.getRequestedStartTime(),
+            request.getRequestedEndTime()
+        ) > 0;
+        if (roomConflict || teacherConflict) {
+            throw new BusinessException("申请时间冲突");
+        }
         if (teacherMapper.countPendingExamChangeRequest(request.getExamId()) > 0) {
             throw new BusinessException("该考试已有待审核修改申请");
         }
