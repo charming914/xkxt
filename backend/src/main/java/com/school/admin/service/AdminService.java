@@ -287,10 +287,70 @@ public class AdminService {
         return adminMapper.selectAllSemesters();
     }
 
+    /** 教学周数：固定 16 周 */
+    private static final int TEACHING_WEEKS = 16;
+    /** 考试周数：固定 2 周，紧跟教学周之后 */
+    private static final int EXAM_WEEKS = 2;
+
+    /**
+     * 由学期开始日期推导其余全部字段，写回 request。
+     * 规则：16 教学周 + 2 考试周；考试周紧跟学期结束日之后，再之后为假期。
+     * 学年/学期代码按开始月份判定：7 月及以后为第一学期（秋季），否则为第二学期（春季）。
+     */
+    private void deriveSemesterFields(SemesterRequest request) {
+        LocalDate start;
+        try {
+            start = LocalDate.parse(request.getStartDate().substring(0, 10));
+        } catch (RuntimeException ex) {
+            throw new BusinessException("学期开始日期格式不正确");
+        }
+
+        // 教学结束日 = 开始日 + 16 周 - 1 天（第 16 个教学周的最后一天）
+        LocalDate endDate = start.plusWeeks(TEACHING_WEEKS).minusDays(1);
+
+        // 学年与学期代码：7 月及以后视为秋季学期（学期代码 1），否则为春季学期（学期代码 2）
+        int year = start.getYear();
+        String termCode;
+        String schoolYear;
+        if (start.getMonthValue() >= 7) {
+            termCode = "1";
+            schoolYear = year + "-" + (year + 1);
+        } else {
+            termCode = "2";
+            schoolYear = (year - 1) + "-" + year;
+        }
+        String semesterName = schoolYear + "-" + termCode;
+
+        // 选课时间：设在「上学期考试周」之前的两周（即上学期最后两个教学周内完成下学期选课）
+        LocalDateTime selectStart;
+        LocalDateTime selectEnd;
+        String prevEndStr = adminMapper.selectPreviousSemesterEndDate(start.toString(), request.getSemesterId());
+        if (prevEndStr != null) {
+            LocalDate prevEnd = LocalDate.parse(prevEndStr.substring(0, 10));
+            LocalDate prevExamStart = prevEnd.plusDays(1); // 上学期考试周第一天
+            selectStart = prevExamStart.minusWeeks(EXAM_WEEKS).atTime(8, 0, 0);
+            selectEnd = prevExamStart.minusDays(1).atTime(23, 59, 59);
+        } else {
+            // 没有上学期（首个学期）时退回：开学前 2 周开放，至第 2 教学周结束
+            selectStart = start.minusWeeks(2).atTime(8, 0, 0);
+            selectEnd = start.plusWeeks(2).minusDays(1).atTime(23, 59, 59);
+        }
+
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        request.setStartDate(start.toString());
+        request.setEndDate(endDate.toString());
+        request.setSemesterName(semesterName);
+        request.setSchoolYear(schoolYear);
+        request.setTermCode(termCode);
+        request.setCourseSelectStart(selectStart.format(dtf));
+        request.setCourseSelectEnd(selectEnd.format(dtf));
+    }
+
     @Transactional
     public void createSemester(SemesterRequest request) {
-        if (request.getCourseSelectStart().compareTo(request.getCourseSelectEnd()) >= 0) {
-            throw new BusinessException("选课开始时间必须早于结束时间");
+        deriveSemesterFields(request);
+        if (adminMapper.countSemesterByName(request.getSemesterName(), null) > 0) {
+            throw new BusinessException("已存在学期「" + request.getSemesterName() + "」，请检查开始日期");
         }
         Integer carryOverFrom = request.getCarryOverFromSemesterId();
         if (carryOverFrom != null && adminMapper.countSemesterById(carryOverFrom) == 0) {
@@ -305,6 +365,33 @@ public class AdminService {
             adminMapper.clearCurrentSemester();
             adminMapper.markCurrentSemester(newSemesterId);
         }
+    }
+
+    @Transactional
+    public void updateSemester(Integer semesterId, SemesterRequest request) {
+        if (adminMapper.countSemesterById(semesterId) == 0) {
+            throw new BusinessException("学期不存在");
+        }
+        request.setSemesterId(semesterId);
+        deriveSemesterFields(request);
+        if (adminMapper.countSemesterByName(request.getSemesterName(), semesterId) > 0) {
+            throw new BusinessException("已存在学期「" + request.getSemesterName() + "」，请检查开始日期");
+        }
+        adminMapper.updateSemester(request);
+    }
+
+    @Transactional
+    public void deleteSemester(Integer semesterId) {
+        if (adminMapper.countSemesterById(semesterId) == 0) {
+            throw new BusinessException("学期不存在");
+        }
+        if (adminMapper.isCurrentSemester(semesterId) > 0) {
+            throw new BusinessException("当前学期不可删除，请先切换到其他学期");
+        }
+        if (adminMapper.countTeachingClassesBySemester(semesterId) > 0) {
+            throw new BusinessException("该学期已存在教学班，不可删除");
+        }
+        adminMapper.deleteSemester(semesterId);
     }
 
     @Transactional

@@ -215,6 +215,21 @@ public class AdminController {
         return ApiResponse.success("学期创建成功", null);
     }
 
+    @PutMapping("/semesters/{semesterId}")
+    @OperationLog(type = "学期管理", action = "编辑学期")
+    public ApiResponse<Void> updateSemester(@PathVariable Integer semesterId,
+                                            @Valid @RequestBody SemesterRequest request) {
+        adminService.updateSemester(semesterId, request);
+        return ApiResponse.success("学期更新成功", null);
+    }
+
+    @DeleteMapping("/semesters/{semesterId}")
+    @OperationLog(type = "学期管理", action = "删除学期")
+    public ApiResponse<Void> deleteSemester(@PathVariable Integer semesterId) {
+        adminService.deleteSemester(semesterId);
+        return ApiResponse.success("学期删除成功", null);
+    }
+
     @PutMapping("/semesters/{semesterId}/current")
     @OperationLog(type = "学期管理", action = "切换当前学期")
     public ApiResponse<Void> setCurrentSemester(@PathVariable Integer semesterId) {

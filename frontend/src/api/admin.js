@@ -328,6 +328,21 @@ export function createSemester(data) {
   })
 }
 
+export function updateSemester(semesterId, data) {
+  return request({
+    url: `/admin/semesters/${semesterId}`,
+    method: 'put',
+    data
+  })
+}
+
+export function deleteSemester(semesterId) {
+  return request({
+    url: `/admin/semesters/${semesterId}`,
+    method: 'delete'
+  })
+}
+
 export function setCurrentSemester(semesterId) {
   return request({
     url: `/admin/semesters/${semesterId}/current`,
