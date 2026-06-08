@@ -6,12 +6,34 @@
         <p>当前登录教师：{{ userStore.realName }}（{{ userStore.refId }}）</p>
       </div>
       <div class="toolbar-actions">
-        <el-button :disabled="classes.length === 0" @click="exportTeacherTimetablePdf">导出PDF课表</el-button>
+        <el-button :disabled="filteredClasses.length === 0" @click="exportTeacherTimetablePdf">导出PDF课表</el-button>
         <el-button @click="loadTeachingClasses">刷新列表</el-button>
       </div>
     </div>
 
+    <div v-if="classes.length > 0" class="semester-toolbar">
+      <el-form-item label="课表学期">
+        <el-select v-model="selectedSemesterId" placeholder="请选择学期" class="semester-select">
+          <el-option
+            v-for="item in semesterOptions"
+            :key="item.semesterId"
+            :label="item.semesterName"
+            :value="item.semesterId"
+          />
+        </el-select>
+      </el-form-item>
+      <div v-if="selectedSemester" class="semester-summary">
+        <strong>{{ selectedSemester.semesterName }}</strong>
+        <span>{{ formatDate(selectedSemester.semesterStartDate) }} 至 {{ formatDate(selectedSemester.semesterEndDate) }}</span>
+        <el-tag v-if="Number(selectedSemester.isCurrent) === 1" type="success">当前</el-tag>
+        <el-tag :type="statusTagType(selectionStatus(selectedSemester))">
+          {{ selectionStatus(selectedSemester) }}
+        </el-tag>
+      </div>
+    </div>
+
     <el-empty v-if="!loading && classes.length === 0" description="当前暂无授课数据" />
+    <el-empty v-else-if="!loading && filteredClasses.length === 0" description="该学期暂无授课数据" />
 
     <template v-else>
     <div v-loading="loading" class="calendar-shell">
@@ -63,7 +85,16 @@
           <el-descriptions-item label="课程类型">{{ selectedClass.courseType }}</el-descriptions-item>
           <el-descriptions-item label="学分">{{ selectedClass.credit }}</el-descriptions-item>
           <el-descriptions-item label="考核方式">{{ selectedClass.assessmentMethod || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="学期">{{ selectedClass.semesterName }}</el-descriptions-item>
+          <el-descriptions-item label="学期">
+            {{ selectedClass.semesterName }}
+            <el-tag v-if="Number(selectedClass.isCurrent) === 1" class="inline-tag" type="success">当前</el-tag>
+            <el-tag class="inline-tag" :type="statusTagType(selectionStatus(selectedClass))">
+              {{ selectionStatus(selectedClass) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="学期起止">
+            {{ formatDate(selectedClass.semesterStartDate) }} 至 {{ formatDate(selectedClass.semesterEndDate) }}
+          </el-descriptions-item>
           <el-descriptions-item label="开课院系">{{ selectedClass.departmentName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="上课时间">
             周{{ formatWeekDay(selectedClass.weekDay) }} {{ selectedClass.sectionDesc }} {{ selectedClass.weekRange }}
@@ -109,7 +140,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getTeachingClassDetail, getTeachingClasses, getTeachingClassStudents } from '../../api/teacher'
 import { useUserStore } from '../../stores/user'
@@ -120,6 +151,33 @@ const loading = ref(false)
 const detailLoading = ref(false)
 const studentLoading = ref(false)
 const classes = ref([])
+const selectedSemesterId = ref(null)
+const semesterOptions = computed(() => {
+  const map = new Map()
+  classes.value.forEach(item => {
+    if (!map.has(item.semesterId)) {
+      map.set(item.semesterId, {
+        semesterId: item.semesterId,
+        semesterName: item.semesterName,
+        semesterStartDate: item.semesterStartDate,
+        semesterEndDate: item.semesterEndDate,
+        courseSelectStart: item.courseSelectStart,
+        courseSelectEnd: item.courseSelectEnd,
+        isCurrent: item.isCurrent
+      })
+    }
+  })
+  return Array.from(map.values())
+})
+const selectedSemester = computed(() => {
+  return semesterOptions.value.find(item => item.semesterId === selectedSemesterId.value) || null
+})
+const filteredClasses = computed(() => {
+  if (!selectedSemesterId.value) {
+    return classes.value
+  }
+  return classes.value.filter(item => item.semesterId === selectedSemesterId.value)
+})
 const {
   currentPage,
   pageSize,
@@ -127,7 +185,7 @@ const {
   pagedData,
   handleSizeChange,
   handleCurrentChange
-} = useClientPagination(classes, 10)
+} = useClientPagination(filteredClasses, 10)
 const students = ref([])
 const selectedClass = ref(null)
 const detailVisible = ref(false)
@@ -171,6 +229,32 @@ function formatWeekDay(weekDay) {
   return weekDays.find(item => item.value === weekDay)?.label || weekDay
 }
 
+function formatDate(value) {
+  if (!value) return '-'
+  return String(value).slice(0, 10)
+}
+
+function parseTime(str) {
+  if (!str) return NaN
+  return new Date(String(str).replace('T', ' ').replace(/-/g, '/')).getTime()
+}
+
+function selectionStatus(row) {
+  if (!row?.courseSelectStart || !row?.courseSelectEnd) return '未设置'
+  const now = Date.now()
+  const start = parseTime(row.courseSelectStart)
+  const end = parseTime(row.courseSelectEnd)
+  if (now < start) return '未开始'
+  if (now > end) return '已结束'
+  return '选课中'
+}
+
+function statusTagType(status) {
+  if (status === '选课中') return 'success'
+  if (status === '已结束') return 'info'
+  return 'warning'
+}
+
 function classroomLabel(row) {
   return [row.buildingName, row.roomName].filter(Boolean).join(' ') || '-'
 }
@@ -198,16 +282,18 @@ function buildPrintableCourseCard(course) {
 }
 
 function exportTeacherTimetablePdf() {
-  if (classes.value.length === 0) {
+  if (filteredClasses.value.length === 0) {
     ElMessage.warning('当前没有可导出的教师课表')
     return
   }
 
   const teacherLabel = `${userStore.realName || '教师'}（${userStore.refId || '-'}）`
-  const semesterLabel = [...new Set(classes.value.map(item => item.semesterName).filter(Boolean))].join('、') || '全部学期'
+  const semesterLabel = selectedSemester.value
+    ? `${selectedSemester.value.semesterName}（${selectionStatus(selectedSemester.value)}）`
+    : '全部学期'
   const rows = timeBlocks.map(block => {
     const cells = weekDays.map(day => {
-      const cards = classes.value
+      const cards = filteredClasses.value
         .filter(item => {
           if (item.weekDay !== day.value) {
             return false
@@ -356,8 +442,12 @@ function exportTeacherTimetablePdf() {
 async function loadTeachingClasses() {
   loading.value = true
   try {
-    const response = await getTeachingClasses()
+    const response = await getTeachingClasses({ includeAllSemesters: true })
     classes.value = response.data || []
+    if (!semesterOptions.value.some(item => item.semesterId === selectedSemesterId.value)) {
+      const currentSemester = semesterOptions.value.find(item => Number(item.isCurrent) === 1)
+      selectedSemesterId.value = currentSemester?.semesterId ?? semesterOptions.value[0]?.semesterId ?? null
+    }
   } finally {
     loading.value = false
   }
@@ -415,6 +505,42 @@ onMounted(() => {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 20px;
+}
+
+.semester-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbfd;
+}
+
+.semester-toolbar :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.semester-select {
+  width: 220px;
+}
+
+.semester-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.semester-summary strong {
+  color: var(--text-main);
+}
+
+.inline-tag {
+  margin-left: 6px;
 }
 
 .calendar-shell {
@@ -513,5 +639,17 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 18px;
+}
+
+@media (max-width: 720px) {
+  .page-header,
+  .semester-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .semester-select {
+    width: 100%;
+  }
 }
 </style>

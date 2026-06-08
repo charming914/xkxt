@@ -47,6 +47,29 @@
       </div>
     </div>
 
+    <div class="gpa-panel">
+      <div class="gpa-panel-header">
+        <h2>绩点分布</h2>
+        <span>按当前筛选范围内已生成绩点的成绩统计</span>
+      </div>
+      <el-empty v-if="gpaDistribution.total === 0" description="暂无绩点分布数据" />
+      <div v-else class="gpa-grid">
+        <div v-for="item in gpaDistribution.items" :key="item.gpa" class="gpa-item">
+          <div class="gpa-main">
+            <strong>{{ item.gpa }}</strong>
+            <el-tag size="small" :type="gradeTagType(item.grade)">{{ item.grade }}</el-tag>
+          </div>
+          <div class="gpa-count">
+            <span>{{ item.count }} 人</span>
+            <em>{{ item.percent }}</em>
+          </div>
+          <div class="gpa-bar">
+            <div class="gpa-bar-fill" :style="{ width: item.percent }" />
+          </div>
+        </div>
+      </div>
+    </div>
+
     <el-empty v-if="!loading && filteredScores.length === 0" description="当前暂无成绩录入数据" />
 
     <template v-else>
@@ -176,6 +199,19 @@ const filteredScores = computed(() => {
 })
 
 const editableScores = computed(() => filteredScores.value.filter(item => !item.isSubmitted))
+const gpaLevels = [
+  { gpa: '4.0', grade: 'A' },
+  { gpa: '3.7', grade: 'A-' },
+  { gpa: '3.3', grade: 'B+' },
+  { gpa: '3.0', grade: 'B' },
+  { gpa: '2.7', grade: 'B-' },
+  { gpa: '2.3', grade: 'C+' },
+  { gpa: '2.0', grade: 'C' },
+  { gpa: '1.7', grade: 'C-' },
+  { gpa: '1.5', grade: 'D' },
+  { gpa: '1.0', grade: 'D-' },
+  { gpa: '0.0', grade: 'F' }
+]
 
 // 分页基于 filteredScores（完整筛选结果）；批量保存/导出/统计仍引用完整数据，不受当前页影响
 const {
@@ -217,6 +253,35 @@ const scoreStats = computed(() => {
     max: Math.max(...finalScores).toFixed(2),
     min: Math.min(...finalScores).toFixed(2),
     passRate: `${((passed / finalScores.length) * 100).toFixed(2)}%`
+  }
+})
+
+const gpaDistribution = computed(() => {
+  const counts = new Map(gpaLevels.map(item => [item.gpa, 0]))
+  filteredScores.value.forEach(item => {
+    if (item.gpaPoint === null || item.gpaPoint === undefined) {
+      return
+    }
+    const value = Number(item.gpaPoint)
+    if (Number.isNaN(value)) {
+      return
+    }
+    const key = value.toFixed(1)
+    if (counts.has(key)) {
+      counts.set(key, counts.get(key) + 1)
+    }
+  })
+  const total = Array.from(counts.values()).reduce((sum, count) => sum + count, 0)
+  return {
+    total,
+    items: gpaLevels.map(item => {
+      const count = counts.get(item.gpa) || 0
+      return {
+        ...item,
+        count,
+        percent: total ? `${((count / total) * 100).toFixed(1)}%` : '0.0%'
+      }
+    })
   }
 })
 
@@ -281,6 +346,13 @@ function requestStatusType(status) {
   if (status === '已通过') return 'success'
   if (status === '已驳回') return 'danger'
   return 'warning'
+}
+
+function gradeTagType(grade) {
+  if (grade === 'A' || grade === 'A-') return 'success'
+  if (grade === 'F') return 'danger'
+  if (grade.startsWith('D')) return 'warning'
+  return 'info'
 }
 
 function openScoreChangeDialog(row) {
@@ -393,6 +465,85 @@ onMounted(() => {
   font-size: 24px;
 }
 
+.gpa-panel {
+  margin-bottom: 18px;
+  padding: 16px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #dbeafe;
+}
+
+.gpa-panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.gpa-panel-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.gpa-panel-header span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.gpa-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.gpa-item {
+  display: grid;
+  gap: 8px;
+  min-height: 104px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8fbfd;
+  border: 1px solid #e2e8f0;
+}
+
+.gpa-main,
+.gpa-count {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gpa-main strong {
+  color: var(--sky-700);
+  font-size: 20px;
+}
+
+.gpa-count span {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.gpa-count em {
+  color: var(--text-muted);
+  font-style: normal;
+  font-size: 12px;
+}
+
+.gpa-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.gpa-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #0284c7;
+}
+
 .toolbar-actions,
 .action-row {
   display: flex;
@@ -429,6 +580,11 @@ onMounted(() => {
 
   .summary-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gpa-panel-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 </style>

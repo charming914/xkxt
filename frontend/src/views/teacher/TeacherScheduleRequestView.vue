@@ -21,7 +21,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="调整后星期">
-          <el-select v-model="form.requestedWeekDay" placeholder="请选择星期" @change="loadAvailableClassrooms">
+          <el-select v-model="form.requestedWeekDay" placeholder="请选择星期" @change="handleWeekDayChange">
             <el-option v-for="item in weekDays" :key="item.value" :label="`周${item.label}`" :value="item.value" />
           </el-select>
         </el-form-item>
@@ -149,6 +149,7 @@ const sectionOptions = computed(() => {
   const length = resolveSectionLength(selectedClass.value?.sectionDesc)
   return ['1-2节', '3-4节', '5-6节', '7-8节', '9-10节', '11-12节', '1-4节', '5-8节', '9-12节']
     .filter(item => resolveSectionLength(item) === length)
+    .filter(item => !isTeacherSectionOccupied(item))
 })
 
 function resetForm() {
@@ -201,6 +202,9 @@ async function handleClassChange() {
   form.requestedSectionDesc = current.sectionDesc
   form.requestedWeekRange = current.weekRange
   form.requestedClassroomId = ''
+  if (!sectionOptions.value.includes(form.requestedSectionDesc)) {
+    form.requestedSectionDesc = ''
+  }
   await loadAvailableClassrooms()
 }
 
@@ -220,6 +224,47 @@ async function loadAvailableClassrooms() {
   } finally {
     classroomLoading.value = false
   }
+}
+
+function resolveSectionRange(sectionDesc) {
+  if (!sectionDesc || !sectionDesc.includes('-')) {
+    return null
+  }
+  const [start, end] = sectionDesc.replace('节', '').split('-').map(item => Number(item))
+  if (Number.isNaN(start) || Number.isNaN(end)) {
+    return null
+  }
+  return { start, end }
+}
+
+function isSectionOverlap(first, second) {
+  const firstRange = resolveSectionRange(first)
+  const secondRange = resolveSectionRange(second)
+  if (!firstRange || !secondRange) {
+    return false
+  }
+  return firstRange.start <= secondRange.end && secondRange.start <= firstRange.end
+}
+
+function isTeacherSectionOccupied(sectionDesc) {
+  if (!form.requestedWeekDay || !form.teachingClassId) {
+    return false
+  }
+  return classOptions.value.some(item => {
+    return item.teachingClassId !== form.teachingClassId &&
+      item.weekDay === form.requestedWeekDay &&
+      isSectionOverlap(item.sectionDesc, sectionDesc)
+  })
+}
+
+async function handleWeekDayChange() {
+  if (form.requestedSectionDesc && !sectionOptions.value.includes(form.requestedSectionDesc)) {
+    form.requestedSectionDesc = ''
+    form.requestedClassroomId = ''
+    classroomOptions.value = []
+    return
+  }
+  await loadAvailableClassrooms()
 }
 
 async function loadData() {

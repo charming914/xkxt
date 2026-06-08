@@ -228,6 +228,59 @@
 }
 ```
 
+说明：
+- 审核通过时会复核目标教室在同学期同星期同节次是否被占用。
+- 审核通过时会复核任课教师在目标星期和节次是否已有其它教学班课程。
+
+### `GET /api/admin/exams`
+用途：查询当前学期考试安排
+
+### `POST /api/admin/exams/generate`
+用途：为当前学期尚未排考的教学班生成考试安排
+
+说明：
+- 考试周取当前学期结束后的两周工作日。
+- 默认每天两场：`09:00-11:00`、`14:00-16:00`。
+- 生成时优先复用教学班原教室，并避开同教室同场次冲突。
+
+### `PUT /api/admin/exams/{examId}`
+用途：修改单场考试安排
+
+请求参数：
+```json
+{
+  "examDate": "2026-07-01",
+  "startTime": "09:00:00",
+  "endTime": "11:00:00",
+  "classroomId": "R101"
+}
+```
+
+说明：
+- 开始时间必须早于结束时间。
+- 若指定考试教室，后端会校验同日期同时间段教室占用。
+
+### `DELETE /api/admin/exams/{examId}`
+用途：删除单场考试安排
+
+### `GET /api/admin/exam-change-requests`
+用途：查询教师提交的考试安排修改申请
+
+### `PUT /api/admin/exam-change-requests/{examChangeRequestId}/review`
+用途：审核考试安排修改申请；通过后同步更新考试安排
+
+请求参数：
+```json
+{
+  "action": "APPROVE",
+  "reviewComment": "同意调整"
+}
+```
+
+说明：
+- 审核通过时会复核目标教室在对应日期和时间段是否被占用。
+- 审核通过时会复核任课教师在目标日期和时间段是否已有其它考试。
+
 ## 3. 学生模块
 
 ### `GET /api/student/courses/available`
@@ -246,6 +299,20 @@
 说明：
 - 正常可直接选课时，补选申请按钮应禁用
 - 不可直接选课但允许补选时，直接选课按钮应禁用
+
+### `GET /api/student/current-semester`
+用途：查询当前学期信息
+
+返回字段：
+- `semesterId`
+- `semesterName`
+- `schoolYear`
+- `termCode`
+- `startDate`
+- `endDate`
+
+说明：
+- 学生端主布局展示当前学期名称和学期起止日期。
 
 ### `POST /api/student/course-selections`
 用途：学生选课
@@ -286,6 +353,14 @@
 ### `GET /api/teacher/teaching-classes`
 用途：查看本人授课列表
 
+查询参数：
+- `includeAllSemesters`：是否返回全部学期，默认 `false`
+
+说明：
+- 默认只返回当前学期教学班，避免影响调课申请等当前学期业务。
+- 教师授课课表页传 `includeAllSemesters=true`，用于按学期切换查看课表。
+- 返回字段包含 `semesterId`、`semesterName`、`semesterStartDate`、`semesterEndDate`、`courseSelectStart`、`courseSelectEnd`、`isCurrent`，供课表页展示学期起止和选课状态。
+
 ### `GET /api/teacher/teaching-classes/{teachingClassId}`
 用途：查看本人教学班详情
 
@@ -297,6 +372,20 @@
 
 ### `PUT /api/teacher/profile`
 用途：维护教师本人手机号和邮箱
+
+### `GET /api/teacher/current-semester`
+用途：查询当前学期信息
+
+返回字段：
+- `semesterId`
+- `semesterName`
+- `schoolYear`
+- `termCode`
+- `startDate`
+- `endDate`
+
+说明：
+- 教师端主布局展示当前学期名称和学期起止日期。
 
 ### `GET /api/teacher/todos`
 用途：查看教师待办统计，包括退课待审核、未录入成绩、未提交成绩、调课待审核数量
@@ -312,7 +401,10 @@
 用途：查看本人课表
 
 说明：
-- 教师授课管理页可基于本人授课列表生成接近页面课表样式的打印页，并通过浏览器打印导出 PDF。
+- 当前页面由 `GET /api/teacher/teaching-classes?includeAllSemesters=true` 提供数据。
+- 教师授课管理页支持按学期切换课表，默认优先显示当前学期。
+- 页面显示所选学期名称、起止日期、是否当前学期和选课状态，状态计算参考管理员端学期管理。
+- 教师授课管理页可基于当前筛选学期生成接近页面课表样式的打印页，并通过浏览器打印导出 PDF。
 - 导出数据来源于教学班列表中的学期、星期、节次、周次、课程和教室信息。
 
 ### `POST /api/teacher/scores`
@@ -332,6 +424,7 @@
 说明：
 - 插入或更新 `score` 表
 - 触发器自动计算 `final_score` 和 `gpa_point`
+- 绩点采用 11 档规则，评价符号与学生成绩视图保持一致：`4.0/A`、`3.7/A-`、`3.3/B+`、`3.0/B`、`2.7/B-`、`2.3/C+`、`2.0/C`、`1.7/C-`、`1.5/D`、`1.0/D-`、`0.0/F`
 - `isSubmitted = 1` 时会校验当前时间是否在管理员设置的成绩提交时间窗口内
 
 ### `POST /api/teacher/scores/batch`
@@ -343,6 +436,10 @@
 查询参数：
 - `teachingClassId`
 - `studentId`
+
+说明：
+- 返回字段包含 `finalScore`、`gpaPoint` 等成绩统计字段。
+- 教师端成绩录入页基于当前筛选范围统计学生人数、平均分、最高分、最低分、及格率和绩点分布；绩点评价符号复用学生端成绩统计规则。
 
 ### `GET /api/teacher/scores/submit-window/{teachingClassId}`
 用途：查看指定教学班所在学期的成绩提交时间窗口
@@ -377,6 +474,8 @@
 说明：
 - 空教室由 `teaching_class` 中同学期、同星期、节次重叠的教室占用记录排除得到
 - 当前教学班原教室不作为可选目标教室返回
+- 教师端调课申请选择星期后，前端会隐藏该教师同星期其它教学班已占用或重叠的节次。
+- 提交调课申请和管理员审核通过调课申请时，后端都会复核同教师同时间段授课冲突。
 
 ### `GET /api/teacher/schedule-adjust-requests`
 用途：查询本人调课申请
@@ -400,6 +499,64 @@
 - 周次必须与原教学班周次一致，不允许调整
 - 节次跨度必须与原节次一致
 - 教室应来自空教室选项接口
+- 同教师同星期同节次存在其它教学班时，后端返回“申请时间冲突”
+
+### `PUT /api/teacher/schedule-adjust-requests/{adjustRequestId}/cancel`
+用途：撤销本人调课申请
+
+说明：
+- 只能撤销本人且状态为“待审核”的申请。
+- 撤销后申请状态更新为“已撤销”。
+
+### `GET /api/teacher/exams`
+用途：查询当前学期本人监考/授课课程的考试安排
+
+### `GET /api/teacher/exam-change-requests`
+用途：查询本人提交的考试安排修改申请
+
+### `GET /api/teacher/exam-available-classroom-options`
+用途：按申请后的考试日期和时间段查询可用考试教室
+
+查询参数：
+- `examId`
+- `examDate`
+- `startTime`
+- `endTime`
+
+说明：
+- 返回教室选项包含教室容量，格式如 `教学楼-教室（容量80）`。
+- 已被其它考试在同日期同时间段占用的教室不返回。
+- 如果申请后时间与当前教师其它考试时间重叠，接口返回“申请时间冲突”，前端清空教室选项并提示。
+
+### `POST /api/teacher/exam-change-requests`
+用途：提交考试安排修改申请
+
+请求参数：
+```json
+{
+  "examId": 1,
+  "requestedExamDate": "2026-07-01",
+  "requestedStartTime": "09:00:00",
+  "requestedEndTime": "11:00:00",
+  "requestedClassroomId": "R101",
+  "requestReason": "原时间与学院会议冲突"
+}
+```
+
+说明：
+- 只能对本人授课课程的考试安排提交修改申请。
+- 开始时间必须早于结束时间。
+- 同一考试存在待审核申请时不能重复提交。
+- 若申请后教室在对应日期和时间段已被占用，返回“申请时间冲突”。
+- 若申请后时间与本人其它考试重叠，返回“申请时间冲突”。
+- 前端选择开始时间后，结束时间默认填充为开始时间后 2 小时。
+
+### `PUT /api/teacher/exam-change-requests/{examChangeRequestId}/cancel`
+用途：撤销本人考试安排修改申请
+
+说明：
+- 只能撤销本人且状态为“待审核”的申请。
+- 撤销后申请状态更新为“已撤销”。
 
 ## 5. 建议的统一返回格式
 

@@ -38,8 +38,8 @@ public class TeacherService {
         }
     }
 
-    public List<Map<String, Object>> teachingClasses(String teacherId) {
-        return teacherMapper.selectTeachingClasses(teacherId);
+    public List<Map<String, Object>> teachingClasses(String teacherId, boolean includeAllSemesters) {
+        return teacherMapper.selectTeachingClasses(teacherId, includeAllSemesters);
     }
 
     public List<Map<String, Object>> scores(String teacherId) {
@@ -92,6 +92,14 @@ public class TeacherService {
         return teacherMapper.selectClassroomOptions();
     }
 
+    public Map<String, Object> currentSemester() {
+        Map<String, Object> semester = teacherMapper.selectCurrentSemester();
+        if (semester == null) {
+            throw new BusinessException("当前学期不存在");
+        }
+        return semester;
+    }
+
     public List<Map<String, Object>> availableClassroomOptions(
         String teacherId,
         Integer teachingClassId,
@@ -100,6 +108,29 @@ public class TeacherService {
     ) {
         ensureTeachingClassOwner(teacherId, teachingClassId);
         return teacherMapper.selectAvailableClassroomOptions(teachingClassId, weekDay, sectionDesc);
+    }
+
+    public List<Map<String, Object>> examAvailableClassroomOptions(
+        String teacherId,
+        Long examId,
+        String examDate,
+        String startTime,
+        String endTime
+    ) {
+        Map<String, Object> exam = teacherMapper.selectExamOwner(examId);
+        if (exam == null) {
+            throw new BusinessException("考试安排不存在");
+        }
+        if (!teacherId.equals(exam.get("teacherId"))) {
+            throw new BusinessException("只能查看本人考试安排的可用教室");
+        }
+        if (startTime.compareTo(endTime) >= 0) {
+            throw new BusinessException("开始时间必须早于结束时间");
+        }
+        if (teacherMapper.countTeacherExamConflict(teacherId, examId, examDate, startTime, endTime) > 0) {
+            throw new BusinessException("申请时间冲突");
+        }
+        return teacherMapper.selectAvailableExamClassroomOptions(examId, examDate, startTime, endTime);
     }
 
     public List<Map<String, Object>> scheduleAdjustRequests(String teacherId) {
@@ -133,6 +164,14 @@ public class TeacherService {
         }
         if (resolveSectionLength(originalSectionDesc) != resolveSectionLength(request.getRequestedSectionDesc())) {
             throw new BusinessException("调整后节次长度必须与原节次一致");
+        }
+        if (teacherMapper.countTeachingClassTeacherConflict(
+            teacherId,
+            request.getTeachingClassId(),
+            request.getRequestedWeekDay(),
+            request.getRequestedSectionDesc()
+        ) > 0) {
+            throw new BusinessException("申请时间冲突");
         }
         if (teacherMapper.countPendingScheduleAdjustRequest(teacherId, request.getTeachingClassId()) > 0) {
             throw new BusinessException("该教学班已有待审核调课申请");

@@ -86,6 +86,7 @@
             value-format="YYYY-MM-DD"
             placeholder="请选择考试日期"
             style="width: 100%"
+            @change="loadAvailableExamClassrooms"
           />
         </el-form-item>
         <el-form-item label="开始时间">
@@ -94,6 +95,7 @@
             value-format="HH:mm:ss"
             placeholder="开始时间"
             style="width: 100%"
+            @change="handleStartTimeChange"
           />
         </el-form-item>
         <el-form-item label="结束时间">
@@ -102,10 +104,18 @@
             value-format="HH:mm:ss"
             placeholder="结束时间"
             style="width: 100%"
+            @change="loadAvailableExamClassrooms"
           />
         </el-form-item>
         <el-form-item label="考试教室">
-          <el-select v-model="form.requestedClassroomId" clearable filterable placeholder="请选择教室（可留空）">
+          <el-select
+            v-model="form.requestedClassroomId"
+            clearable
+            filterable
+            :loading="classroomLoading"
+            placeholder="请选择当前时间可用教室（可留空）"
+            no-data-text="当前时间无可用教室"
+          >
             <el-option
               v-for="item in classroomOptions"
               :key="item.value"
@@ -132,13 +142,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   cancelTeacherExamChangeRequest,
   createTeacherExamChangeRequest,
-  getTeacherClassroomOptions,
+  getTeacherAvailableExamClassroomOptions,
   getTeacherExamChangeRequests,
   getTeacherExams
 } from '../../api/teacher'
 
 const loading = ref(false)
 const saving = ref(false)
+const classroomLoading = ref(false)
 const cancelingId = ref(null)
 const exams = ref([])
 const requests = ref([])
@@ -191,12 +202,60 @@ async function loadData() {
   }
 }
 
-async function loadClassrooms() {
-  const response = await getTeacherClassroomOptions()
-  classroomOptions.value = response.data || []
+async function loadAvailableExamClassrooms() {
+  if (!form.examId || !form.requestedExamDate || !form.requestedStartTime || !form.requestedEndTime) {
+    classroomOptions.value = []
+    form.requestedClassroomId = ''
+    return
+  }
+  if (form.requestedStartTime >= form.requestedEndTime) {
+    classroomOptions.value = []
+    form.requestedClassroomId = ''
+    return
+  }
+  classroomLoading.value = true
+  try {
+    const response = await getTeacherAvailableExamClassroomOptions({
+      examId: form.examId,
+      examDate: form.requestedExamDate,
+      startTime: form.requestedStartTime,
+      endTime: form.requestedEndTime
+    })
+    classroomOptions.value = response.data || []
+    if (form.requestedClassroomId && !classroomOptions.value.some(item => item.value === form.requestedClassroomId)) {
+      form.requestedClassroomId = ''
+    }
+  } catch {
+    classroomOptions.value = []
+    form.requestedClassroomId = ''
+  } finally {
+    classroomLoading.value = false
+  }
 }
 
-function openRequest(row) {
+function addHoursToTime(time, hours) {
+  if (!time) {
+    return ''
+  }
+  const parts = String(time).split(':').map(item => Number(item))
+  if (parts.length < 2 || parts.some(item => Number.isNaN(item))) {
+    return ''
+  }
+  const totalMinutes = (parts[0] * 60 + parts[1] + hours * 60) % (24 * 60)
+  const nextHour = String(Math.floor(totalMinutes / 60)).padStart(2, '0')
+  const nextMinute = String(totalMinutes % 60).padStart(2, '0')
+  const second = String(parts[2] || 0).padStart(2, '0')
+  return `${nextHour}:${nextMinute}:${second}`
+}
+
+async function handleStartTimeChange() {
+  if (form.requestedStartTime) {
+    form.requestedEndTime = addHoursToTime(form.requestedStartTime, 2)
+  }
+  await loadAvailableExamClassrooms()
+}
+
+async function openRequest(row) {
   currentExam.value = row
   form.examId = row.examId
   form.requestedExamDate = formatDate(row.examDate)
@@ -205,6 +264,7 @@ function openRequest(row) {
   form.requestedClassroomId = row.classroomId || ''
   form.requestReason = ''
   requestVisible.value = true
+  await loadAvailableExamClassrooms()
 }
 
 async function handleSubmit() {
@@ -255,7 +315,6 @@ async function handleCancel(row) {
 
 onMounted(() => {
   loadData()
-  loadClassrooms()
 })
 </script>
 
