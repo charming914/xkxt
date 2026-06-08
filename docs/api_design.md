@@ -359,10 +359,13 @@
 说明：
 - 默认只返回当前学期教学班，避免影响调课申请等当前学期业务。
 - 教师授课课表页传 `includeAllSemesters=true`，用于按学期切换查看课表。
-- 返回字段包含 `semesterId`、`semesterName`、`semesterStartDate`、`semesterEndDate`、`courseSelectStart`、`courseSelectEnd`、`isCurrent`，供课表页展示学期起止和选课状态。
+- 返回字段包含 `semesterId`、`semesterName`、`semesterStartDate`、`semesterEndDate`、`courseSelectStart`、`courseSelectEnd`、`isCurrent`、`usualRatio`、`examRatio`，供课表页展示学期起止、选课状态和“平时:考试”比例。
 
 ### `GET /api/teacher/teaching-classes/{teachingClassId}`
 用途：查看本人教学班详情
+
+说明：
+- 返回字段包含 `usualRatio`、`examRatio`，用于教学班详情展示“平时:考试”比例。
 
 ### `GET /api/teacher/teaching-classes/{teachingClassId}/students`
 用途：查看教学班学生名单
@@ -430,6 +433,11 @@
 ### `POST /api/teacher/scores/batch`
 用途：批量暂存或批量提交成绩
 
+说明：
+- 教师端成绩 CSV/XLSX 离线导入复用该接口，导入结果按 `isSubmitted = 0` 暂存。
+- 离线导入只提交匹配成功且未提交的成绩行，字段只包含 `studentId`、`teachingClassId`、`usualScore`、`examScore`、`isSubmitted`。
+- 导入不会使用离线表中的总评成绩、绩点或提交状态，最终总评和绩点仍由数据库触发器计算。
+
 ### `GET /api/teacher/scores`
 用途：查看成绩列表
 
@@ -438,11 +446,16 @@
 - `studentId`
 
 说明：
-- 返回字段包含 `finalScore`、`gpaPoint` 等成绩统计字段。
+- 返回字段包含 `usualRatio`、`examRatio`、`finalScore`、`gpaPoint` 等成绩统计字段。
 - 教师端成绩录入页基于当前筛选范围统计学生人数、平均分、最高分、最低分、及格率和绩点分布；绩点评价符号复用学生端成绩统计规则。
+- 教师端导出的 CSV 或 XLSX 可离线填写后导入；导入按表头和学生身份匹配，不依赖行顺序。
 
 ### `GET /api/teacher/scores/submit-window/{teachingClassId}`
 用途：查看指定教学班所在学期的成绩提交时间窗口
+
+说明：
+- 教师端成绩录入页基于该接口常驻展示成绩录入截止时间。
+- 未筛选具体教学班时，前端只统计未完成成绩录入的教学班，并优先展示未来最近截止时间；已全部提交成绩的教学班不再显示截止时间。
 
 ### `GET /api/teacher/score-change-requests`
 用途：查询本人提交的成绩修改申请

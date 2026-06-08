@@ -18,11 +18,36 @@
         />
       </el-select>
       <div class="toolbar-actions">
-        <el-button :disabled="filteredScores.length === 0" @click="exportScores">导出成绩</el-button>
+        <el-dropdown trigger="click" :disabled="filteredScores.length === 0" @command="handleExportCommand">
+          <el-button :disabled="filteredScores.length === 0">导出成绩</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="xlsx">导出 XLSX</el-dropdown-item>
+              <el-dropdown-item command="csv">导出 CSV</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <el-button :loading="importing" :disabled="filteredScores.length === 0" @click="openScoreImport">导入成绩</el-button>
         <el-button :disabled="editableScores.length === 0" @click="handleBatchSave(0)">批量暂存</el-button>
         <el-button type="primary" :disabled="editableScores.length === 0" @click="handleBatchSave(1)">批量提交</el-button>
       </div>
+      <input
+        ref="scoreImportInput"
+        class="hidden-file-input"
+        type="file"
+        accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        @change="handleScoreImportFile"
+      />
     </div>
+
+    <el-alert
+      class="deadline-alert"
+      :title="scoreDeadlineReminder.title"
+      :description="scoreDeadlineReminder.description"
+      :type="scoreDeadlineReminder.type"
+      show-icon
+      :closable="false"
+    />
 
     <div class="summary-row">
       <div class="summary-card">
@@ -76,6 +101,9 @@
     <el-table v-loading="loading" :data="pagedData" border>
       <el-table-column prop="teachingClassId" label="教学班编号" width="120" />
       <el-table-column prop="courseName" label="课程名称" min-width="160" />
+      <el-table-column label="平时:考试" width="110">
+        <template #default="{ row }">{{ scoreRatioLabel(row) }}</template>
+      </el-table-column>
       <el-table-column prop="studentId" label="学号" width="120" />
       <el-table-column prop="studentName" label="姓名" width="110" />
       <el-table-column label="平时成绩" width="130">
@@ -166,6 +194,7 @@ import {
   createTeacherScoreChangeRequest,
   getTeacherScoreChangeRequests,
   getTeacherScores,
+  getScoreSubmitWindow,
   saveTeacherScore,
   saveTeacherScores
 } from '../../api/teacher'
@@ -176,8 +205,11 @@ const userStore = useUserStore()
 const loading = ref(false)
 const requestLoading = ref(false)
 const requestSubmitting = ref(false)
+const importing = ref(false)
 const scores = ref([])
 const scoreChangeRequests = ref([])
+const scoreSubmitWindows = ref({})
+const scoreImportInput = ref(null)
 const selectedScore = ref(null)
 const scoreChangeReason = ref('')
 const scoreChangeVisible = ref(false)
@@ -199,6 +231,9 @@ const filteredScores = computed(() => {
 })
 
 const editableScores = computed(() => filteredScores.value.filter(item => !item.isSubmitted))
+const filteredTeachingClassIds = computed(() => {
+  return Array.from(new Set(filteredScores.value.map(item => item.teachingClassId).filter(Boolean)))
+})
 const gpaLevels = [
   { gpa: '4.0', grade: 'A' },
   { gpa: '3.7', grade: 'A-' },
@@ -256,6 +291,66 @@ const scoreStats = computed(() => {
   }
 })
 
+const scoreDeadlineReminder = computed(() => {
+  if (loading.value) {
+    return {
+      title: '成绩录入截止时间加载中',
+      description: '正在读取教学班成绩提交时间窗口。',
+      type: 'info'
+    }
+  }
+  if (filteredScores.value.length === 0) {
+    return {
+      title: '成绩录入截止时间',
+      description: '当前没有可录入成绩的教学班。',
+      type: 'info'
+    }
+  }
+  const pendingClassIds = filteredTeachingClassIds.value.filter(teachingClassId => !isTeachingClassCompleted(teachingClassId))
+  if (pendingClassIds.length === 0) {
+    return {
+      title: '成绩录入已完成',
+      description: '',
+      type: 'success'
+    }
+  }
+  const windows = pendingClassIds
+    .map(id => ({ teachingClassId: id, ...(scoreSubmitWindows.value[id] || {}) }))
+    .filter(item => item.scoreSubmitEnd)
+  if (windows.length === 0) {
+    return {
+      title: '成绩录入截止时间未设置',
+      description: selectedTeachingClassId.value
+        ? '当前教学班尚未设置成绩提交截止时间。'
+        : '当前列表中的教学班尚未设置成绩提交截止时间。',
+      type: 'warning'
+    }
+  }
+  const now = Date.now()
+  const futureWindows = windows
+    .filter(item => parseDateTime(item.scoreSubmitEnd) >= now)
+    .sort((a, b) => parseDateTime(a.scoreSubmitEnd) - parseDateTime(b.scoreSubmitEnd))
+  const overdueWindows = windows
+    .filter(item => parseDateTime(item.scoreSubmitEnd) < now)
+    .sort((a, b) => parseDateTime(b.scoreSubmitEnd) - parseDateTime(a.scoreSubmitEnd))
+  const selectedWindow = selectedTeachingClassId.value
+    ? windows.find(item => item.teachingClassId === selectedTeachingClassId.value)
+    : null
+  const target = selectedWindow || futureWindows[0] || overdueWindows[0]
+  const deadline = formatDateTime(target.scoreSubmitEnd)
+  const start = formatDateTime(target.scoreSubmitStart)
+  const expired = parseDateTime(target.scoreSubmitEnd) < now
+  return {
+    title: selectedTeachingClassId.value
+      ? `成绩录入截止时间：${deadline}`
+      : `最近成绩录入截止时间：${deadline}`,
+    description: selectedTeachingClassId.value
+      ? `教学班 ${target.teachingClassId} 的成绩提交窗口：${start} 至 ${deadline}`
+      : `当前列表中最近截止的教学班为 ${target.teachingClassId}；选择具体教学班可查看对应截止时间。`,
+    type: expired ? 'error' : 'warning'
+  }
+})
+
 const gpaDistribution = computed(() => {
   const counts = new Map(gpaLevels.map(item => [item.gpa, 0]))
   filteredScores.value.forEach(item => {
@@ -294,9 +389,23 @@ async function loadScores() {
       usualScore: item.usualScore ?? 0,
       examScore: item.examScore ?? 0
     }))
+    await loadScoreSubmitWindows()
   } finally {
     loading.value = false
   }
+}
+
+async function loadScoreSubmitWindows() {
+  const teachingClassIds = Array.from(new Set(scores.value.map(item => item.teachingClassId).filter(Boolean)))
+  const entries = await Promise.all(teachingClassIds.map(async teachingClassId => {
+    try {
+      const response = await getScoreSubmitWindow(teachingClassId)
+      return [teachingClassId, response.data || {}]
+    } catch (error) {
+      return [teachingClassId, {}]
+    }
+  }))
+  scoreSubmitWindows.value = Object.fromEntries(entries)
 }
 
 async function loadScoreChangeRequests() {
@@ -342,6 +451,41 @@ async function handleBatchSave(isSubmitted) {
   await loadScores()
 }
 
+function openScoreImport() {
+  if (filteredScores.value.length === 0) {
+    ElMessage.warning('当前没有可导入的成绩列表')
+    return
+  }
+  if (scoreImportInput.value) {
+    scoreImportInput.value.value = ''
+    scoreImportInput.value.click()
+  }
+}
+
+async function handleScoreImportFile(event) {
+  const file = event.target.files?.[0]
+  if (!file) {
+    return
+  }
+  importing.value = true
+  try {
+    const rows = await readScoreImportRows(file)
+    const result = buildScoreImportPayload(rows)
+    if (result.payload.length === 0) {
+      ElMessage.warning(`未导入成绩：${result.message}`)
+      return
+    }
+    await saveTeacherScores(result.payload)
+    ElMessage.success(`导入成功，已暂存 ${result.payload.length} 条；跳过 ${result.skipped} 条`)
+    await loadScores()
+  } finally {
+    importing.value = false
+    if (event.target) {
+      event.target.value = ''
+    }
+  }
+}
+
 function requestStatusType(status) {
   if (status === '已通过') return 'success'
   if (status === '已驳回') return 'danger'
@@ -353,6 +497,207 @@ function gradeTagType(grade) {
   if (grade === 'F') return 'danger'
   if (grade.startsWith('D')) return 'warning'
   return 'info'
+}
+
+function scoreRatioLabel(row) {
+  if (row.usualRatio == null || row.examRatio == null) {
+    return '-'
+  }
+  return `${row.usualRatio} : ${row.examRatio}`
+}
+
+function isTeachingClassCompleted(teachingClassId) {
+  const classScores = scores.value.filter(item => item.teachingClassId === teachingClassId)
+  return classScores.length > 0 && classScores.every(item => Boolean(item.isSubmitted))
+}
+
+function parseDateTime(value) {
+  if (!value) return Number.POSITIVE_INFINITY
+  return new Date(String(value).replace('T', ' ').replace(/-/g, '/')).getTime()
+}
+
+function formatDateTime(value) {
+  if (!value) return '未设置'
+  return String(value).replace('T', ' ').slice(0, 19)
+}
+
+async function readScoreImportRows(file) {
+  if (isXlsxFile(file)) {
+    return readXlsxRows(file)
+  }
+  const text = await readTextFile(file)
+  return parseCsv(text)
+}
+
+function readTextFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsText(file, 'utf-8')
+  })
+}
+
+function readArrayBufferFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsArrayBuffer(file)
+  })
+}
+
+async function readXlsxRows(file) {
+  const XLSX = await loadXlsx()
+  const buffer = await readArrayBufferFile(file)
+  const workbook = XLSX.read(buffer, { type: 'array' })
+  const firstSheetName = workbook.SheetNames[0]
+  if (!firstSheetName) {
+    return []
+  }
+  const worksheet = workbook.Sheets[firstSheetName]
+  return XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
+}
+
+function isXlsxFile(file) {
+  return /\.xlsx$/i.test(file?.name || '')
+}
+
+function buildScoreImportPayload(rows) {
+  if (rows.length < 2) {
+    return { payload: [], skipped: 0, message: '文件中没有可读取的数据行' }
+  }
+  const headers = rows[0].map(normalizeHeader)
+  const studentIdIndex = findHeaderIndex(headers, ['学号', 'studentid'])
+  const studentNameIndex = findHeaderIndex(headers, ['姓名', '学生', '学生姓名', 'studentname', 'name'])
+  const usualScoreIndex = findHeaderIndex(headers, ['平时成绩', 'usualscore'])
+  const examScoreIndex = findHeaderIndex(headers, ['考试成绩', 'examscore'])
+  const teachingClassIndex = findHeaderIndex(headers, ['教学班编号', '教学班', 'teachingclassid'])
+  if (studentIdIndex < 0 || studentNameIndex < 0 || usualScoreIndex < 0 || examScoreIndex < 0) {
+    return {
+      payload: [],
+      skipped: Math.max(rows.length - 1, 0),
+      message: '需要包含学号、姓名、平时成绩和考试成绩列'
+    }
+  }
+
+  const editableRows = filteredScores.value.filter(item => !item.isSubmitted)
+  const byIdentity = new Map()
+  editableRows.forEach(row => {
+    const key = scoreImportKey(row.studentId, row.studentName)
+    if (!byIdentity.has(key)) {
+      byIdentity.set(key, [])
+    }
+    byIdentity.get(key).push(row)
+  })
+
+  const latestByClassAndStudent = new Map()
+  let skipped = 0
+  rows.slice(1).forEach(row => {
+    const studentId = normalizeCell(row[studentIdIndex])
+    const studentName = normalizeCell(row[studentNameIndex])
+    const usualScore = parseImportScore(row[usualScoreIndex])
+    const examScore = parseImportScore(row[examScoreIndex])
+    if (!studentId || !studentName || usualScore === null || examScore === null) {
+      skipped += 1
+      return
+    }
+    const matches = byIdentity.get(scoreImportKey(studentId, studentName)) || []
+    const teachingClassId = teachingClassIndex >= 0 ? normalizeCell(row[teachingClassIndex]) : ''
+    const matchedRows = teachingClassId
+      ? matches.filter(item => String(item.teachingClassId) === teachingClassId)
+      : matches
+    if (matchedRows.length !== 1) {
+      skipped += 1
+      return
+    }
+    const matched = matchedRows[0]
+    latestByClassAndStudent.set(`${matched.teachingClassId}:${matched.studentId}`, {
+      studentId: matched.studentId,
+      teachingClassId: matched.teachingClassId,
+      usualScore,
+      examScore,
+      isSubmitted: 0
+    })
+  })
+
+  return {
+    payload: Array.from(latestByClassAndStudent.values()),
+    skipped,
+    message: '没有匹配到可暂存的未提交成绩'
+  }
+}
+
+function parseCsv(text) {
+  const normalized = String(text || '').replace(/^\uFEFF/, '')
+  const rows = []
+  let current = ''
+  let row = []
+  let inQuotes = false
+  for (let i = 0; i < normalized.length; i += 1) {
+    const char = normalized[i]
+    const next = normalized[i + 1]
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"'
+        i += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+    if (char === ',' && !inQuotes) {
+      row.push(current)
+      current = ''
+      continue
+    }
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && next === '\n') {
+        i += 1
+      }
+      row.push(current)
+      if (row.some(cell => normalizeCell(cell) !== '')) {
+        rows.push(row)
+      }
+      row = []
+      current = ''
+      continue
+    }
+    current += char
+  }
+  row.push(current)
+  if (row.some(cell => normalizeCell(cell) !== '')) {
+    rows.push(row)
+  }
+  return rows
+}
+
+function findHeaderIndex(headers, aliases) {
+  return headers.findIndex(header => aliases.includes(header))
+}
+
+function normalizeHeader(value) {
+  return normalizeCell(value).replace(/\s+/g, '').replace(/[:：]/g, '').toLowerCase()
+}
+
+function normalizeCell(value) {
+  return value == null ? '' : String(value).trim()
+}
+
+function scoreImportKey(studentId, studentName) {
+  return `${normalizeCell(studentId)}::${normalizeCell(studentName)}`
+}
+
+function parseImportScore(value) {
+  const text = normalizeCell(value)
+  if (!text) {
+    return null
+  }
+  const score = Number(text)
+  if (!Number.isFinite(score) || score < 0 || score > 100) {
+    return null
+  }
+  return score
 }
 
 function openScoreChangeDialog(row) {
@@ -388,11 +733,20 @@ function escapeCsv(value) {
   return `"${text.replace(/"/g, '""')}"`
 }
 
-function exportScores() {
-  const headers = ['教学班编号', '课程名称', '学号', '姓名', '平时成绩', '考试成绩', '总评成绩', '绩点', '提交状态']
+async function handleExportCommand(command) {
+  if (command === 'csv') {
+    exportScoresCsv()
+    return
+  }
+  await exportScoresXlsx()
+}
+
+function buildScoreExportRows() {
+  const headers = ['教学班编号', '课程名称', '平时:考试', '学号', '姓名', '平时成绩', '考试成绩', '总评成绩', '绩点', '提交状态']
   const rows = filteredScores.value.map(row => [
     row.teachingClassId,
     row.courseName,
+    scoreRatioLabel(row),
     row.studentId,
     row.studentName,
     row.usualScore,
@@ -401,6 +755,11 @@ function exportScores() {
     row.gpaPoint,
     row.isSubmitted ? '已提交' : '未提交'
   ])
+  return { headers, rows }
+}
+
+function exportScoresCsv() {
+  const { headers, rows } = buildScoreExportRows()
   const content = [headers, ...rows].map(row => row.map(escapeCsv).join(',')).join('\n')
   const blob = new Blob([`\uFEFF${content}`], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
@@ -409,6 +768,19 @@ function exportScores() {
   link.download = `teacher-scores-${selectedTeachingClassId.value || 'all'}.csv`
   link.click()
   URL.revokeObjectURL(url)
+}
+
+async function exportScoresXlsx() {
+  const XLSX = await loadXlsx()
+  const { headers, rows } = buildScoreExportRows()
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows])
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, '成绩录入')
+  XLSX.writeFile(workbook, `teacher-scores-${selectedTeachingClassId.value || 'all'}.xlsx`)
+}
+
+async function loadXlsx() {
+  return import('xlsx')
 }
 
 onMounted(() => {
@@ -436,6 +808,14 @@ onMounted(() => {
 
 .class-filter {
   width: 280px;
+}
+
+.deadline-alert {
+  margin-bottom: 16px;
+}
+
+.hidden-file-input {
+  display: none;
 }
 
 .summary-row {
