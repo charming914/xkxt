@@ -218,7 +218,9 @@ const selectedTeachingClassId = ref('')
 const classOptions = computed(() => {
   const classes = new Map()
   scores.value.forEach(item => {
-    classes.set(item.teachingClassId, `${item.teachingClassId} - ${item.courseName}`)
+    if (!classes.has(item.teachingClassId)) {
+      classes.set(item.teachingClassId, buildTeachingClassOptionLabel(item))
+    }
   })
   return Array.from(classes, ([value, label]) => ({ value, label }))
 })
@@ -504,6 +506,41 @@ function scoreRatioLabel(row) {
     return '-'
   }
   return `${row.usualRatio} : ${row.examRatio}`
+}
+
+function buildTeachingClassOptionLabel(row) {
+  const base = `${row.teachingClassId} - ${row.courseName}`
+  const details = [
+    row.semesterName,
+    formatTeachingTime(row)
+  ].filter(Boolean).join('｜')
+  return details ? `${base}｜${details}` : base
+}
+
+function formatTeachingTime(row) {
+  const parts = []
+  if (row.weekDay) {
+    parts.push(`周${formatWeekDay(row.weekDay)}`)
+  }
+  if (row.sectionDesc) {
+    parts.push(row.sectionDesc)
+  }
+  if (row.weekRange) {
+    parts.push(row.weekRange)
+  }
+  return parts.join(' ')
+}
+
+function formatWeekDay(weekDay) {
+  return {
+    1: '一',
+    2: '二',
+    3: '三',
+    4: '四',
+    5: '五',
+    6: '六',
+    7: '日'
+  }[Number(weekDay)] || weekDay
 }
 
 function isTeachingClassCompleted(teachingClassId) {
@@ -807,7 +844,7 @@ onMounted(() => {
 }
 
 .class-filter {
-  width: 280px;
+  width: 520px;
 }
 
 .deadline-alert {

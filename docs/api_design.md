@@ -446,9 +446,10 @@
 - `studentId`
 
 说明：
-- 返回字段包含 `usualRatio`、`examRatio`、`finalScore`、`gpaPoint` 等成绩统计字段。
+- 返回字段包含 `semesterName`、`weekDay`、`sectionDesc`、`weekRange`、`usualRatio`、`examRatio`、`finalScore`、`gpaPoint` 等成绩统计字段。
 - 教师端成绩录入页基于当前筛选范围统计学生人数、平均分、最高分、最低分、及格率和绩点分布；绩点评价符号复用学生端成绩统计规则。
 - 教师端导出的 CSV 或 XLSX 可离线填写后导入；导入按表头和学生身份匹配，不依赖行顺序。
+- 教学班筛选项展示教学班编号、课程名称、学期、星期、节次和周次，便于教师导入成绩前选择正确教学班。
 
 ### `GET /api/teacher/scores/submit-window/{teachingClassId}`
 用途：查看指定教学班所在学期的成绩提交时间窗口
