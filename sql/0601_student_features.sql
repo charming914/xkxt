@@ -131,28 +131,27 @@ BEGIN
         FROM teaching_class tc
         WHERE tc.teaching_class_id = OLD.teaching_class_id;
 
-        IF v_course_start_date IS NULL THEN
-            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '课程开课日期未设置，无法退课';
-        END IF;
+        IF v_course_start_date IS NOT NULL
+           AND CURDATE() >= v_course_start_date THEN
+            SELECT COUNT(*)
+            INTO v_approved_count
+            FROM course_drop_request cdr
+            WHERE cdr.student_id = OLD.student_id
+              AND cdr.teaching_class_id = OLD.teaching_class_id
+              AND cdr.request_status = '已通过'
+              AND cdr.teacher_status = '已通过'
+              AND cdr.admin_status = '已通过'
+              AND cdr.created_at <= DATE_ADD(v_course_start_date, INTERVAL 21 DAY);
 
-        SELECT COUNT(*)
-        INTO v_approved_count
-        FROM course_drop_request cdr
-        WHERE cdr.student_id = OLD.student_id
-          AND cdr.teaching_class_id = OLD.teaching_class_id
-          AND cdr.request_status = '已通过'
-          AND cdr.teacher_status = '已通过'
-          AND cdr.admin_status = '已通过'
-          AND cdr.created_at <= DATE_ADD(v_course_start_date, INTERVAL 21 DAY);
+            IF CURDATE() > DATE_ADD(v_course_start_date, INTERVAL 21 DAY)
+               AND v_approved_count = 0 THEN
+                SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '已超过开课三周，不能退课';
+            END IF;
 
-        IF CURDATE() > DATE_ADD(v_course_start_date, INTERVAL 21 DAY)
-           AND v_approved_count = 0 THEN
-            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '已超过开课三周，不能退课';
-        END IF;
-
-        IF CURDATE() > DATE_ADD(v_course_start_date, INTERVAL 7 DAY)
-           AND v_approved_count = 0 THEN
-            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '开课超过一周，需教师和管理员均同意后才能退课';
+            IF CURDATE() > DATE_ADD(v_course_start_date, INTERVAL 7 DAY)
+               AND v_approved_count = 0 THEN
+                SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '开课超过一周，需教师和管理员均同意后才能退课';
+            END IF;
         END IF;
     END IF;
 END$$
@@ -171,7 +170,7 @@ BEGIN
     WHERE tc.teaching_class_id = NEW.teaching_class_id;
 
     IF v_course_start_date IS NULL THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '课程开课日期未设置，无法提交退课申请';
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '新学期未设置开课日期，可直接退课，无需提交申请';
     END IF;
 
     SELECT COUNT(*)
@@ -183,6 +182,10 @@ BEGIN
 
     IF v_selected_count = 0 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '未选该课程，不能提交退课申请';
+    END IF;
+
+    IF CURDATE() < v_course_start_date THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '课程尚未开课，可直接退课，无需提交申请';
     END IF;
 
     IF CURDATE() <= DATE_ADD(v_course_start_date, INTERVAL 7 DAY) THEN

@@ -107,16 +107,31 @@ const navItems = computed(() => {
   if (canViewStudent.value) {
     items.push(
       { path: '/student/profile', label: '个人信息' },
-      { path: '/student/semesters', label: '学期总览' },
-      { path: '/student/courses', label: '学生选课' },
-      { path: '/student/course-plans', label: '选课计划' },
-      { path: '/student/selected-courses', label: '已选课程' },
-      { path: '/student/drop-courses', label: '退课' },
-      { path: '/student/timetable', label: '学生课表' },
-      { path: '/student/exams', label: '考试安排' },
-      { path: '/student/scores', label: '学生成绩' },
-      { path: '/student/remediation', label: '补考重修' },
-      { path: '/student/academic-progress', label: '学业进度' }
+      {
+        label: '选课管理',
+        children: [
+          { path: '/student/courses', label: '学生选课' },
+          { path: '/student/course-plans', label: '选课计划' },
+          { path: '/student/selected-courses', label: '已选课程' },
+          { path: '/student/drop-courses', label: '退课' }
+        ]
+      },
+      {
+        label: '学期课表',
+        children: [
+          { path: '/student/semesters', label: '学期总览' },
+          { path: '/student/timetable', label: '学生课表' },
+          { path: '/student/exams', label: '考试安排' }
+        ]
+      },
+      {
+        label: '成绩学业',
+        children: [
+          { path: '/student/scores', label: '学生成绩' },
+          { path: '/student/remediation', label: '补考重修' },
+          { path: '/student/academic-progress', label: '学业进度' }
+        ]
+      }
     )
   }
   if (canViewTeacher.value) {
