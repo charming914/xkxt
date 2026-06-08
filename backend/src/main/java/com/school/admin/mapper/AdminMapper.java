@@ -210,6 +210,44 @@ public interface AdminMapper {
     @Options(useGeneratedKeys = true, keyProperty = "semesterId", keyColumn = "semester_id")
     int insertSemester(@Param("request") SemesterRequest request);
 
+    @Update("""
+        UPDATE semester SET
+            semester_name = #{request.semesterName},
+            school_year = #{request.schoolYear},
+            term_code = #{request.termCode},
+            start_date = #{request.startDate},
+            end_date = #{request.endDate},
+            course_select_start = #{request.courseSelectStart},
+            course_select_end = #{request.courseSelectEnd}
+        WHERE semester_id = #{request.semesterId}
+        """)
+    int updateSemester(@Param("request") SemesterRequest request);
+
+    @Delete("DELETE FROM semester WHERE semester_id = #{semesterId}")
+    int deleteSemester(@Param("semesterId") Integer semesterId);
+
+    @Select("""
+        SELECT COUNT(*) FROM semester
+        WHERE semester_name = #{semesterName}
+          AND (#{excludeId} IS NULL OR semester_id <> #{excludeId})
+        """)
+    int countSemesterByName(@Param("semesterName") String semesterName, @Param("excludeId") Integer excludeId);
+
+    @Select("SELECT COUNT(*) FROM semester WHERE semester_id = #{semesterId} AND is_current = 1")
+    int isCurrentSemester(@Param("semesterId") Integer semesterId);
+
+    @Select("SELECT COUNT(*) FROM teaching_class WHERE semester_id = #{semesterId}")
+    int countTeachingClassesBySemester(@Param("semesterId") Integer semesterId);
+
+    @Select("""
+        SELECT end_date FROM semester
+        WHERE start_date < #{startDate}
+          AND (#{excludeId} IS NULL OR semester_id <> #{excludeId})
+        ORDER BY start_date DESC
+        LIMIT 1
+        """)
+    String selectPreviousSemesterEndDate(@Param("startDate") String startDate, @Param("excludeId") Integer excludeId);
+
     @Update("UPDATE semester SET is_current = 0")
     int clearCurrentSemester();
 
