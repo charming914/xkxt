@@ -312,11 +312,19 @@ public class AdminService {
     }
 
     public void createCourse(AdminCourseRequest request) {
+        validateScoreRatio(request);
         adminMapper.insertCourse(request);
     }
 
     public void updateCourse(String courseId, AdminCourseRequest request) {
+        validateScoreRatio(request);
         adminMapper.updateCourse(courseId, request);
+    }
+
+    private void validateScoreRatio(AdminCourseRequest request) {
+        if (request.getUsualRatio() + request.getExamRatio() != 100) {
+            throw new BusinessException("平时成绩占比与考试成绩占比之和必须为100");
+        }
     }
 
     public void deleteCourse(String courseId) {

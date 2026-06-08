@@ -21,6 +21,9 @@
         <el-table-column prop="credit" label="学分" width="80" />
         <el-table-column prop="totalHours" label="学时" width="80" />
         <el-table-column prop="assessmentMethod" label="考核方式" width="100" />
+        <el-table-column label="平时:考试" width="110">
+          <template #default="{ row }">{{ row.usualRatio }} : {{ row.examRatio }}</template>
+        </el-table-column>
         <el-table-column prop="departmentName" label="开课院系" min-width="150" />
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
@@ -67,6 +70,10 @@
             <el-option label="考试" value="考试" />
             <el-option label="考查" value="考查" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="平时成绩占比">
+          <el-input-number v-model="form.usualRatio" :min="0" :max="100" :step="5" @change="handleUsualRatioChange" />
+          <span class="ratio-hint">考试占比 {{ form.examRatio }}%（平时+考试=100）</span>
         </el-form-item>
         <el-form-item label="开课院系">
           <el-select v-model="form.departmentId">
@@ -124,10 +131,18 @@ const form = reactive({
   credit: 4,
   totalHours: 48,
   assessmentMethod: '考试',
+  usualRatio: 40,
+  examRatio: 60,
   departmentId: '',
   isRequired: 1,
   description: ''
 })
+
+function handleUsualRatioChange(value) {
+  const usual = Number.isFinite(value) ? value : 0
+  form.usualRatio = usual
+  form.examRatio = 100 - usual
+}
 
 async function loadCourses() {
   loading.value = true
@@ -152,6 +167,8 @@ function resetForm() {
     credit: 4,
     totalHours: 48,
     assessmentMethod: '考试',
+    usualRatio: 40,
+    examRatio: 60,
     departmentId: departments.value[0]?.value || '',
     isRequired: 1,
     description: ''
@@ -175,6 +192,8 @@ function openEditDialog(row) {
     credit: Number(row.credit),
     totalHours: Number(row.totalHours),
     assessmentMethod: row.assessmentMethod,
+    usualRatio: row.usualRatio ?? 40,
+    examRatio: row.examRatio ?? 60,
     departmentId: row.departmentId || '',
     isRequired: row.isRequired ?? 1,
     description: row.description || ''
@@ -183,6 +202,10 @@ function openEditDialog(row) {
 }
 
 async function handleSave() {
+  if (Number(form.usualRatio) + Number(form.examRatio) !== 100) {
+    ElMessage.warning('平时成绩占比与考试成绩占比之和必须为100')
+    return
+  }
   if (isEdit.value) {
     await updateAdminCourse(currentId.value, form)
     ElMessage.success('课程修改成功')
@@ -234,6 +257,12 @@ onMounted(() => {
 
 .span-2 {
   grid-column: 1 / -1;
+}
+
+.ratio-hint {
+  margin-left: 10px;
+  color: #909399;
+  font-size: 12px;
 }
 
 .pager {

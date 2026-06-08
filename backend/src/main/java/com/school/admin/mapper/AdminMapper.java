@@ -75,6 +75,8 @@ public interface AdminMapper {
             c.total_hours AS totalHours,
             d.department_name AS departmentName,
             c.assessment_method AS assessmentMethod,
+            c.usual_ratio AS usualRatio,
+            c.exam_ratio AS examRatio,
             c.department_id AS departmentId,
             c.is_required AS isRequired,
             c.description AS description
@@ -324,10 +326,10 @@ public interface AdminMapper {
     @Insert("""
         INSERT INTO course (
             course_id, course_name, course_type, credit, total_hours,
-            assessment_method, department_id, is_required, description
+            assessment_method, usual_ratio, exam_ratio, department_id, is_required, description
         ) VALUES (
             #{request.courseId}, #{request.courseName}, #{request.courseType}, #{request.credit}, #{request.totalHours},
-            #{request.assessmentMethod}, #{request.departmentId}, #{request.isRequired}, #{request.description}
+            #{request.assessmentMethod}, #{request.usualRatio}, #{request.examRatio}, #{request.departmentId}, #{request.isRequired}, #{request.description}
         )
         """)
     int insertCourse(@Param("request") AdminCourseRequest request);
@@ -339,6 +341,8 @@ public interface AdminMapper {
             credit = #{request.credit},
             total_hours = #{request.totalHours},
             assessment_method = #{request.assessmentMethod},
+            usual_ratio = #{request.usualRatio},
+            exam_ratio = #{request.examRatio},
             department_id = #{request.departmentId},
             is_required = #{request.isRequired},
             description = #{request.description}
