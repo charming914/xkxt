@@ -176,9 +176,13 @@ public interface TeacherMapper {
             cs.student_id AS studentId,
             s.student_name AS studentName,
             tc.teaching_class_id AS teachingClassId,
+            sem.semester_name AS semesterName,
             c.course_name AS courseName,
             c.usual_ratio AS usualRatio,
             c.exam_ratio AS examRatio,
+            tc.week_day AS weekDay,
+            tc.section_desc AS sectionDesc,
+            tc.week_range AS weekRange,
             sc.usual_score AS usualScore,
             sc.exam_score AS examScore,
             sc.final_score AS finalScore,
@@ -187,11 +191,12 @@ public interface TeacherMapper {
         FROM course_selection cs
         JOIN student s ON cs.student_id = s.student_id
         JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+        JOIN semester sem ON tc.semester_id = sem.semester_id
         JOIN course c ON tc.course_id = c.course_id
         LEFT JOIN score sc ON sc.student_id = cs.student_id AND sc.teaching_class_id = tc.teaching_class_id
         WHERE tc.teacher_id = #{teacherId}
           AND cs.selection_status = '已选'
-        ORDER BY tc.teaching_class_id, cs.student_id
+        ORDER BY sem.semester_id DESC, tc.teaching_class_id, cs.student_id
         """)
     List<Map<String, Object>> selectScores(@Param("teacherId") String teacherId);
 

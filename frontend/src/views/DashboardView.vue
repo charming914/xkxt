@@ -39,10 +39,10 @@
           <el-button size="small" @click="loadTeacherTodos">刷新</el-button>
         </div>
         <div v-loading="todoLoading" class="todo-grid">
-          <div class="todo-item">
+          <RouterLink to="/teacher/course-drop-requests" class="todo-item todo-link">
             <span>退课待审核</span>
             <strong>{{ teacherTodos.pendingDropRequests || 0 }}</strong>
-          </div>
+          </RouterLink>
           <RouterLink to="/teacher/makeup-requests" class="todo-item todo-link">
             <span>补考待确认</span>
             <strong>{{ teacherTodos.pendingMakeupRequests || 0 }}</strong>
@@ -52,25 +52,25 @@
             content="当前不在相关事务的开放时间内"
             placement="top"
           >
-            <div class="todo-item">
+            <RouterLink to="/teacher/scores" class="todo-item todo-link">
               <span>未录入成绩</span>
               <strong>{{ scoreSubmitWindowOpen ? teacherTodos.missingScores || 0 : '--' }}</strong>
-            </div>
+            </RouterLink>
           </el-tooltip>
           <el-tooltip
             :disabled="scoreSubmitWindowOpen"
             content="当前不在相关事务的开放时间内"
             placement="top"
           >
-            <div class="todo-item">
+            <RouterLink to="/teacher/scores" class="todo-item todo-link">
               <span>未提交成绩</span>
               <strong>{{ scoreSubmitWindowOpen ? teacherTodos.unsubmittedScores || 0 : '--' }}</strong>
-            </div>
+            </RouterLink>
           </el-tooltip>
-          <div class="todo-item">
+          <RouterLink to="/teacher/schedule-adjust-requests" class="todo-item todo-link">
             <span>调课待审核</span>
             <strong>{{ teacherTodos.pendingScheduleAdjustRequests || 0 }}</strong>
-          </div>
+          </RouterLink>
         </div>
       </article>
 
