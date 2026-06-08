@@ -22,6 +22,13 @@ export function getTeacherTodos() {
   })
 }
 
+export function getTeacherCurrentSemester() {
+  return request({
+    url: '/teacher/current-semester',
+    method: 'get'
+  })
+}
+
 export function getTeachingClasses() {
   return request({
     url: '/teacher/teaching-classes',
@@ -98,6 +105,14 @@ export function getTeacherClassroomOptions() {
 export function getTeacherAvailableClassroomOptions(params) {
   return request({
     url: '/teacher/available-classroom-options',
+    method: 'get',
+    params
+  })
+}
+
+export function getTeacherAvailableExamClassroomOptions(params) {
+  return request({
+    url: '/teacher/exam-available-classroom-options',
     method: 'get',
     params
   })

@@ -38,6 +38,11 @@
           </RouterLink>
         </template>
       </nav>
+      <div v-if="showSemesterBadge" class="semester-badge">
+        <span>当前学期</span>
+        <strong>{{ currentSemester.semesterName || '-' }}</strong>
+        <small>{{ semesterDateRange }}</small>
+      </div>
       <el-dropdown trigger="hover" popper-class="nav-dropdown-popper">
         <div class="user-panel">
           <div>
@@ -61,14 +66,17 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
+import { getStudentCurrentSemester } from '../api/student'
+import { getTeacherCurrentSemester } from '../api/teacher'
 import shuLogo from '../assets/shu-logo.png'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const currentSemester = ref({})
 
 const roleLabel = computed(() => {
   const roleMap = {
@@ -82,6 +90,17 @@ const roleLabel = computed(() => {
 const canViewStudent = computed(() => userStore.roleCode === 'STUDENT')
 const canViewTeacher = computed(() => userStore.roleCode === 'TEACHER')
 const canViewAdmin = computed(() => userStore.roleCode === 'ADMIN')
+const showSemesterBadge = computed(() => {
+  return (canViewTeacher.value || canViewStudent.value) && Boolean(currentSemester.value.semesterName)
+})
+const semesterDateRange = computed(() => {
+  const start = formatDate(currentSemester.value.startDate)
+  const end = formatDate(currentSemester.value.endDate)
+  if (!start && !end) {
+    return '起止时间未设置'
+  }
+  return `${start || '-'} 至 ${end || '-'}`
+})
 
 const navItems = computed(() => {
   const items = []
@@ -165,6 +184,41 @@ function handleLogout() {
   userStore.clearUser()
   router.push('/login')
 }
+
+function formatDate(value) {
+  if (!value) {
+    return ''
+  }
+  return String(value).slice(0, 10)
+}
+
+async function loadCurrentSemester() {
+  currentSemester.value = {}
+  try {
+    if (canViewTeacher.value) {
+      const response = await getTeacherCurrentSemester()
+      currentSemester.value = response.data || {}
+      return
+    }
+    if (canViewStudent.value) {
+      const response = await getStudentCurrentSemester()
+      currentSemester.value = response.data || {}
+    }
+  } catch {
+    currentSemester.value = {}
+  }
+}
+
+watch(
+  () => userStore.roleCode,
+  () => {
+    loadCurrentSemester()
+  }
+)
+
+onMounted(() => {
+  loadCurrentSemester()
+})
 </script>
 
 <style scoped>
@@ -243,6 +297,33 @@ function handleLogout() {
   overflow-x: auto;
   padding: 6px;
   scrollbar-width: thin;
+}
+
+.semester-badge {
+  display: grid;
+  gap: 2px;
+  flex: 0 0 auto;
+  min-width: 180px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: #eff8ff;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.semester-badge span {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.semester-badge strong {
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.semester-badge small {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .nav-link {

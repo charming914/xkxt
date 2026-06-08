@@ -648,6 +648,28 @@ public interface AdminMapper {
         @Param("classroomId") String classroomId
     );
 
+    @Select("""
+        SELECT COUNT(*)
+        FROM teaching_class target
+        JOIN teaching_class other_tc
+          ON other_tc.semester_id = target.semester_id
+         AND other_tc.teaching_class_id <> target.teaching_class_id
+         AND other_tc.teacher_id = target.teacher_id
+         AND other_tc.week_day = #{weekDay}
+        WHERE target.teaching_class_id = #{teachingClassId}
+          AND NOT (
+              CAST(REPLACE(SUBSTRING_INDEX(other_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                  < CAST(SUBSTRING_INDEX(#{sectionDesc}, '-', 1) AS UNSIGNED)
+              OR CAST(SUBSTRING_INDEX(other_tc.section_desc, '-', 1) AS UNSIGNED)
+                  > CAST(REPLACE(SUBSTRING_INDEX(#{sectionDesc}, '-', -1), '节', '') AS UNSIGNED)
+          )
+        """)
+    int countTeachingClassTeacherConflict(
+        @Param("teachingClassId") Integer teachingClassId,
+        @Param("weekDay") Integer weekDay,
+        @Param("sectionDesc") String sectionDesc
+    );
+
     @Update("""
         UPDATE teaching_class
         SET week_day = #{weekDay},

@@ -22,6 +22,13 @@ export function getStudentTodos() {
   })
 }
 
+export function getStudentCurrentSemester() {
+  return request({
+    url: '/student/current-semester',
+    method: 'get'
+  })
+}
+
 export function getAvailableCourses(params) {
   return request({
     url: '/student/courses/available',

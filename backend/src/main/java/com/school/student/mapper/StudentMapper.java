@@ -63,6 +63,20 @@ public interface StudentMapper {
 
     @Select("""
         SELECT
+            semester_id AS semesterId,
+            semester_name AS semesterName,
+            school_year AS schoolYear,
+            term_code AS termCode,
+            start_date AS startDate,
+            end_date AS endDate
+        FROM semester
+        WHERE is_current = 1
+        LIMIT 1
+        """)
+    Map<String, Object> selectCurrentSemester();
+
+    @Select("""
+        SELECT
             (SELECT COUNT(*)
              FROM course_selection cs
              WHERE cs.student_id = #{studentId}

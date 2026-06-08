@@ -54,6 +54,14 @@ public class StudentService {
         }
     }
 
+    public Map<String, Object> currentSemester() {
+        Map<String, Object> semester = studentMapper.selectCurrentSemester();
+        if (semester == null) {
+            throw new BusinessException("当前学期不存在");
+        }
+        return semester;
+    }
+
     public List<Map<String, Object>> coursePlans(String username, String fallbackStudentId) {
         String studentId = resolveStudentId(username, fallbackStudentId);
         return studentMapper.selectCoursePlans(studentId);

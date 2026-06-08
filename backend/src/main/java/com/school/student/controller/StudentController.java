@@ -56,6 +56,11 @@ public class StudentController {
         return ApiResponse.success(studentService.todoSummary(username, studentId));
     }
 
+    @GetMapping("/current-semester")
+    public ApiResponse<Map<String, Object>> currentSemester() {
+        return ApiResponse.success(studentService.currentSemester());
+    }
+
     @GetMapping("/courses/available")
     public ApiResponse<List<Map<String, Object>>> availableCourses(
         StudentCourseQueryRequest query,

@@ -510,6 +510,9 @@ public class AdminService {
             if (adminMapper.countTeachingClassRoomConflict(teachingClassId, weekDay, sectionDesc, classroomId) > 0) {
                 throw new BusinessException("审核失败：目标教室在该时间段已被占用");
             }
+            if (adminMapper.countTeachingClassTeacherConflict(teachingClassId, weekDay, sectionDesc) > 0) {
+                throw new BusinessException("审核失败：申请时间冲突");
+            }
             adminMapper.applyScheduleAdjustRequest(teachingClassId, weekDay, sectionDesc, weekRange, classroomId);
             adminMapper.updateScheduleAdjustRequestStatus(adjustRequestId, "已通过", request.getReviewComment(), adminUserId);
             return;

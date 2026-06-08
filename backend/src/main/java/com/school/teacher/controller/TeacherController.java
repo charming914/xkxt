@@ -121,6 +121,11 @@ public class TeacherController {
         return ApiResponse.success(teacherService.classroomOptions());
     }
 
+    @GetMapping("/current-semester")
+    public ApiResponse<Map<String, Object>> currentSemester() {
+        return ApiResponse.success(teacherService.currentSemester());
+    }
+
     @GetMapping("/available-classroom-options")
     public ApiResponse<List<Map<String, Object>>> availableClassroomOptions(
         @RequestParam Integer teachingClassId,
@@ -129,6 +134,23 @@ public class TeacherController {
         @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
     ) {
         return ApiResponse.success(teacherService.availableClassroomOptions(teacherId, teachingClassId, weekDay, sectionDesc));
+    }
+
+    @GetMapping("/exam-available-classroom-options")
+    public ApiResponse<List<Map<String, Object>>> examAvailableClassroomOptions(
+        @RequestParam Long examId,
+        @RequestParam String examDate,
+        @RequestParam String startTime,
+        @RequestParam String endTime,
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        return ApiResponse.success(teacherService.examAvailableClassroomOptions(
+            teacherId,
+            examId,
+            examDate,
+            startTime,
+            endTime
+        ));
     }
 
     @GetMapping("/schedule-adjust-requests")

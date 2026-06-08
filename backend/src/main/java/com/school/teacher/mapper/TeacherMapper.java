@@ -257,6 +257,20 @@ public interface TeacherMapper {
 
     @Select("""
         SELECT
+            semester_id AS semesterId,
+            semester_name AS semesterName,
+            school_year AS schoolYear,
+            term_code AS termCode,
+            start_date AS startDate,
+            end_date AS endDate
+        FROM semester
+        WHERE is_current = 1
+        LIMIT 1
+        """)
+    Map<String, Object> selectCurrentSemester();
+
+    @Select("""
+        SELECT
             cl.classroom_id AS value,
             CONCAT(cl.building_name, '-', cl.room_name, '（容量', cl.capacity, '）') AS label
         FROM classroom cl
@@ -328,6 +342,30 @@ public interface TeacherMapper {
     int countPendingScheduleAdjustRequest(
         @Param("teacherId") String teacherId,
         @Param("teachingClassId") Integer teachingClassId
+    );
+
+    @Select("""
+        SELECT COUNT(*)
+        FROM teaching_class target
+        JOIN teaching_class other_tc
+          ON other_tc.semester_id = target.semester_id
+         AND other_tc.teaching_class_id <> target.teaching_class_id
+         AND other_tc.teacher_id = #{teacherId}
+         AND other_tc.week_day = #{weekDay}
+        WHERE target.teaching_class_id = #{teachingClassId}
+          AND target.teacher_id = #{teacherId}
+          AND NOT (
+              CAST(REPLACE(SUBSTRING_INDEX(other_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                  < CAST(SUBSTRING_INDEX(#{sectionDesc}, '-', 1) AS UNSIGNED)
+              OR CAST(SUBSTRING_INDEX(other_tc.section_desc, '-', 1) AS UNSIGNED)
+                  > CAST(REPLACE(SUBSTRING_INDEX(#{sectionDesc}, '-', -1), '节', '') AS UNSIGNED)
+          )
+        """)
+    int countTeachingClassTeacherConflict(
+        @Param("teacherId") String teacherId,
+        @Param("teachingClassId") Integer teachingClassId,
+        @Param("weekDay") Integer weekDay,
+        @Param("sectionDesc") String sectionDesc
     );
 
     @Insert("""
@@ -643,6 +681,29 @@ public interface TeacherMapper {
         """)
     int countTeacherExamConflict(
         @Param("teacherId") String teacherId,
+        @Param("examId") Long examId,
+        @Param("examDate") String examDate,
+        @Param("startTime") String startTime,
+        @Param("endTime") String endTime
+    );
+
+    @Select("""
+        SELECT
+            cl.classroom_id AS value,
+            CONCAT(cl.building_name, '-', cl.room_name, '（容量', cl.capacity, '）') AS label
+        FROM classroom cl
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM exam_arrangement ea
+            WHERE ea.exam_id <> #{examId}
+              AND ea.classroom_id = cl.classroom_id
+              AND ea.exam_date = #{examDate}
+              AND ea.start_time < #{endTime}
+              AND #{startTime} < ea.end_time
+        )
+        ORDER BY cl.classroom_id
+        """)
+    List<Map<String, Object>> selectAvailableExamClassroomOptions(
         @Param("examId") Long examId,
         @Param("examDate") String examDate,
         @Param("startTime") String startTime,
