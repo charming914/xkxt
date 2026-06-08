@@ -117,10 +117,9 @@ const navItems = computed(() => {
         ]
       },
       {
-        label: '学期课表',
+        label: '学期信息',
         children: [
           { path: '/student/semesters', label: '学期总览' },
-          { path: '/student/timetable', label: '学生课表' },
           { path: '/student/exams', label: '考试安排' }
         ]
       },

@@ -150,6 +150,51 @@
       </div>
     </template>
 
+    <div class="selected-timetable-section">
+      <div class="sub-header">
+        <h2>已选课表</h2>
+        <el-button @click="loadSelectedTimetable">刷新课表</el-button>
+      </div>
+      <el-empty v-if="!timetableLoading && selectedTimetable.length === 0" description="当前学期暂无已选课程" />
+      <div v-else v-loading="timetableLoading" class="calendar-shell">
+        <div class="calendar-head empty-cell" :style="gridStyle(1, 1)">节次</div>
+        <div
+          v-for="day in timetableWeekDays"
+          :key="day.value"
+          class="calendar-head"
+          :style="gridStyle(day.value + 1, 1)"
+        >
+          周{{ day.label }}
+        </div>
+
+        <template v-for="(slot, slotIndex) in sectionSlots" :key="slot.key">
+          <div class="section-label" :style="gridStyle(1, slotIndex + 2)">
+            <strong>{{ slot.label }}</strong>
+            <span>{{ slot.time }}</span>
+          </div>
+          <div
+            v-for="day in timetableWeekDays"
+            :key="`${day.value}-${slot.key}`"
+            class="calendar-cell"
+            :style="gridStyle(day.value + 1, slotIndex + 2)"
+          />
+        </template>
+
+        <div
+          v-for="course in selectedTimetable"
+          :key="`${course.teachingClassId || course.courseName}-${course.weekDay}-${course.sectionDesc}-${course.weekRange}`"
+          class="course-card"
+          :style="courseGridStyle(course)"
+        >
+          <strong>{{ course.courseName }}</strong>
+          <span>{{ course.sectionDesc }}</span>
+          <span>{{ course.teacherName }}</span>
+          <span>{{ course.weekRange }}</span>
+          <span>{{ course.buildingName || '-' }} {{ course.roomName || '' }}</span>
+        </div>
+      </div>
+    </div>
+
     <div class="request-section">
       <div class="sub-header">
         <h2>我的补选申请</h2>
@@ -205,6 +250,7 @@ import {
   getAvailableCourses,
   getCourseSelectionRequests,
   getStudentSemesters,
+  getStudentTimetable,
   selectCourse
 } from '../../api/student'
 import { useClientPagination } from '../../composables/useClientPagination'
@@ -212,9 +258,11 @@ import { useUserStore } from '../../stores/user'
 
 const userStore = useUserStore()
 const loading = ref(false)
+const timetableLoading = ref(false)
 const submittingId = ref(null)
 const droppingId = ref(null)
 const courses = ref([])
+const selectedTimetable = ref([])
 const {
   currentPage,
   pageSize,
@@ -252,6 +300,15 @@ const weekDayOptions = [
   { label: '周六', value: 6 },
   { label: '周日', value: 7 }
 ]
+const timetableWeekDays = [
+  { value: 1, label: '一' },
+  { value: 2, label: '二' },
+  { value: 3, label: '三' },
+  { value: 4, label: '四' },
+  { value: 5, label: '五' },
+  { value: 6, label: '六' },
+  { value: 7, label: '日' }
+]
 const sectionOptions = [
   { label: '1-2节 08:00-09:40', value: '1-2节', time: '08:00-09:40' },
   { label: '3-4节 10:00-11:40', value: '3-4节', time: '10:00-11:40' },
@@ -259,6 +316,14 @@ const sectionOptions = [
   { label: '7-8节 15:00-16:40', value: '7-8节', time: '15:00-16:40' },
   { label: '9-10节 18:00-19:40', value: '9-10节', time: '18:00-19:40' },
   { label: '11-12节 20:00-21:40', value: '11-12节', time: '20:00-21:40' }
+]
+const sectionSlots = [
+  { key: '1-2', label: '1-2节', time: '08:00-09:40', start: 1, end: 2 },
+  { key: '3-4', label: '3-4节', time: '10:00-11:40', start: 3, end: 4 },
+  { key: '5-6', label: '5-6节', time: '13:00-14:40', start: 5, end: 6 },
+  { key: '7-8', label: '7-8节', time: '15:00-16:40', start: 7, end: 8 },
+  { key: '9-10', label: '9-10节', time: '18:00-19:40', start: 9, end: 10 },
+  { key: '11-12', label: '11-12节', time: '20:00-21:40', start: 11, end: 12 }
 ]
 
 const selectedCourseLabel = computed(() => {
@@ -303,6 +368,18 @@ async function loadCourses() {
   } finally {
     loading.value = false
   }
+  await loadSelectedTimetable()
+}
+
+async function loadSelectedTimetable() {
+  timetableLoading.value = true
+  try {
+    const params = queryForm.semesterId ? { semesterId: queryForm.semesterId } : {}
+    const response = await getStudentTimetable(params)
+    selectedTimetable.value = response.data || []
+  } finally {
+    timetableLoading.value = false
+  }
 }
 
 function buildQueryParams() {
@@ -339,6 +416,40 @@ function requestStatusType(status) {
   if (status === '已通过') return 'success'
   if (status === '已驳回') return 'danger'
   return 'warning'
+}
+
+function parseSectionRange(sectionDesc) {
+  const matched = String(sectionDesc || '').match(/(\d+)\s*-\s*(\d+)/)
+  if (!matched) {
+    return { start: 5, end: 6 }
+  }
+  return {
+    start: Number(matched[1]),
+    end: Number(matched[2])
+  }
+}
+
+function findSlotIndex(sectionNumber) {
+  const index = sectionSlots.findIndex(slot => sectionNumber >= slot.start && sectionNumber <= slot.end)
+  return index >= 0 ? index : 0
+}
+
+function gridStyle(column, row) {
+  return {
+    gridColumn: `${column} / ${column + 1}`,
+    gridRow: `${row} / ${row + 1}`
+  }
+}
+
+function courseGridStyle(course) {
+  const range = parseSectionRange(course.sectionDesc)
+  const startIndex = findSlotIndex(range.start)
+  const endIndex = findSlotIndex(range.end)
+  const column = Number(course.weekDay) + 1
+  return {
+    gridColumn: `${column} / ${column + 1}`,
+    gridRow: `${startIndex + 2} / ${endIndex + 3}`
+  }
 }
 
 function canSelect(row) {
@@ -583,6 +694,75 @@ onMounted(async () => {
   color: var(--text-muted);
 }
 
+.selected-timetable-section {
+  margin-top: 28px;
+}
+
+.calendar-shell {
+  position: relative;
+  display: grid;
+  grid-template-columns: 110px repeat(7, minmax(0, 1fr));
+  grid-template-rows: 54px repeat(6, minmax(104px, auto));
+  border: 1px solid #dce6df;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.calendar-head,
+.section-label,
+.calendar-cell {
+  padding: 12px;
+  border-right: 1px solid #e7efea;
+  border-bottom: 1px solid #e7efea;
+}
+
+.calendar-head {
+  background: var(--sky-100);
+  font-weight: 600;
+  text-align: center;
+}
+
+.empty-cell,
+.section-label {
+  background: #f8fbfd;
+  font-weight: 600;
+}
+
+.section-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.section-label span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.calendar-cell {
+  min-height: 104px;
+  background: #fff;
+}
+
+.course-card {
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px;
+  padding: 10px;
+  border: 1px solid #d4e8d8;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #e7f8ff 0%, #f8fdff 100%);
+  box-shadow: 0 8px 20px rgba(2, 132, 199, 0.08);
+  font-size: 13px;
+}
+
+.course-card strong {
+  color: var(--sky-700);
+}
+
 .request-section {
   margin-top: 28px;
 }
@@ -598,5 +778,15 @@ onMounted(async () => {
   display: flex;
   justify-content: flex-end;
   margin-top: 18px;
+}
+
+@media (max-width: 960px) {
+  .calendar-shell {
+    min-width: 920px;
+  }
+
+  .selected-timetable-section {
+    overflow-x: auto;
+  }
 }
 </style>
