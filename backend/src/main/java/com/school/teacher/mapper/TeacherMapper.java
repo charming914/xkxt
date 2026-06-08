@@ -37,6 +37,7 @@ public interface TeacherMapper {
         JOIN course c ON tc.course_id = c.course_id
         LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
         WHERE tc.teacher_id = #{teacherId}
+          AND sem.is_current = 1
         ORDER BY sem.semester_name, tc.week_day, tc.section_desc
         """)
     List<Map<String, Object>> selectTeachingClasses(@Param("teacherId") String teacherId);
