@@ -109,10 +109,16 @@ public class TeacherService {
         String teacherId,
         Integer teachingClassId,
         Integer weekDay,
-        String sectionDesc
+        String sectionDesc,
+        String weekParity
     ) {
         ensureTeachingClassOwner(teacherId, teachingClassId);
-        return teacherMapper.selectAvailableClassroomOptions(teachingClassId, weekDay, sectionDesc);
+        return teacherMapper.selectAvailableClassroomOptions(teachingClassId, weekDay, sectionDesc, weekParity);
+    }
+
+    public List<Map<String, Object>> teachingClassSessions(String teacherId, Integer teachingClassId) {
+        ensureTeachingClassOwner(teacherId, teachingClassId);
+        return teacherMapper.selectSessions(teachingClassId);
     }
 
     public List<Map<String, Object>> examAvailableClassroomOptions(
@@ -163,18 +169,26 @@ public class TeacherService {
     public void createScheduleAdjustRequest(String teacherId, ScheduleAdjustRequestCreateRequest request) {
         Map<String, Object> teachingClass = teachingClassDetail(teacherId, request.getTeachingClassId());
         String originalWeekRange = (String) teachingClass.get("weekRange");
-        String originalSectionDesc = (String) teachingClass.get("sectionDesc");
         if (!originalWeekRange.equals(request.getRequestedWeekRange())) {
             throw new BusinessException("调课申请不能调整周次范围");
         }
+        Map<String, Object> session = teacherMapper.selectSessionById(request.getSessionId());
+        if (session == null
+            || !request.getTeachingClassId().equals(((Number) session.get("teachingClassId")).intValue())) {
+            throw new BusinessException("待调整的上课时间不存在");
+        }
+        String originalSectionDesc = (String) session.get("sectionDesc");
+        String weekParity = (String) session.get("weekParity");
         if (resolveSectionLength(originalSectionDesc) != resolveSectionLength(request.getRequestedSectionDesc())) {
             throw new BusinessException("调整后节次长度必须与原节次一致");
         }
         if (teacherMapper.countTeachingClassTeacherConflict(
             teacherId,
             request.getTeachingClassId(),
+            request.getSessionId(),
             request.getRequestedWeekDay(),
-            request.getRequestedSectionDesc()
+            request.getRequestedSectionDesc(),
+            weekParity
         ) > 0) {
             throw new BusinessException("申请时间冲突");
         }

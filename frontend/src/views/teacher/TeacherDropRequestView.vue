@@ -17,7 +17,7 @@
       <el-table-column prop="courseName" label="课程名称" min-width="150" />
       <el-table-column label="上课时间" min-width="180">
         <template #default="{ row }">
-          周{{ weekLabel(row.weekDay) }} / {{ row.sectionDesc }} / {{ row.weekRange }}
+          {{ row.scheduleText || '待排课' }}（{{ row.weekRange }}）
         </template>
       </el-table-column>
       <el-table-column prop="requestReason" label="退课原因" min-width="180" />

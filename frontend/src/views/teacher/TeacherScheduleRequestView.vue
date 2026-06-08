@@ -20,6 +20,16 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="要调整的上课时间">
+          <el-select v-model="form.sessionId" placeholder="请选择要调整的那节课" @change="handleSessionChange">
+            <el-option
+              v-for="item in sessionList"
+              :key="item.sessionId"
+              :label="`周${formatWeekDay(item.weekDay)} ${item.sectionDesc}${item.weekParity !== '全周' ? '（' + item.weekParity + '）' : ''}`"
+              :value="item.sessionId"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="调整后星期">
           <el-select v-model="form.requestedWeekDay" placeholder="请选择星期" @change="handleWeekDayChange">
             <el-option v-for="item in weekDays" :key="item.value" :label="`周${item.label}`" :value="item.value" />
@@ -113,6 +123,7 @@ import {
   createTeacherScheduleAdjustRequest,
   getTeacherAvailableClassroomOptions,
   getTeacherScheduleAdjustRequests,
+  getTeacherTeachingClassSessions,
   getTeachingClasses
 } from '../../api/teacher'
 
@@ -123,6 +134,7 @@ const cancelingId = ref(null)
 const requests = ref([])
 const classOptions = ref([])
 const classroomOptions = ref([])
+const sessionList = ref([])
 const weekDays = [
   { value: 1, label: '一' },
   { value: 2, label: '二' },
@@ -134,6 +146,7 @@ const weekDays = [
 ]
 const form = reactive({
   teachingClassId: '',
+  sessionId: '',
   requestedWeekDay: '',
   requestedSectionDesc: '',
   requestedWeekRange: '',
@@ -145,8 +158,12 @@ const selectedClass = computed(() => {
   return classOptions.value.find(item => item.teachingClassId === form.teachingClassId)
 })
 
+const selectedSession = computed(() => {
+  return sessionList.value.find(item => item.sessionId === form.sessionId)
+})
+
 const sectionOptions = computed(() => {
-  const length = resolveSectionLength(selectedClass.value?.sectionDesc)
+  const length = resolveSectionLength(selectedSession.value?.sectionDesc)
   return ['1-2节', '3-4节', '5-6节', '7-8节', '9-10节', '11-12节', '1-4节', '5-8节', '9-12节']
     .filter(item => resolveSectionLength(item) === length)
     .filter(item => !isTeacherSectionOccupied(item))
@@ -155,12 +172,14 @@ const sectionOptions = computed(() => {
 function resetForm() {
   Object.assign(form, {
     teachingClassId: '',
+    sessionId: '',
     requestedWeekDay: '',
     requestedSectionDesc: '',
     requestedWeekRange: '',
     requestedClassroomId: '',
     requestReason: ''
   })
+  sessionList.value = []
   classroomOptions.value = []
 }
 
@@ -194,13 +213,32 @@ function resolveSectionLength(sectionDesc) {
 
 async function handleClassChange() {
   const current = selectedClass.value
+  form.sessionId = ''
+  form.requestedWeekDay = ''
+  form.requestedSectionDesc = ''
+  form.requestedWeekRange = ''
+  form.requestedClassroomId = ''
+  classroomOptions.value = []
+  sessionList.value = []
   if (!current) {
-    resetForm()
     return
   }
-  form.requestedWeekDay = current.weekDay
-  form.requestedSectionDesc = current.sectionDesc
   form.requestedWeekRange = current.weekRange
+  const response = await getTeacherTeachingClassSessions(form.teachingClassId)
+  sessionList.value = response.data || []
+}
+
+async function handleSessionChange() {
+  const session = selectedSession.value
+  if (!session) {
+    form.requestedWeekDay = ''
+    form.requestedSectionDesc = ''
+    form.requestedClassroomId = ''
+    classroomOptions.value = []
+    return
+  }
+  form.requestedWeekDay = session.weekDay
+  form.requestedSectionDesc = session.sectionDesc
   form.requestedClassroomId = ''
   if (!sectionOptions.value.includes(form.requestedSectionDesc)) {
     form.requestedSectionDesc = ''
@@ -218,7 +256,8 @@ async function loadAvailableClassrooms() {
     const response = await getTeacherAvailableClassroomOptions({
       teachingClassId: form.teachingClassId,
       weekDay: form.requestedWeekDay,
-      sectionDesc: form.requestedSectionDesc
+      sectionDesc: form.requestedSectionDesc,
+      weekParity: selectedSession.value?.weekParity || '全周'
     })
     classroomOptions.value = response.data || []
   } finally {
@@ -250,10 +289,12 @@ function isTeacherSectionOccupied(sectionDesc) {
   if (!form.requestedWeekDay || !form.teachingClassId) {
     return false
   }
-  return classOptions.value.some(item => {
-    return item.teachingClassId !== form.teachingClassId &&
+  const parity = selectedSession.value?.weekParity || '全周'
+  return sessionList.value.some(item => {
+    return item.sessionId !== form.sessionId &&
       item.weekDay === form.requestedWeekDay &&
-      isSectionOverlap(item.sectionDesc, sectionDesc)
+      isSectionOverlap(item.sectionDesc, sectionDesc) &&
+      (item.weekParity === '全周' || parity === '全周' || item.weekParity === parity)
   })
 }
 
@@ -285,7 +326,7 @@ async function loadData() {
 }
 
 async function handleSubmit() {
-  if (!form.teachingClassId || !form.requestedWeekDay || !form.requestedSectionDesc || !form.requestedWeekRange || !form.requestedClassroomId || !form.requestReason) {
+  if (!form.teachingClassId || !form.sessionId || !form.requestedWeekDay || !form.requestedSectionDesc || !form.requestedWeekRange || !form.requestedClassroomId || !form.requestReason) {
     ElMessage.warning('请完整填写调课申请')
     return
   }

@@ -23,12 +23,6 @@ public class AdminTeachingClassRequest {
 
     private String classroomId;
 
-    @NotNull(message = "星期不能为空")
-    private Integer weekDay;
-
-    @NotBlank(message = "节次不能为空")
-    private String sectionDesc;
-
     @NotBlank(message = "周次不能为空")
     private String weekRange;
 
@@ -36,4 +30,7 @@ public class AdminTeachingClassRequest {
     private Integer maxStudents;
 
     private Integer isRetakeClass;
+
+    /** 由数据库回填的自增主键，用于新增后生成上课时间。 */
+    private Integer generatedId;
 }

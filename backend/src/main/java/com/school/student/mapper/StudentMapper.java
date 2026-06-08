@@ -85,10 +85,11 @@ public interface StudentMapper {
              FROM course_selection cs
              JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
              JOIN semester today_sem ON tc.semester_id = today_sem.semester_id
+             JOIN teaching_class_session sess ON sess.teaching_class_id = tc.teaching_class_id
              WHERE cs.student_id = #{studentId}
                AND cs.selection_status = '已选'
                AND today_sem.is_current = 1
-               AND tc.week_day = WEEKDAY(CURDATE()) + 1) AS todayCourseCount,
+               AND sess.week_day = WEEKDAY(CURDATE()) + 1) AS todayCourseCount,
             (SELECT COUNT(*)
              FROM course_selection_request csr
              WHERE csr.student_id = #{studentId}
@@ -145,17 +146,18 @@ public interface StudentMapper {
              FROM semester sem
              WHERE sem.is_current = 1
              LIMIT 1) AS currentSemesterName,
-            (SELECT CONCAT(c.course_name, '（', t.teacher_name, '，', tc.section_desc, '）')
+            (SELECT CONCAT(c.course_name, '（', t.teacher_name, '，', sess.section_desc, '）')
              FROM course_selection cs
              JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
              JOIN semester next_sem ON tc.semester_id = next_sem.semester_id
              JOIN course c ON tc.course_id = c.course_id
              JOIN teacher t ON tc.teacher_id = t.teacher_id
+             JOIN teaching_class_session sess ON sess.teaching_class_id = tc.teaching_class_id
              WHERE cs.student_id = #{studentId}
                AND cs.selection_status = '已选'
                AND next_sem.is_current = 1
-               AND tc.week_day = WEEKDAY(CURDATE()) + 1
-             ORDER BY CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
+               AND sess.week_day = WEEKDAY(CURDATE()) + 1
+             ORDER BY CAST(SUBSTRING_INDEX(sess.section_desc, '-', 1) AS UNSIGNED)
              LIMIT 1) AS nextCourseLabel
         """)
     Map<String, Object> selectTodoSummary(@Param("studentId") String studentId);
@@ -170,10 +172,11 @@ public interface StudentMapper {
              FROM course_selection cs
              JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
              JOIN semester today_sem ON tc.semester_id = today_sem.semester_id
+             JOIN teaching_class_session sess ON sess.teaching_class_id = tc.teaching_class_id
              WHERE cs.student_id = #{studentId}
                AND cs.selection_status = '已选'
                AND today_sem.is_current = 1
-               AND tc.week_day = WEEKDAY(CURDATE()) + 1) AS todayCourseCount,
+               AND sess.week_day = WEEKDAY(CURDATE()) + 1) AS todayCourseCount,
             (SELECT COUNT(*)
              FROM course_selection_request csr
              WHERE csr.student_id = #{studentId}
@@ -227,17 +230,18 @@ public interface StudentMapper {
              FROM semester sem
              WHERE sem.is_current = 1
              LIMIT 1) AS currentSemesterName,
-            (SELECT CONCAT(c.course_name, '（', t.teacher_name, '，', tc.section_desc, '）')
+            (SELECT CONCAT(c.course_name, '（', t.teacher_name, '，', sess.section_desc, '）')
              FROM course_selection cs
              JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
              JOIN semester next_sem ON tc.semester_id = next_sem.semester_id
              JOIN course c ON tc.course_id = c.course_id
              JOIN teacher t ON tc.teacher_id = t.teacher_id
+             JOIN teaching_class_session sess ON sess.teaching_class_id = tc.teaching_class_id
              WHERE cs.student_id = #{studentId}
                AND cs.selection_status = '已选'
                AND next_sem.is_current = 1
-               AND tc.week_day = WEEKDAY(CURDATE()) + 1
-             ORDER BY CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
+               AND sess.week_day = WEEKDAY(CURDATE()) + 1
+             ORDER BY CAST(SUBSTRING_INDEX(sess.section_desc, '-', 1) AS UNSIGNED)
              LIMIT 1) AS nextCourseLabel
         """)
     Map<String, Object> selectTodoSummaryWithoutReview(@Param("studentId") String studentId);
@@ -316,8 +320,15 @@ public interface StudentMapper {
             t.teacher_name AS teacherName,
             sem.course_select_start AS courseSelectStart,
             sem.course_select_end AS courseSelectEnd,
-            tc.week_day AS weekDay,
-            tc.section_desc AS sectionDesc,
+            (SELECT GROUP_CONCAT(
+                        CONCAT('周', ses.week_day, ' ', ses.section_desc,
+                               IF(ses.week_parity = '全周', '', CONCAT('(', ses.week_parity, ')')))
+                        ORDER BY ses.week_day, ses.section_desc SEPARATOR '；')
+             FROM teaching_class_session ses
+             WHERE ses.teaching_class_id = tc.teaching_class_id) AS scheduleText,
+            (SELECT JSON_ARRAYAGG(JSON_OBJECT('weekDay', sj.week_day, 'sectionDesc', sj.section_desc, 'weekParity', sj.week_parity))
+             FROM teaching_class_session sj
+             WHERE sj.teaching_class_id = tc.teaching_class_id) AS sessionsJson,
             tc.week_range AS weekRange,
             cl.building_name AS buildingName,
             cl.room_name AS roomName,
@@ -336,17 +347,20 @@ public interface StudentMapper {
                     SELECT 1
                     FROM course_selection selected
                     JOIN teaching_class selected_tc ON selected.teaching_class_id = selected_tc.teaching_class_id
+                    JOIN teaching_class_session sel_s ON sel_s.teaching_class_id = selected_tc.teaching_class_id
+                    JOIN teaching_class_session tgt_s ON tgt_s.teaching_class_id = tc.teaching_class_id
                     WHERE selected.student_id = #{studentId}
                       AND selected.selection_status = '已选'
                       AND selected_tc.semester_id = tc.semester_id
-                      AND selected_tc.week_day = tc.week_day
                       AND selected_tc.teaching_class_id != tc.teaching_class_id
+                      AND sel_s.week_day = tgt_s.week_day
                       AND NOT (
-                          CAST(REPLACE(SUBSTRING_INDEX(selected_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
-                              &lt; CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
-                          OR CAST(SUBSTRING_INDEX(selected_tc.section_desc, '-', 1) AS UNSIGNED)
-                              > CAST(REPLACE(SUBSTRING_INDEX(tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                          CAST(REPLACE(SUBSTRING_INDEX(sel_s.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                              &lt; CAST(SUBSTRING_INDEX(tgt_s.section_desc, '-', 1) AS UNSIGNED)
+                          OR CAST(SUBSTRING_INDEX(sel_s.section_desc, '-', 1) AS UNSIGNED)
+                              > CAST(REPLACE(SUBSTRING_INDEX(tgt_s.section_desc, '-', -1), '节', '') AS UNSIGNED)
                       )
+                      AND (sel_s.week_parity = '全周' OR tgt_s.week_parity = '全周' OR sel_s.week_parity = tgt_s.week_parity)
                  )
                 THEN 1 ELSE 0
             END AS canSelectDirectly,
@@ -400,17 +414,20 @@ public interface StudentMapper {
                     SELECT 1
                     FROM course_selection selected
                     JOIN teaching_class selected_tc ON selected.teaching_class_id = selected_tc.teaching_class_id
+                    JOIN teaching_class_session sel_s ON sel_s.teaching_class_id = selected_tc.teaching_class_id
+                    JOIN teaching_class_session tgt_s ON tgt_s.teaching_class_id = tc.teaching_class_id
                     WHERE selected.student_id = #{studentId}
                       AND selected.selection_status = '已选'
                       AND selected_tc.semester_id = tc.semester_id
-                      AND selected_tc.week_day = tc.week_day
                       AND selected_tc.teaching_class_id != tc.teaching_class_id
+                      AND sel_s.week_day = tgt_s.week_day
                       AND NOT (
-                          CAST(REPLACE(SUBSTRING_INDEX(selected_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
-                              &lt; CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
-                          OR CAST(SUBSTRING_INDEX(selected_tc.section_desc, '-', 1) AS UNSIGNED)
-                              > CAST(REPLACE(SUBSTRING_INDEX(tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                          CAST(REPLACE(SUBSTRING_INDEX(sel_s.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                              &lt; CAST(SUBSTRING_INDEX(tgt_s.section_desc, '-', 1) AS UNSIGNED)
+                          OR CAST(SUBSTRING_INDEX(sel_s.section_desc, '-', 1) AS UNSIGNED)
+                              > CAST(REPLACE(SUBSTRING_INDEX(tgt_s.section_desc, '-', -1), '节', '') AS UNSIGNED)
                       )
+                      AND (sel_s.week_parity = '全周' OR tgt_s.week_parity = '全周' OR sel_s.week_parity = tgt_s.week_parity)
                 )
                 THEN 1 ELSE 0
             END AS hasSelectedTimeConflict,
@@ -419,16 +436,19 @@ public interface StudentMapper {
                     SELECT 1
                     FROM student_course_plan plan
                     JOIN teaching_class plan_tc ON plan.teaching_class_id = plan_tc.teaching_class_id
+                    JOIN teaching_class_session plan_s ON plan_s.teaching_class_id = plan_tc.teaching_class_id
+                    JOIN teaching_class_session tgt_s ON tgt_s.teaching_class_id = tc.teaching_class_id
                     WHERE plan.student_id = #{studentId}
                       AND plan_tc.semester_id = tc.semester_id
-                      AND plan_tc.week_day = tc.week_day
                       AND plan_tc.teaching_class_id != tc.teaching_class_id
+                      AND plan_s.week_day = tgt_s.week_day
                       AND NOT (
-                          CAST(REPLACE(SUBSTRING_INDEX(plan_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
-                              &lt; CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
-                          OR CAST(SUBSTRING_INDEX(plan_tc.section_desc, '-', 1) AS UNSIGNED)
-                              > CAST(REPLACE(SUBSTRING_INDEX(tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                          CAST(REPLACE(SUBSTRING_INDEX(plan_s.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                              &lt; CAST(SUBSTRING_INDEX(tgt_s.section_desc, '-', 1) AS UNSIGNED)
+                          OR CAST(SUBSTRING_INDEX(plan_s.section_desc, '-', 1) AS UNSIGNED)
+                              > CAST(REPLACE(SUBSTRING_INDEX(tgt_s.section_desc, '-', -1), '节', '') AS UNSIGNED)
                       )
+                      AND (plan_s.week_parity = '全周' OR tgt_s.week_parity = '全周' OR plan_s.week_parity = tgt_s.week_parity)
                 )
                 THEN 1 ELSE 0
             END AS hasPlanTimeConflict,
@@ -452,17 +472,20 @@ public interface StudentMapper {
                     SELECT 1
                     FROM course_selection selected
                     JOIN teaching_class selected_tc ON selected.teaching_class_id = selected_tc.teaching_class_id
+                    JOIN teaching_class_session sel_s ON sel_s.teaching_class_id = selected_tc.teaching_class_id
+                    JOIN teaching_class_session tgt_s ON tgt_s.teaching_class_id = tc.teaching_class_id
                     WHERE selected.student_id = #{studentId}
                       AND selected.selection_status = '已选'
                       AND selected_tc.semester_id = tc.semester_id
-                      AND selected_tc.week_day = tc.week_day
                       AND selected_tc.teaching_class_id != tc.teaching_class_id
+                      AND sel_s.week_day = tgt_s.week_day
                       AND NOT (
-                          CAST(REPLACE(SUBSTRING_INDEX(selected_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
-                              &lt; CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
-                          OR CAST(SUBSTRING_INDEX(selected_tc.section_desc, '-', 1) AS UNSIGNED)
-                              > CAST(REPLACE(SUBSTRING_INDEX(tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                          CAST(REPLACE(SUBSTRING_INDEX(sel_s.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                              &lt; CAST(SUBSTRING_INDEX(tgt_s.section_desc, '-', 1) AS UNSIGNED)
+                          OR CAST(SUBSTRING_INDEX(sel_s.section_desc, '-', 1) AS UNSIGNED)
+                              > CAST(REPLACE(SUBSTRING_INDEX(tgt_s.section_desc, '-', -1), '节', '') AS UNSIGNED)
                       )
+                      AND (sel_s.week_parity = '全周' OR tgt_s.week_parity = '全周' OR sel_s.week_parity = tgt_s.week_parity)
                 ) THEN '与已选课程时间冲突'
                 ELSE '可直接选课'
             END AS selectionActionReason
@@ -491,17 +514,25 @@ public interface StudentMapper {
             AND c.credit = #{query.credit}
           </if>
           <if test="query.weekDay != null">
-            AND tc.week_day = #{query.weekDay}
-          </if>
-          <if test="query.sectionDesc != null and query.sectionDesc != ''">
-            AND (
-                tc.section_desc = #{query.sectionDesc}
-                OR (#{query.sectionDesc} IN ('1-2节', '3-4节') AND tc.section_desc = '1-4节')
-                OR (#{query.sectionDesc} IN ('5-6节', '7-8节') AND tc.section_desc = '5-8节')
-                OR (#{query.sectionDesc} IN ('9-10节', '11-12节') AND tc.section_desc = '9-12节')
+            AND EXISTS (
+                SELECT 1 FROM teaching_class_session fs
+                WHERE fs.teaching_class_id = tc.teaching_class_id
+                  AND fs.week_day = #{query.weekDay}
             )
           </if>
-        ORDER BY tc.week_day, tc.section_desc
+          <if test="query.sectionDesc != null and query.sectionDesc != ''">
+            AND EXISTS (
+                SELECT 1 FROM teaching_class_session fs
+                WHERE fs.teaching_class_id = tc.teaching_class_id
+                  AND (
+                    fs.section_desc = #{query.sectionDesc}
+                    OR (#{query.sectionDesc} IN ('1-2节', '3-4节') AND fs.section_desc = '1-4节')
+                    OR (#{query.sectionDesc} IN ('5-6节', '7-8节') AND fs.section_desc = '5-8节')
+                    OR (#{query.sectionDesc} IN ('9-10节', '11-12节') AND fs.section_desc = '9-12节')
+                  )
+            )
+          </if>
+        ORDER BY tc.teaching_class_id
         </script>
         """)
     List<Map<String, Object>> selectAvailableCourses(
@@ -524,8 +555,15 @@ public interface StudentMapper {
             c.credit AS credit,
             c.total_hours AS totalHours,
             t.teacher_name AS teacherName,
-            tc.week_day AS weekDay,
-            tc.section_desc AS sectionDesc,
+            (SELECT GROUP_CONCAT(
+                        CONCAT('周', ses.week_day, ' ', ses.section_desc,
+                               IF(ses.week_parity = '全周', '', CONCAT('(', ses.week_parity, ')')))
+                        ORDER BY ses.week_day, ses.section_desc SEPARATOR '；')
+             FROM teaching_class_session ses
+             WHERE ses.teaching_class_id = tc.teaching_class_id) AS scheduleText,
+            (SELECT JSON_ARRAYAGG(JSON_OBJECT('weekDay', sj.week_day, 'sectionDesc', sj.section_desc, 'weekParity', sj.week_parity))
+             FROM teaching_class_session sj
+             WHERE sj.teaching_class_id = tc.teaching_class_id) AS sessionsJson,
             tc.week_range AS weekRange,
             cl.building_name AS buildingName,
             cl.room_name AS roomName
@@ -545,7 +583,7 @@ public interface StudentMapper {
               AND (sem.is_current = 1 OR sem.end_date >= CURDATE())
             </otherwise>
           </choose>
-        ORDER BY sem.start_date DESC, tc.week_day, tc.section_desc
+        ORDER BY sem.start_date DESC, tc.teaching_class_id
         </script>
         """)
     List<Map<String, Object>> selectSelectedCourses(
@@ -566,8 +604,12 @@ public interface StudentMapper {
             c.credit AS credit,
             c.total_hours AS totalHours,
             t.teacher_name AS teacherName,
-            tc.week_day AS weekDay,
-            tc.section_desc AS sectionDesc,
+            (SELECT GROUP_CONCAT(
+                        CONCAT('周', ses.week_day, ' ', ses.section_desc,
+                               IF(ses.week_parity = '全周', '', CONCAT('(', ses.week_parity, ')')))
+                        ORDER BY ses.week_day, ses.section_desc SEPARATOR '；')
+             FROM teaching_class_session ses
+             WHERE ses.teaching_class_id = tc.teaching_class_id) AS scheduleText,
             tc.week_range AS weekRange,
             cl.building_name AS buildingName,
             cl.room_name AS roomName,
@@ -614,7 +656,7 @@ public interface StudentMapper {
         LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
         WHERE cs.student_id = #{studentId}
           AND cs.selection_status = '已选'
-        ORDER BY sem.semester_name, tc.week_day, tc.section_desc
+        ORDER BY sem.semester_name, tc.teaching_class_id
         """)
     List<Map<String, Object>> selectDropCourses(@Param("studentId") String studentId);
 
@@ -627,14 +669,16 @@ public interface StudentMapper {
             sem.semester_name AS semesterName,
             c.course_name AS courseName,
             t.teacher_name AS teacherName,
-            tc.week_day AS weekDay,
-            tc.section_desc AS sectionDesc,
+            sess.week_day AS weekDay,
+            sess.section_desc AS sectionDesc,
+            sess.week_parity AS weekParity,
             tc.week_range AS weekRange,
             cl.building_name AS buildingName,
             cl.room_name AS roomName
         FROM course_selection cs
         JOIN student s ON cs.student_id = s.student_id
         JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+        JOIN teaching_class_session sess ON sess.teaching_class_id = tc.teaching_class_id
         JOIN semester sem ON tc.semester_id = sem.semester_id
         JOIN course c ON tc.course_id = c.course_id
         JOIN teacher t ON tc.teacher_id = t.teacher_id
@@ -649,7 +693,7 @@ public interface StudentMapper {
               AND sem.is_current = 1
             </otherwise>
           </choose>
-        ORDER BY tc.week_day, tc.section_desc
+        ORDER BY sess.week_day, sess.section_desc
         </script>
         """)
     List<Map<String, Object>> selectTimetable(
@@ -846,18 +890,21 @@ public interface StudentMapper {
         SELECT COUNT(*)
         FROM course_selection cs
         JOIN teaching_class t1 ON cs.teaching_class_id = t1.teaching_class_id
+        JOIN teaching_class_session s1 ON s1.teaching_class_id = t1.teaching_class_id
         JOIN teaching_class t2 ON t2.teaching_class_id = #{teachingClassId}
+        JOIN teaching_class_session s2 ON s2.teaching_class_id = t2.teaching_class_id
         WHERE cs.student_id = #{studentId}
           AND cs.selection_status = '已选'
           AND t1.semester_id = t2.semester_id
-          AND t1.week_day = t2.week_day
+          AND s1.week_day = s2.week_day
           AND cs.teaching_class_id <> #{teachingClassId}
           AND NOT (
-              CAST(REPLACE(SUBSTRING_INDEX(t1.section_desc, '-', -1), '节', '') AS UNSIGNED)
-                  < CAST(SUBSTRING_INDEX(t2.section_desc, '-', 1) AS UNSIGNED)
-              OR CAST(SUBSTRING_INDEX(t1.section_desc, '-', 1) AS UNSIGNED)
-                  > CAST(REPLACE(SUBSTRING_INDEX(t2.section_desc, '-', -1), '节', '') AS UNSIGNED)
+              CAST(REPLACE(SUBSTRING_INDEX(s1.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                  < CAST(SUBSTRING_INDEX(s2.section_desc, '-', 1) AS UNSIGNED)
+              OR CAST(SUBSTRING_INDEX(s1.section_desc, '-', 1) AS UNSIGNED)
+                  > CAST(REPLACE(SUBSTRING_INDEX(s2.section_desc, '-', -1), '节', '') AS UNSIGNED)
           )
+          AND (s1.week_parity = '全周' OR s2.week_parity = '全周' OR s1.week_parity = s2.week_parity)
         """)
     int countStudentTimeConflict(
         @Param("studentId") String studentId,
@@ -868,17 +915,20 @@ public interface StudentMapper {
         SELECT COUNT(*)
         FROM student_course_plan plan
         JOIN teaching_class planned_tc ON plan.teaching_class_id = planned_tc.teaching_class_id
+        JOIN teaching_class_session ps ON ps.teaching_class_id = planned_tc.teaching_class_id
         JOIN teaching_class target_tc ON target_tc.teaching_class_id = #{teachingClassId}
+        JOIN teaching_class_session ts ON ts.teaching_class_id = target_tc.teaching_class_id
         WHERE plan.student_id = #{studentId}
           AND planned_tc.semester_id = target_tc.semester_id
-          AND planned_tc.week_day = target_tc.week_day
+          AND ps.week_day = ts.week_day
           AND planned_tc.teaching_class_id <> target_tc.teaching_class_id
           AND NOT (
-              CAST(REPLACE(SUBSTRING_INDEX(planned_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
-                  < CAST(SUBSTRING_INDEX(target_tc.section_desc, '-', 1) AS UNSIGNED)
-              OR CAST(SUBSTRING_INDEX(planned_tc.section_desc, '-', 1) AS UNSIGNED)
-                  > CAST(REPLACE(SUBSTRING_INDEX(target_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+              CAST(REPLACE(SUBSTRING_INDEX(ps.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                  < CAST(SUBSTRING_INDEX(ts.section_desc, '-', 1) AS UNSIGNED)
+              OR CAST(SUBSTRING_INDEX(ps.section_desc, '-', 1) AS UNSIGNED)
+                  > CAST(REPLACE(SUBSTRING_INDEX(ts.section_desc, '-', -1), '节', '') AS UNSIGNED)
           )
+          AND (ps.week_parity = '全周' OR ts.week_parity = '全周' OR ps.week_parity = ts.week_parity)
         """)
     int countCoursePlanTimeConflict(
         @Param("studentId") String studentId,
@@ -952,8 +1002,12 @@ public interface StudentMapper {
             c.course_name AS courseName,
             c.course_type AS courseType,
             t.teacher_name AS teacherName,
-            tc.week_day AS weekDay,
-            tc.section_desc AS sectionDesc,
+            (SELECT GROUP_CONCAT(
+                        CONCAT('周', ses.week_day, ' ', ses.section_desc,
+                               IF(ses.week_parity = '全周', '', CONCAT('(', ses.week_parity, ')')))
+                        ORDER BY ses.week_day, ses.section_desc SEPARATOR '；')
+             FROM teaching_class_session ses
+             WHERE ses.teaching_class_id = tc.teaching_class_id) AS scheduleText,
             tc.week_range AS weekRange,
             cdr.request_reason AS requestReason,
             cdr.request_status AS requestStatus,
@@ -1048,8 +1102,12 @@ public interface StudentMapper {
             sem.semester_name AS semesterName,
             c.course_name AS courseName,
             t.teacher_name AS teacherName,
-            tc.week_day AS weekDay,
-            tc.section_desc AS sectionDesc,
+            (SELECT GROUP_CONCAT(
+                        CONCAT('周', ses.week_day, ' ', ses.section_desc,
+                               IF(ses.week_parity = '全周', '', CONCAT('(', ses.week_parity, ')')))
+                        ORDER BY ses.week_day, ses.section_desc SEPARATOR '；')
+             FROM teaching_class_session ses
+             WHERE ses.teaching_class_id = tc.teaching_class_id) AS scheduleText,
             tc.week_range AS weekRange,
             csr.request_reason AS requestReason,
             csr.request_status AS requestStatus,
@@ -1100,8 +1158,15 @@ public interface StudentMapper {
             c.credit AS credit,
             c.total_hours AS totalHours,
             t.teacher_name AS teacherName,
-            tc.week_day AS weekDay,
-            tc.section_desc AS sectionDesc,
+            (SELECT GROUP_CONCAT(
+                        CONCAT('周', ses.week_day, ' ', ses.section_desc,
+                               IF(ses.week_parity = '全周', '', CONCAT('(', ses.week_parity, ')')))
+                        ORDER BY ses.week_day, ses.section_desc SEPARATOR '；')
+             FROM teaching_class_session ses
+             WHERE ses.teaching_class_id = tc.teaching_class_id) AS scheduleText,
+            (SELECT JSON_ARRAYAGG(JSON_OBJECT('weekDay', sj.week_day, 'sectionDesc', sj.section_desc, 'weekParity', sj.week_parity))
+             FROM teaching_class_session sj
+             WHERE sj.teaching_class_id = tc.teaching_class_id) AS sessionsJson,
             tc.week_range AS weekRange,
             tc.max_students AS maxStudents,
             tc.selected_count AS selectedCount,
@@ -1126,7 +1191,7 @@ public interface StudentMapper {
         JOIN teacher t ON tc.teacher_id = t.teacher_id
         LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
         WHERE plan.student_id = #{studentId}
-        ORDER BY plan.created_at DESC, sem.semester_name DESC, tc.week_day, tc.section_desc
+        ORDER BY plan.created_at DESC, sem.semester_name DESC, tc.teaching_class_id
         """)
     List<Map<String, Object>> selectCoursePlans(@Param("studentId") String studentId);
 
@@ -1341,8 +1406,12 @@ public interface StudentMapper {
             c.credit AS credit,
             c.total_hours AS totalHours,
             t.teacher_name AS teacherName,
-            tc.week_day AS weekDay,
-            tc.section_desc AS sectionDesc,
+            (SELECT GROUP_CONCAT(
+                        CONCAT('周', ses.week_day, ' ', ses.section_desc,
+                               IF(ses.week_parity = '全周', '', CONCAT('(', ses.week_parity, ')')))
+                        ORDER BY ses.week_day, ses.section_desc SEPARATOR '；')
+             FROM teaching_class_session ses
+             WHERE ses.teaching_class_id = tc.teaching_class_id) AS scheduleText,
             tc.week_range AS weekRange,
             tc.course_start_date AS courseStartDate,
             tc.max_students AS maxStudents,
@@ -1365,17 +1434,20 @@ public interface StudentMapper {
                     SELECT 1
                     FROM course_selection selected
                     JOIN teaching_class selected_tc ON selected.teaching_class_id = selected_tc.teaching_class_id
+                    JOIN teaching_class_session sel_s ON sel_s.teaching_class_id = selected_tc.teaching_class_id
+                    JOIN teaching_class_session tgt_s ON tgt_s.teaching_class_id = tc.teaching_class_id
                     WHERE selected.student_id = #{studentId}
                       AND selected.selection_status = '已选'
                       AND selected_tc.semester_id = tc.semester_id
-                      AND selected_tc.week_day = tc.week_day
+                      AND sel_s.week_day = tgt_s.week_day
                       AND selected_tc.teaching_class_id != tc.teaching_class_id
                       AND NOT (
-                          CAST(REPLACE(SUBSTRING_INDEX(selected_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
-                              < CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
-                          OR CAST(SUBSTRING_INDEX(selected_tc.section_desc, '-', 1) AS UNSIGNED)
-                              > CAST(REPLACE(SUBSTRING_INDEX(tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                          CAST(REPLACE(SUBSTRING_INDEX(sel_s.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                              < CAST(SUBSTRING_INDEX(tgt_s.section_desc, '-', 1) AS UNSIGNED)
+                          OR CAST(SUBSTRING_INDEX(sel_s.section_desc, '-', 1) AS UNSIGNED)
+                              > CAST(REPLACE(SUBSTRING_INDEX(tgt_s.section_desc, '-', -1), '节', '') AS UNSIGNED)
                       )
+                      AND (sel_s.week_parity = '全周' OR tgt_s.week_parity = '全周' OR sel_s.week_parity = tgt_s.week_parity)
                 ) THEN 0
                 ELSE 1
             END AS canSelectRetake,
@@ -1394,17 +1466,20 @@ public interface StudentMapper {
                     SELECT 1
                     FROM course_selection selected
                     JOIN teaching_class selected_tc ON selected.teaching_class_id = selected_tc.teaching_class_id
+                    JOIN teaching_class_session sel_s ON sel_s.teaching_class_id = selected_tc.teaching_class_id
+                    JOIN teaching_class_session tgt_s ON tgt_s.teaching_class_id = tc.teaching_class_id
                     WHERE selected.student_id = #{studentId}
                       AND selected.selection_status = '已选'
                       AND selected_tc.semester_id = tc.semester_id
-                      AND selected_tc.week_day = tc.week_day
+                      AND sel_s.week_day = tgt_s.week_day
                       AND selected_tc.teaching_class_id != tc.teaching_class_id
                       AND NOT (
-                          CAST(REPLACE(SUBSTRING_INDEX(selected_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
-                              < CAST(SUBSTRING_INDEX(tc.section_desc, '-', 1) AS UNSIGNED)
-                          OR CAST(SUBSTRING_INDEX(selected_tc.section_desc, '-', 1) AS UNSIGNED)
-                              > CAST(REPLACE(SUBSTRING_INDEX(tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                          CAST(REPLACE(SUBSTRING_INDEX(sel_s.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                              < CAST(SUBSTRING_INDEX(tgt_s.section_desc, '-', 1) AS UNSIGNED)
+                          OR CAST(SUBSTRING_INDEX(sel_s.section_desc, '-', 1) AS UNSIGNED)
+                              > CAST(REPLACE(SUBSTRING_INDEX(tgt_s.section_desc, '-', -1), '节', '') AS UNSIGNED)
                       )
+                      AND (sel_s.week_parity = '全周' OR tgt_s.week_parity = '全周' OR sel_s.week_parity = tgt_s.week_parity)
                 ) THEN '与已选课程时间冲突'
                 ELSE '可选重修班'
             END AS retakeActionReason
@@ -1427,7 +1502,7 @@ public interface StudentMapper {
                 AND passed_makeup.result_status = '已通过'
           )
           AND (sem.is_current = 1 OR sem.end_date >= CURDATE())
-        ORDER BY sem.semester_name DESC, c.course_name, tc.week_day, tc.section_desc
+        ORDER BY sem.semester_name DESC, c.course_name, tc.teaching_class_id
         """)
     List<Map<String, Object>> selectRetakeClasses(@Param("studentId") String studentId);
 

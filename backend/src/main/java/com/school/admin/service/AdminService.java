@@ -18,6 +18,8 @@ import com.school.common.dto.CourseDropReviewRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.mapper.AdminMapper;
 import com.school.common.exception.BusinessException;
+import com.school.common.schedule.SessionScheduleGenerator;
+import com.school.common.schedule.SessionSlot;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -360,6 +362,7 @@ public class AdminService {
         Integer newSemesterId = request.getSemesterId();
         if (carryOverFrom != null) {
             adminMapper.carryOverTeachingClasses(carryOverFrom, newSemesterId);
+            adminMapper.carryOverSessions(carryOverFrom, newSemesterId);
         }
         if (Boolean.TRUE.equals(request.getSetAsCurrent())) {
             adminMapper.clearCurrentSemester();
@@ -473,12 +476,39 @@ public class AdminService {
         adminMapper.deleteCourse(courseId);
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void createTeachingClass(AdminTeachingClassRequest request) {
         adminMapper.insertTeachingClass(request);
+        Integer teachingClassId = request.getGeneratedId();
+        if (teachingClassId == null) {
+            throw new BusinessException("教学班创建失败");
+        }
+        generateSessions(teachingClassId, request.getSemesterId(), request.getCourseId(),
+            request.getTeacherId(), request.getClassroomId());
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void updateTeachingClass(Integer teachingClassId, AdminTeachingClassRequest request) {
         adminMapper.updateTeachingClass(teachingClassId, request);
+        adminMapper.deleteSessions(teachingClassId);
+        generateSessions(teachingClassId, request.getSemesterId(), request.getCourseId(),
+            request.getTeacherId(), request.getClassroomId());
+    }
+
+    /** 按课程学分为教学班自动生成上课时间，避开同教师/同教室已占用时段。 */
+    private void generateSessions(Integer teachingClassId, Integer semesterId, String courseId,
+                                  String teacherId, String classroomId) {
+        BigDecimal credit = adminMapper.selectCourseCredit(courseId);
+        double creditValue = credit == null ? 0d : credit.doubleValue();
+        List<SessionSlot> occupied = adminMapper
+            .selectOccupiedSlots(semesterId, teacherId, classroomId, teachingClassId)
+            .stream()
+            .map(SessionScheduleGenerator::fromMap)
+            .toList();
+        List<SessionSlot> slots = SessionScheduleGenerator.generate(creditValue, teachingClassId, occupied);
+        for (SessionSlot slot : slots) {
+            adminMapper.insertSession(teachingClassId, slot);
+        }
     }
 
     public void deleteTeachingClass(Integer teachingClassId) {
@@ -646,17 +676,26 @@ public class AdminService {
         String action = request.getAction();
         if ("APPROVE".equalsIgnoreCase(action)) {
             Integer teachingClassId = ((Number) adjustRequest.get("teachingClassId")).intValue();
+            Object sessionIdObj = adjustRequest.get("sessionId");
+            Integer sessionId = sessionIdObj == null ? null : ((Number) sessionIdObj).intValue();
             Integer weekDay = ((Number) adjustRequest.get("requestedWeekDay")).intValue();
             String sectionDesc = (String) adjustRequest.get("requestedSectionDesc");
             String weekRange = (String) adjustRequest.get("requestedWeekRange");
             String classroomId = (String) adjustRequest.get("requestedClassroomId");
-            if (adminMapper.countTeachingClassRoomConflict(teachingClassId, weekDay, sectionDesc, classroomId) > 0) {
+            String weekParity = sessionId == null ? "全周" : adminMapper.selectSessionParity(sessionId);
+            if (weekParity == null) {
+                weekParity = "全周";
+            }
+            if (adminMapper.countTeachingClassRoomConflict(teachingClassId, sessionId, weekDay, sectionDesc, weekParity, classroomId) > 0) {
                 throw new BusinessException("审核失败：目标教室在该时间段已被占用");
             }
-            if (adminMapper.countTeachingClassTeacherConflict(teachingClassId, weekDay, sectionDesc) > 0) {
+            if (adminMapper.countTeachingClassTeacherConflict(teachingClassId, sessionId, weekDay, sectionDesc, weekParity) > 0) {
                 throw new BusinessException("审核失败：申请时间冲突");
             }
-            adminMapper.applyScheduleAdjustRequest(teachingClassId, weekDay, sectionDesc, weekRange, classroomId);
+            if (sessionId != null) {
+                adminMapper.applyScheduleAdjustSession(sessionId, weekDay, sectionDesc);
+            }
+            adminMapper.applyScheduleAdjustClass(teachingClassId, weekRange, classroomId);
             adminMapper.updateScheduleAdjustRequestStatus(adjustRequestId, "已通过", request.getReviewComment(), adminUserId);
             return;
         }

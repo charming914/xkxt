@@ -24,11 +24,11 @@
         <div v-for="day in weekDays" :key="`${day.value}-${block.key}`" class="calendar-cell">
           <div
             v-for="course in getCourses(day.value, block)"
-            :key="`${course.teachingClassId}-${course.courseId}`"
+            :key="`${course.teachingClassId}-${course.courseId}-${course.weekDay}-${course.sectionDesc}`"
             class="course-card"
           >
             <strong>{{ course.courseName }}</strong>
-            <span>{{ course.sectionDesc }}</span>
+            <span>{{ course.sectionDesc }}<template v-if="course.weekParity && course.weekParity !== '全周'">（{{ course.weekParity }}）</template></span>
             <span>{{ course.teacherName }}</span>
             <span>{{ course.weekRange }}</span>
             <span>{{ course.buildingName || '-' }} {{ course.roomName || '' }}</span>
@@ -52,7 +52,7 @@
           <el-table-column prop="teacherName" label="任课教师" width="110" />
           <el-table-column label="上课时间" min-width="180">
             <template #default="{ row }">
-              周{{ weekLabel(row.weekDay) }} / {{ row.sectionDesc }} / {{ row.weekRange }}
+              {{ row.scheduleText || '待排课' }}（{{ row.weekRange }}）
             </template>
           </el-table-column>
           <el-table-column label="上课地点" min-width="140">
@@ -135,14 +135,35 @@ function parseSection(sectionDesc) {
   return { start: parseInt(nums[0], 10), end: parseInt(nums[nums.length - 1], 10) }
 }
 
-function getCourses(weekDay, block) {
-  return selectedCourses.value.filter(item => {
-    if (item.weekDay !== weekDay) {
-      return false
+function parseSessions(course) {
+  let sessions = course.sessionsJson
+  if (typeof sessions === 'string') {
+    try {
+      sessions = JSON.parse(sessions)
+    } catch {
+      sessions = null
     }
-    const { start, end } = parseSection(item.sectionDesc)
-    return start <= block.end && block.start <= end
+  }
+  if (!Array.isArray(sessions) || sessions.length === 0) {
+    return []
+  }
+  return sessions.map(s => ({ ...course, ...s }))
+}
+
+function getCourses(weekDay, block) {
+  const result = []
+  selectedCourses.value.forEach(item => {
+    parseSessions(item).forEach(session => {
+      if (Number(session.weekDay) !== weekDay) {
+        return
+      }
+      const { start, end } = parseSection(session.sectionDesc)
+      if (start <= block.end && block.start <= end) {
+        result.push(session)
+      }
+    })
   })
+  return result
 }
 
 async function loadSelectedCourses() {

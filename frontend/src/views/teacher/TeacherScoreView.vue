@@ -519,11 +519,8 @@ function buildTeachingClassOptionLabel(row) {
 
 function formatTeachingTime(row) {
   const parts = []
-  if (row.weekDay) {
-    parts.push(`周${formatWeekDay(row.weekDay)}`)
-  }
-  if (row.sectionDesc) {
-    parts.push(row.sectionDesc)
+  if (row.scheduleText) {
+    parts.push(row.scheduleText)
   }
   if (row.weekRange) {
     parts.push(row.weekRange)

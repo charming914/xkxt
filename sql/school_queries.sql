@@ -9,8 +9,11 @@ SELECT
     c.credit,
     c.total_hours,
     t.teacher_name,
-    tc.week_day,
-    tc.section_desc,
+    GROUP_CONCAT(
+        CONCAT('周', sess.week_day, ' ', sess.section_desc,
+               IF(sess.week_parity = '全周', '', CONCAT('(', sess.week_parity, ')')))
+        ORDER BY sess.week_day, sess.section_desc SEPARATOR '；'
+    ) AS schedule_text,
     tc.week_range,
     cl.building_name,
     cl.room_name,
@@ -20,9 +23,11 @@ FROM teaching_class tc
 JOIN semester sem ON tc.semester_id = sem.semester_id
 JOIN course c ON tc.course_id = c.course_id
 JOIN teacher t ON tc.teacher_id = t.teacher_id
+LEFT JOIN teaching_class_session sess ON sess.teaching_class_id = tc.teaching_class_id
 LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
 WHERE sem.is_current = 1
-  AND tc.status = '选课中';
+  AND tc.status = '选课中'
+GROUP BY tc.teaching_class_id;
 
 -- 2. 调用存储过程进行选课
 CALL sp_select_course('20240001', 1);
@@ -32,7 +37,6 @@ SELECT *
 FROM v_student_timetable
 WHERE student_id = '20240001'
 ORDER BY semester_name, week_day, section_desc;
-
 -- 4. 学生查看个人成绩
 SELECT *
 FROM v_student_score
@@ -57,15 +61,20 @@ SELECT
     tc.teaching_class_id,
     sem.semester_name,
     c.course_name,
-    tc.week_day,
-    tc.section_desc,
+    GROUP_CONCAT(
+        CONCAT('周', sess.week_day, ' ', sess.section_desc,
+               IF(sess.week_parity = '全周', '', CONCAT('(', sess.week_parity, ')')))
+        ORDER BY sess.week_day, sess.section_desc SEPARATOR '；'
+    ) AS schedule_text,
     tc.week_range,
     tc.selected_count
 FROM teaching_class tc
 JOIN semester sem ON tc.semester_id = sem.semester_id
 JOIN course c ON tc.course_id = c.course_id
+LEFT JOIN teaching_class_session sess ON sess.teaching_class_id = tc.teaching_class_id
 WHERE tc.teacher_id = 'T0101'
-ORDER BY sem.semester_name, tc.week_day, tc.section_desc;
+GROUP BY tc.teaching_class_id
+ORDER BY sem.semester_name;
 
 -- 7. 教师查看某教学班学生名单
 SELECT

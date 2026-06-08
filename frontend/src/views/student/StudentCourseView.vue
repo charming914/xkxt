@@ -84,7 +84,7 @@
         <el-table-column prop="totalHours" label="学时" width="80" />
         <el-table-column label="上课时间" min-width="180">
           <template #default="{ row }">
-            周{{ weekLabel(row.weekDay) }} / {{ row.sectionDesc }} / {{ row.weekRange }}
+            {{ row.scheduleText || '待排课' }}（{{ row.weekRange }}）
           </template>
         </el-table-column>
         <el-table-column label="上课地点" min-width="150">
@@ -187,7 +187,7 @@
           :style="courseGridStyle(course)"
         >
           <strong>{{ course.courseName }}</strong>
-          <span>{{ course.sectionDesc }}</span>
+          <span>{{ course.sectionDesc }}<template v-if="course.weekParity && course.weekParity !== '全周'">（{{ course.weekParity }}）</template></span>
           <span>{{ course.teacherName }}</span>
           <span>{{ course.weekRange }}</span>
           <span>{{ course.buildingName || '-' }} {{ course.roomName || '' }}</span>

@@ -99,8 +99,12 @@ public interface AdminMapper {
             cl.room_name AS roomName,
             tc.classroom_id AS classroomId,
             tc.course_start_date AS courseStartDate,
-            tc.week_day AS weekDay,
-            tc.section_desc AS sectionDesc,
+            (SELECT GROUP_CONCAT(
+                        CONCAT('周', s.week_day, ' ', s.section_desc,
+                               IF(s.week_parity = '全周', '', CONCAT('(', s.week_parity, ')')))
+                        ORDER BY s.week_day, s.section_desc SEPARATOR '；')
+             FROM teaching_class_session s
+             WHERE s.teaching_class_id = tc.teaching_class_id) AS scheduleText,
             tc.week_range AS weekRange,
             COALESCE(tc.is_retake_class, 0) AS isRetakeClass,
             tc.max_students AS maxStudents,
@@ -116,7 +120,7 @@ public interface AdminMapper {
         JOIN course c ON tc.course_id = c.course_id
         JOIN teacher t ON tc.teacher_id = t.teacher_id
         LEFT JOIN classroom cl ON tc.classroom_id = cl.classroom_id
-        ORDER BY sem.semester_name DESC, tc.week_day, tc.section_desc, tc.teaching_class_id
+        ORDER BY sem.semester_name DESC, tc.teaching_class_id
         """)
     List<Map<String, Object>> selectTeachingClasses();
 
@@ -260,15 +264,34 @@ public interface AdminMapper {
     @Insert("""
         INSERT INTO teaching_class (
             semester_id, course_id, teacher_id, classroom_id,
-            course_start_date, week_day, section_desc, week_range, is_retake_class, max_students, selected_count
+            course_start_date, week_range, is_retake_class, max_students, selected_count
         )
         SELECT
             #{targetSemesterId}, course_id, teacher_id, classroom_id,
-            NULL, week_day, section_desc, week_range, COALESCE(is_retake_class, 0), max_students, 0
+            NULL, week_range, COALESCE(is_retake_class, 0), max_students, 0
         FROM teaching_class
         WHERE semester_id = #{sourceSemesterId}
         """)
     int carryOverTeachingClasses(
+        @Param("sourceSemesterId") Integer sourceSemesterId,
+        @Param("targetSemesterId") Integer targetSemesterId
+    );
+
+    /** 将源学期教学班的上课时间复制到目标学期对应教学班（按 course_id+teacher_id 匹配）。 */
+    @Insert("""
+        INSERT INTO teaching_class_session (teaching_class_id, week_day, section_desc, week_parity, sort_order)
+        SELECT new_tc.teaching_class_id, s.week_day, s.section_desc, s.week_parity, s.sort_order
+        FROM teaching_class_session s
+        JOIN teaching_class old_tc ON s.teaching_class_id = old_tc.teaching_class_id
+            AND old_tc.semester_id = #{sourceSemesterId}
+        JOIN teaching_class new_tc ON new_tc.semester_id = #{targetSemesterId}
+            AND new_tc.course_id = old_tc.course_id
+            AND new_tc.teacher_id = old_tc.teacher_id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM teaching_class_session ns WHERE ns.teaching_class_id = new_tc.teaching_class_id
+        )
+        """)
+    int carryOverSessions(
         @Param("sourceSemesterId") Integer sourceSemesterId,
         @Param("targetSemesterId") Integer targetSemesterId
     );
@@ -398,13 +421,14 @@ public interface AdminMapper {
     @Insert("""
         INSERT INTO teaching_class (
             semester_id, course_id, teacher_id, classroom_id,
-            course_start_date, week_day, section_desc, week_range, is_retake_class, max_students, selected_count
+            course_start_date, week_range, is_retake_class, max_students, selected_count
         ) VALUES (
             #{request.semesterId}, #{request.courseId}, #{request.teacherId}, NULLIF(#{request.classroomId}, ''),
-            #{request.courseStartDate}, #{request.weekDay}, #{request.sectionDesc}, #{request.weekRange},
+            #{request.courseStartDate}, #{request.weekRange},
             COALESCE(#{request.isRetakeClass}, 0), #{request.maxStudents}, 0
         )
         """)
+    @Options(useGeneratedKeys = true, keyProperty = "request.generatedId")
     int insertTeachingClass(@Param("request") AdminTeachingClassRequest request);
 
     @Update("""
@@ -414,8 +438,6 @@ public interface AdminMapper {
             teacher_id = #{request.teacherId},
             classroom_id = NULLIF(#{request.classroomId}, ''),
             course_start_date = #{request.courseStartDate},
-            week_day = #{request.weekDay},
-            section_desc = #{request.sectionDesc},
             week_range = #{request.weekRange},
             is_retake_class = COALESCE(#{request.isRetakeClass}, 0),
             max_students = #{request.maxStudents}
@@ -428,6 +450,38 @@ public interface AdminMapper {
 
     @Delete("DELETE FROM teaching_class WHERE teaching_class_id = #{teachingClassId}")
     int deleteTeachingClass(@Param("teachingClassId") Integer teachingClassId);
+
+    @Delete("DELETE FROM teaching_class_session WHERE teaching_class_id = #{teachingClassId}")
+    int deleteSessions(@Param("teachingClassId") Integer teachingClassId);
+
+    @Insert("""
+        INSERT INTO teaching_class_session (teaching_class_id, week_day, section_desc, week_parity, sort_order)
+        VALUES (#{teachingClassId}, #{slot.weekDay}, #{slot.sectionDesc}, #{slot.weekParity}, #{slot.sortOrder})
+        """)
+    int insertSession(
+        @Param("teachingClassId") Integer teachingClassId,
+        @Param("slot") com.school.common.schedule.SessionSlot slot
+    );
+
+    @Select("SELECT credit FROM course WHERE course_id = #{courseId}")
+    java.math.BigDecimal selectCourseCredit(@Param("courseId") String courseId);
+
+    /** 同学期同教师或同教室已占用的上课时段，用于自动排课避让。 */
+    @Select("""
+        SELECT s.week_day AS weekDay, s.section_desc AS sectionDesc, s.week_parity AS weekParity
+        FROM teaching_class_session s
+        JOIN teaching_class tc ON s.teaching_class_id = tc.teaching_class_id
+        WHERE tc.semester_id = #{semesterId}
+          AND tc.teaching_class_id <> COALESCE(#{excludeTeachingClassId}, -1)
+          AND (tc.teacher_id = #{teacherId}
+               OR (NULLIF(#{classroomId}, '') IS NOT NULL AND tc.classroom_id = #{classroomId}))
+        """)
+    List<Map<String, Object>> selectOccupiedSlots(
+        @Param("semesterId") Integer semesterId,
+        @Param("teacherId") String teacherId,
+        @Param("classroomId") String classroomId,
+        @Param("excludeTeachingClassId") Integer excludeTeachingClassId
+    );
 
     @Select("""
         SELECT COUNT(*)
@@ -658,6 +712,7 @@ public interface AdminMapper {
         SELECT
             sar.adjust_request_id AS adjustRequestId,
             sar.teaching_class_id AS teachingClassId,
+            sar.session_id AS sessionId,
             sar.requested_week_day AS requestedWeekDay,
             sar.requested_section_desc AS requestedSectionDesc,
             sar.requested_week_range AS requestedWeekRange,
@@ -674,22 +729,27 @@ public interface AdminMapper {
         FROM teaching_class target
         JOIN teaching_class other_tc
           ON other_tc.semester_id = target.semester_id
-         AND other_tc.teaching_class_id <> target.teaching_class_id
-         AND other_tc.week_day = #{weekDay}
          AND other_tc.classroom_id = NULLIF(#{classroomId}, '')
+        JOIN teaching_class_session other_s
+          ON other_s.teaching_class_id = other_tc.teaching_class_id
+         AND other_s.week_day = #{weekDay}
+         AND other_s.session_id <> COALESCE(#{sessionId}, -1)
         WHERE target.teaching_class_id = #{teachingClassId}
           AND NULLIF(#{classroomId}, '') IS NOT NULL
           AND NOT (
-              CAST(REPLACE(SUBSTRING_INDEX(other_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+              CAST(REPLACE(SUBSTRING_INDEX(other_s.section_desc, '-', -1), '节', '') AS UNSIGNED)
                   < CAST(SUBSTRING_INDEX(#{sectionDesc}, '-', 1) AS UNSIGNED)
-              OR CAST(SUBSTRING_INDEX(other_tc.section_desc, '-', 1) AS UNSIGNED)
+              OR CAST(SUBSTRING_INDEX(other_s.section_desc, '-', 1) AS UNSIGNED)
                   > CAST(REPLACE(SUBSTRING_INDEX(#{sectionDesc}, '-', -1), '节', '') AS UNSIGNED)
           )
+          AND (other_s.week_parity = '全周' OR #{weekParity} = '全周' OR other_s.week_parity = #{weekParity})
         """)
     int countTeachingClassRoomConflict(
         @Param("teachingClassId") Integer teachingClassId,
+        @Param("sessionId") Integer sessionId,
         @Param("weekDay") Integer weekDay,
         @Param("sectionDesc") String sectionDesc,
+        @Param("weekParity") String weekParity,
         @Param("classroomId") String classroomId
     );
 
@@ -698,35 +758,51 @@ public interface AdminMapper {
         FROM teaching_class target
         JOIN teaching_class other_tc
           ON other_tc.semester_id = target.semester_id
-         AND other_tc.teaching_class_id <> target.teaching_class_id
          AND other_tc.teacher_id = target.teacher_id
-         AND other_tc.week_day = #{weekDay}
+        JOIN teaching_class_session other_s
+          ON other_s.teaching_class_id = other_tc.teaching_class_id
+         AND other_s.week_day = #{weekDay}
+         AND other_s.session_id <> COALESCE(#{sessionId}, -1)
         WHERE target.teaching_class_id = #{teachingClassId}
           AND NOT (
-              CAST(REPLACE(SUBSTRING_INDEX(other_tc.section_desc, '-', -1), '节', '') AS UNSIGNED)
+              CAST(REPLACE(SUBSTRING_INDEX(other_s.section_desc, '-', -1), '节', '') AS UNSIGNED)
                   < CAST(SUBSTRING_INDEX(#{sectionDesc}, '-', 1) AS UNSIGNED)
-              OR CAST(SUBSTRING_INDEX(other_tc.section_desc, '-', 1) AS UNSIGNED)
+              OR CAST(SUBSTRING_INDEX(other_s.section_desc, '-', 1) AS UNSIGNED)
                   > CAST(REPLACE(SUBSTRING_INDEX(#{sectionDesc}, '-', -1), '节', '') AS UNSIGNED)
           )
+          AND (other_s.week_parity = '全周' OR #{weekParity} = '全周' OR other_s.week_parity = #{weekParity})
         """)
     int countTeachingClassTeacherConflict(
         @Param("teachingClassId") Integer teachingClassId,
+        @Param("sessionId") Integer sessionId,
+        @Param("weekDay") Integer weekDay,
+        @Param("sectionDesc") String sectionDesc,
+        @Param("weekParity") String weekParity
+    );
+
+    @Select("SELECT week_parity FROM teaching_class_session WHERE session_id = #{sessionId}")
+    String selectSessionParity(@Param("sessionId") Integer sessionId);
+
+    @Update("""
+        UPDATE teaching_class_session
+        SET week_day = #{weekDay},
+            section_desc = #{sectionDesc}
+        WHERE session_id = #{sessionId}
+        """)
+    int applyScheduleAdjustSession(
+        @Param("sessionId") Integer sessionId,
         @Param("weekDay") Integer weekDay,
         @Param("sectionDesc") String sectionDesc
     );
 
     @Update("""
         UPDATE teaching_class
-        SET week_day = #{weekDay},
-            section_desc = #{sectionDesc},
-            week_range = #{weekRange},
+        SET week_range = #{weekRange},
             classroom_id = NULLIF(#{classroomId}, '')
         WHERE teaching_class_id = #{teachingClassId}
         """)
-    int applyScheduleAdjustRequest(
+    int applyScheduleAdjustClass(
         @Param("teachingClassId") Integer teachingClassId,
-        @Param("weekDay") Integer weekDay,
-        @Param("sectionDesc") String sectionDesc,
         @Param("weekRange") String weekRange,
         @Param("classroomId") String classroomId
     );
@@ -756,8 +832,12 @@ public interface AdminMapper {
             sem.semester_name AS semesterName,
             c.course_name AS courseName,
             t.teacher_name AS teacherName,
-            tc.week_day AS weekDay,
-            tc.section_desc AS sectionDesc,
+            (SELECT GROUP_CONCAT(
+                        CONCAT('周', s.week_day, ' ', s.section_desc,
+                               IF(s.week_parity = '全周', '', CONCAT('(', s.week_parity, ')')))
+                        ORDER BY s.week_day, s.section_desc SEPARATOR '；')
+             FROM teaching_class_session s
+             WHERE s.teaching_class_id = tc.teaching_class_id) AS scheduleText,
             tc.week_range AS weekRange,
             csr.request_reason AS requestReason,
             csr.request_status AS requestStatus,
@@ -785,19 +865,22 @@ public interface AdminMapper {
     @Select("""
         SELECT COUNT(*)
         FROM course_selection cs
+        JOIN teaching_class_session s1 ON cs.teaching_class_id = s1.teaching_class_id
         JOIN teaching_class t1 ON cs.teaching_class_id = t1.teaching_class_id
         JOIN teaching_class t2 ON t2.teaching_class_id = #{teachingClassId}
+        JOIN teaching_class_session s2 ON s2.teaching_class_id = t2.teaching_class_id
         WHERE cs.student_id = #{studentId}
           AND cs.selection_status = '已选'
           AND t1.semester_id = t2.semester_id
-          AND t1.week_day = t2.week_day
+          AND s1.week_day = s2.week_day
           AND cs.teaching_class_id <> #{teachingClassId}
           AND NOT (
-              CAST(REPLACE(SUBSTRING_INDEX(t1.section_desc, '-', -1), '节', '') AS UNSIGNED)
-                  < CAST(SUBSTRING_INDEX(t2.section_desc, '-', 1) AS UNSIGNED)
-              OR CAST(SUBSTRING_INDEX(t1.section_desc, '-', 1) AS UNSIGNED)
-                  > CAST(REPLACE(SUBSTRING_INDEX(t2.section_desc, '-', -1), '节', '') AS UNSIGNED)
+              CAST(REPLACE(SUBSTRING_INDEX(s1.section_desc, '-', -1), '节', '') AS UNSIGNED)
+                  < CAST(SUBSTRING_INDEX(s2.section_desc, '-', 1) AS UNSIGNED)
+              OR CAST(SUBSTRING_INDEX(s1.section_desc, '-', 1) AS UNSIGNED)
+                  > CAST(REPLACE(SUBSTRING_INDEX(s2.section_desc, '-', -1), '节', '') AS UNSIGNED)
           )
+          AND (s1.week_parity = '全周' OR s2.week_parity = '全周' OR s1.week_parity = s2.week_parity)
         """)
     int countStudentTimeConflict(
         @Param("studentId") String studentId,
@@ -889,8 +972,12 @@ public interface AdminMapper {
             c.course_id AS courseId,
             c.course_name AS courseName,
             t.teacher_name AS teacherName,
-            tc.week_day AS weekDay,
-            tc.section_desc AS sectionDesc,
+            (SELECT GROUP_CONCAT(
+                        CONCAT('周', s.week_day, ' ', s.section_desc,
+                               IF(s.week_parity = '全周', '', CONCAT('(', s.week_parity, ')')))
+                        ORDER BY s.week_day, s.section_desc SEPARATOR '；')
+             FROM teaching_class_session s
+             WHERE s.teaching_class_id = tc.teaching_class_id) AS scheduleText,
             tc.week_range AS weekRange,
             cdr.request_reason AS requestReason,
             cdr.request_status AS requestStatus,

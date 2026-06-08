@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h1>教学班管理</h1>
-        <p>管理员可以新增教学班、指定任课教师和教室，并设置上课时间和容量。选课状态由学期选课时间自动判定。</p>
+        <p>管理员可以新增教学班、指定任课教师和教室，并设置容量。上课节次由系统按课程学分自动排课（每节2学时，奇数学分排单/双周），选课状态由学期选课时间自动判定。</p>
       </div>
       <div class="toolbar">
         <el-button @click="loadTeachingClasses">刷新教学班</el-button>
@@ -43,9 +43,9 @@
         </el-table-column>
         <el-table-column prop="courseStartDate" label="开课日期" width="120" />
         <el-table-column prop="teacherName" label="任课教师" width="110" />
-        <el-table-column label="上课时间" min-width="170">
+        <el-table-column label="上课时间" min-width="200">
           <template #default="{ row }">
-            周{{ weekLabel(row.weekDay) }} / {{ row.sectionDesc }} / {{ row.weekRange }}
+            {{ row.scheduleText || '待排课' }}
           </template>
         </el-table-column>
         <el-table-column label="教室" min-width="140">
@@ -118,14 +118,10 @@
           </el-select>
         </el-form-item>
         <el-form-item label="星期">
-          <el-select v-model="form.weekDay">
-            <el-option v-for="item in weekDayOptions" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
+          <el-input disabled placeholder="按学分自动排课" />
         </el-form-item>
         <el-form-item label="节次">
-          <el-select v-model="form.sectionDesc">
-            <el-option v-for="item in sectionOptions" :key="item" :label="item" :value="item" />
-          </el-select>
+          <el-input disabled placeholder="按学分自动排课" />
         </el-form-item>
         <el-form-item label="周次">
           <el-input v-model="form.weekRange" placeholder="例如：1-16周" />
@@ -219,8 +215,6 @@ const form = reactive({
   courseId: '',
   teacherId: '',
   classroomId: '',
-  weekDay: 1,
-  sectionDesc: '1-4节',
   weekRange: '1-16周',
   isRetakeClass: 0,
   maxStudents: 60
@@ -293,8 +287,6 @@ function resetForm() {
     courseId: courses.value[0]?.value || '',
     teacherId: teachers.value[0]?.value || '',
     classroomId: '',
-    weekDay: 1,
-    sectionDesc: '1-4节',
     weekRange: '1-16周',
     isRetakeClass: 0,
     maxStudents: 60
@@ -328,21 +320,18 @@ function exportClassroomTimetable() {
     return
   }
 
-  const headers = ['学期', '教室', '星期', '节次', '周次', '课程名称', '班型', '教学班编号', '任课教师', '开课日期', '容量', '状态']
+  const headers = ['学期', '教室', '上课时间', '周次', '课程名称', '班型', '教学班编号', '任课教师', '开课日期', '容量', '状态']
   const rows = [...filteredTeachingClasses.value]
     .sort((a, b) => {
       return String(a.semesterName || '').localeCompare(String(b.semesterName || ''), 'zh-Hans') ||
         classroomLabel(a).localeCompare(classroomLabel(b), 'zh-Hans') ||
-        Number(a.weekDay || 0) - Number(b.weekDay || 0) ||
-        sectionOrder(a.sectionDesc) - sectionOrder(b.sectionDesc) ||
         String(a.courseStartDate || '').localeCompare(String(b.courseStartDate || '')) ||
         Number(a.teachingClassId || 0) - Number(b.teachingClassId || 0)
     })
     .map(row => [
       row.semesterName,
       classroomLabel(row),
-      `周${weekLabel(row.weekDay)}`,
-      row.sectionDesc,
+      row.scheduleText || '待排课',
       row.weekRange,
       row.courseName,
       Number(row.isRetakeClass) === 1 ? '重修班' : '普通班',
@@ -378,8 +367,6 @@ function openEditDialog(row) {
     courseId: row.courseId,
     teacherId: row.teacherId,
     classroomId: row.classroomId || '',
-    weekDay: row.weekDay,
-    sectionDesc: row.sectionDesc,
     weekRange: row.weekRange,
     isRetakeClass: Number(row.isRetakeClass) === 1 ? 1 : 0,
     maxStudents: row.maxStudents

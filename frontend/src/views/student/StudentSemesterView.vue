@@ -88,7 +88,7 @@
               :style="courseGridStyle(course)"
             >
               <strong>{{ course.courseName }}</strong>
-              <span>{{ course.sectionDesc }}</span>
+              <span>{{ course.sectionDesc }}<template v-if="course.weekParity && course.weekParity !== '全周'">（{{ course.weekParity }}）</template></span>
               <span>{{ course.teacherName }}</span>
               <span>{{ course.weekRange }}</span>
               <span>{{ course.buildingName || '-' }} {{ course.roomName || '' }}</span>
@@ -147,7 +147,7 @@
             <el-table-column prop="teacherName" label="任课教师" width="110" />
             <el-table-column label="上课时间" min-width="180">
               <template #default="{ row }">
-                周{{ weekLabel(row.weekDay) }} / {{ row.sectionDesc }} / {{ row.weekRange }}
+                {{ row.scheduleText || '待排课' }}（{{ row.weekRange }}）
               </template>
             </el-table-column>
             <el-table-column label="上课地点" min-width="140">
@@ -332,7 +332,7 @@ function handlePrintTimetable() {
     return `
       <div class="print-course" style="grid-column:${style.gridColumn};grid-row:${style.gridRow};">
         <strong>${escapeHtml(course.courseName)}</strong>
-        <span>${escapeHtml(course.sectionDesc)}</span>
+        <span>${escapeHtml(course.sectionDesc)}${course.weekParity && course.weekParity !== '全周' ? `（${escapeHtml(course.weekParity)}）` : ''}</span>
         <span>${escapeHtml(course.teacherName)}</span>
         <span>${escapeHtml(course.weekRange)}</span>
         <span>${escapeHtml(course.buildingName || '-')} ${escapeHtml(course.roomName || '')}</span>

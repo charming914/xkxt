@@ -27,7 +27,7 @@
       <el-table-column prop="teacherName" label="任课教师" width="110" />
       <el-table-column label="上课时间" min-width="180">
         <template #default="{ row }">
-          周{{ weekLabel(row.weekDay) }} / {{ row.sectionDesc }} / {{ row.weekRange }}
+          {{ row.scheduleText || '待排课' }}（{{ row.weekRange }}）
         </template>
       </el-table-column>
       <el-table-column prop="courseStartDate" label="开课日期" width="120" />

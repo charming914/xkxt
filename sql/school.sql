@@ -155,8 +155,6 @@ CREATE TABLE teaching_class (
     teacher_id VARCHAR(12) NOT NULL COMMENT '任课教师工号',
     classroom_id VARCHAR(10) NULL COMMENT '教室编号',
     course_start_date DATE NULL COMMENT '课程实际开课日期',
-    week_day TINYINT NOT NULL COMMENT '星期几',
-    section_desc VARCHAR(20) NOT NULL COMMENT '节次',
     week_range VARCHAR(30) NOT NULL COMMENT '周次范围',
     is_retake_class TINYINT NOT NULL DEFAULT 0 COMMENT '是否重修班：0否，1是',
     max_students INT NOT NULL DEFAULT 60 COMMENT '容量上限',
@@ -172,6 +170,24 @@ CREATE TABLE teaching_class (
     CONSTRAINT fk_teaching_class_classroom
         FOREIGN KEY (classroom_id) REFERENCES classroom(classroom_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='教学班表';
+
+-- 教学班上课时间表：一行代表一周内的一次课（一个连续节次块）。
+-- 一门课按学分排多节课时：每节课=2学时，2学分=1节，4学分=2节；
+-- 奇数学分把多出的半个学时排成单/双周隔周上课的一节课。
+CREATE TABLE teaching_class_session (
+    session_id INT NOT NULL AUTO_INCREMENT COMMENT '上课时间编号',
+    teaching_class_id INT NOT NULL COMMENT '教学班编号',
+    week_day TINYINT NOT NULL COMMENT '星期几',
+    section_desc VARCHAR(20) NOT NULL COMMENT '节次',
+    week_parity VARCHAR(10) NOT NULL DEFAULT '全周' COMMENT '周次类型：全周/单周/双周',
+    sort_order INT NOT NULL DEFAULT 1 COMMENT '同教学班内排序',
+    PRIMARY KEY (session_id),
+    KEY idx_session_class (teaching_class_id),
+    KEY idx_session_day_section (week_day, section_desc),
+    CONSTRAINT fk_session_teaching_class
+        FOREIGN KEY (teaching_class_id) REFERENCES teaching_class(teaching_class_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='教学班上课时间表';
 
 CREATE TABLE course_selection (
     selection_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '选课记录编号',
@@ -398,12 +414,27 @@ INSERT INTO classroom (classroom_id, building_name, room_name, capacity) VALUES
 
 INSERT INTO teaching_class (
     semester_id, course_id, teacher_id, classroom_id,
-    course_start_date, week_day, section_desc, week_range, is_retake_class, max_students, selected_count, status
+    course_start_date, week_range, is_retake_class, max_students, selected_count, status
 ) VALUES
-(2, '08305002', 'T0101', 'LAB1', '2026-03-01', 3, '1-2节', '1-16周', 0, 50, 0, '选课中'),
-(2, '08305003', 'T0102', 'R102', '2026-03-01', 5, '5-6节', '1-16周', 0, 60, 0, '选课中'),
-(2, '08302001', 'T0201', 'R201', '2026-03-01', 1, '5-6节', '1-16周', 0, 80, 0, '选课中'),
-(2, '08305001', 'T0103', 'R101', '2026-03-01', 2, '1-2节', '1-16周', 0, 60, 0, '选课中');
+(2, '08305002', 'T0101', 'LAB1', '2026-03-01', '1-16周', 0, 50, 0, '选课中'),
+(2, '08305003', 'T0102', 'R102', '2026-03-01', '1-16周', 0, 60, 0, '选课中'),
+(2, '08302001', 'T0201', 'R201', '2026-03-01', '1-16周', 0, 80, 0, '选课中'),
+(2, '08305001', 'T0103', 'R101', '2026-03-01', '1-16周', 0, 60, 0, '选课中');
+
+-- 教学班上课时间（按课程学分排课）：
+--   数据库原理 08305002 4.0学分 -> 2节全周
+--   数据结构   08305003 4.0学分 -> 2节全周
+--   通信学     08302001 3.0学分 -> 1节全周 + 1节单周
+--   离散数学   08305001 4.0学分 -> 2节全周
+INSERT INTO teaching_class_session (teaching_class_id, week_day, section_desc, week_parity, sort_order) VALUES
+(1, 3, '1-2节', '全周', 1),
+(1, 5, '3-4节', '全周', 2),
+(2, 5, '5-6节', '全周', 1),
+(2, 2, '7-8节', '全周', 2),
+(3, 1, '5-6节', '全周', 1),
+(3, 4, '3-4节', '单周', 2),
+(4, 2, '1-2节', '全周', 1),
+(4, 4, '5-6节', '全周', 2);
 
 INSERT INTO course_selection (student_id, teaching_class_id, selection_time, selection_status) VALUES
 ('20240001', 3, NOW(), '已选'),
@@ -565,17 +596,21 @@ BEGIN
     SELECT COUNT(*)
     INTO v_conflict_count
     FROM course_selection cs
+    JOIN teaching_class_session s1 ON cs.teaching_class_id = s1.teaching_class_id
     JOIN teaching_class t1 ON cs.teaching_class_id = t1.teaching_class_id
     JOIN teaching_class t2 ON t2.teaching_class_id = p_teaching_class_id
+    JOIN teaching_class_session s2 ON s2.teaching_class_id = t2.teaching_class_id
     WHERE cs.student_id = p_student_id
       AND cs.selection_status = '已选'
       AND t1.semester_id = t2.semester_id
-      AND t1.week_day = t2.week_day
+      AND s1.week_day = s2.week_day
       -- 按节次区间是否重叠判断冲突（兼容 "1-2节" 与 "1-4节" 这类跨段课程）
-      AND CAST(SUBSTRING_INDEX(t1.section_desc, '-', 1) AS UNSIGNED)
-          <= CAST(REPLACE(SUBSTRING_INDEX(t2.section_desc, '-', -1), '节', '') AS UNSIGNED)
-      AND CAST(SUBSTRING_INDEX(t2.section_desc, '-', 1) AS UNSIGNED)
-          <= CAST(REPLACE(SUBSTRING_INDEX(t1.section_desc, '-', -1), '节', '') AS UNSIGNED);
+      AND CAST(SUBSTRING_INDEX(s1.section_desc, '-', 1) AS UNSIGNED)
+          <= CAST(REPLACE(SUBSTRING_INDEX(s2.section_desc, '-', -1), '节', '') AS UNSIGNED)
+      AND CAST(SUBSTRING_INDEX(s2.section_desc, '-', 1) AS UNSIGNED)
+          <= CAST(REPLACE(SUBSTRING_INDEX(s1.section_desc, '-', -1), '节', '') AS UNSIGNED)
+      -- 单双周相交才算冲突：全周与任意相交，单周仅与单周相交，双周仅与双周相交
+      AND (s1.week_parity = '全周' OR s2.week_parity = '全周' OR s1.week_parity = s2.week_parity);
 
     IF v_conflict_count > 0 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '选课时间冲突';
@@ -617,14 +652,16 @@ SELECT
     sem.semester_name,
     c.course_name,
     t.teacher_name,
-    tc.week_day,
-    tc.section_desc,
+    sess.week_day,
+    sess.section_desc,
+    sess.week_parity,
     tc.week_range,
     cl.building_name,
     cl.room_name
 FROM course_selection cs
 JOIN student s ON cs.student_id = s.student_id
 JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+JOIN teaching_class_session sess ON sess.teaching_class_id = tc.teaching_class_id
 JOIN semester sem ON tc.semester_id = sem.semester_id
 JOIN course c ON tc.course_id = c.course_id
 JOIN teacher t ON tc.teacher_id = t.teacher_id

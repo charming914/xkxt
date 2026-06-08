@@ -229,30 +229,24 @@ BEGIN
 
         -- 学期1：已结束的历史教学班
         IF NOT EXISTS (SELECT 1 FROM teaching_class WHERE semester_id = 1 AND course_id = v_course_id) THEN
-            INSERT INTO teaching_class (semester_id, course_id, teacher_id, classroom_id, course_start_date, week_day, section_desc, week_range, max_students, selected_count, status)
+            INSERT INTO teaching_class (semester_id, course_id, teacher_id, classroom_id, course_start_date, week_range, max_students, selected_count, status)
             VALUES (
                 1, v_course_id,
                 (SELECT teacher_id FROM teacher ORDER BY RAND() LIMIT 1),
                 (SELECT classroom_id FROM classroom ORDER BY RAND() LIMIT 1),
-                '2025-09-01',
-                FLOOR(1 + RAND() * 5),
-                ELT(FLOOR(1 + RAND() * 4), '1-2节', '3-4节', '5-6节', '7-8节'),
-                '1-16周',
+                '2025-09-01', '1-16周',
                 FLOOR(40 + RAND() * 41), 0, '已结束'
             );
         END IF;
 
         -- 学期2：当前学期，选课中
         IF NOT EXISTS (SELECT 1 FROM teaching_class WHERE semester_id = 2 AND course_id = v_course_id) THEN
-            INSERT INTO teaching_class (semester_id, course_id, teacher_id, classroom_id, course_start_date, week_day, section_desc, week_range, max_students, selected_count, status)
+            INSERT INTO teaching_class (semester_id, course_id, teacher_id, classroom_id, course_start_date, week_range, max_students, selected_count, status)
             VALUES (
                 2, v_course_id,
                 (SELECT teacher_id FROM teacher ORDER BY RAND() LIMIT 1),
                 (SELECT classroom_id FROM classroom ORDER BY RAND() LIMIT 1),
-                '2026-03-01',
-                FLOOR(1 + RAND() * 5),
-                ELT(FLOOR(1 + RAND() * 4), '1-2节', '3-4节', '5-6节', '7-8节'),
-                '1-16周',
+                '2026-03-01', '1-16周',
                 FLOOR(40 + RAND() * 41), 0, '选课中'
             );
         END IF;
@@ -263,6 +257,86 @@ DELIMITER ;
 
 CALL sp_gen_teaching_classes();
 DROP PROCEDURE IF EXISTS sp_gen_teaching_classes;
+
+-- 按课程学分为新建教学班生成上课时间（每节2学时，奇数学分排单/双周半节）
+DROP PROCEDURE IF EXISTS sp_demo_gen_sessions;
+DELIMITER $$
+CREATE PROCEDURE sp_demo_gen_sessions()
+BEGIN
+    DECLARE done INT DEFAULT 0;
+    DECLARE v_tc_id INT;
+    DECLARE v_semester_id INT;
+    DECLARE v_teacher_id VARCHAR(12);
+    DECLARE v_classroom_id VARCHAR(10);
+    DECLARE v_credit DECIMAL(4,1);
+    DECLARE v_full_sessions INT;
+    DECLARE v_has_half INT;
+    DECLARE v_made INT;
+    DECLARE v_parity VARCHAR(10);
+    DECLARE v_try_day TINYINT;
+    DECLARE v_try_section VARCHAR(20);
+    DECLARE v_conflict INT;
+    DECLARE v_attempt INT;
+
+    DECLARE cur CURSOR FOR
+        SELECT tc.teaching_class_id, tc.semester_id, tc.teacher_id, tc.classroom_id, c.credit
+        FROM teaching_class tc
+        JOIN course c ON tc.course_id = c.course_id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM teaching_class_session s WHERE s.teaching_class_id = tc.teaching_class_id
+        );
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+
+    OPEN cur;
+    tc_loop: LOOP
+        FETCH cur INTO v_tc_id, v_semester_id, v_teacher_id, v_classroom_id, v_credit;
+        IF done = 1 THEN LEAVE tc_loop; END IF;
+
+        SET v_full_sessions = FLOOR(ROUND(v_credit) / 2);
+        SET v_has_half = MOD(ROUND(v_credit), 2);
+        IF v_full_sessions = 0 AND v_has_half = 0 THEN SET v_full_sessions = 1; END IF;
+
+        SET v_made = 0;
+        WHILE v_made < (v_full_sessions + v_has_half) DO
+            SET v_parity = IF(v_made < v_full_sessions, '全周', IF(MOD(v_tc_id, 2) = 1, '单周', '双周'));
+
+            SET v_attempt = 0;
+            assign_loop: WHILE v_attempt < 60 DO
+                SET v_try_day = 1 + MOD(v_tc_id + v_made + v_attempt, 5);
+                SET v_try_section = ELT(1 + MOD(v_tc_id + v_made * 2 + v_attempt, 4), '1-2节', '3-4节', '5-6节', '7-8节');
+
+                SELECT COUNT(*) INTO v_conflict
+                FROM teaching_class_session s
+                WHERE s.teaching_class_id = v_tc_id AND s.week_day = v_try_day AND s.section_desc = v_try_section;
+
+                IF v_conflict = 0 THEN
+                    SELECT COUNT(*) INTO v_conflict
+                    FROM teaching_class_session s
+                    JOIN teaching_class tc2 ON s.teaching_class_id = tc2.teaching_class_id
+                    WHERE tc2.teaching_class_id <> v_tc_id
+                      AND tc2.semester_id = v_semester_id
+                      AND s.week_day = v_try_day
+                      AND s.section_desc = v_try_section
+                      AND (tc2.teacher_id = v_teacher_id
+                           OR (v_classroom_id IS NOT NULL AND tc2.classroom_id = v_classroom_id))
+                      AND (s.week_parity = '全周' OR v_parity = '全周' OR s.week_parity = v_parity);
+                END IF;
+
+                IF v_conflict = 0 THEN LEAVE assign_loop; END IF;
+                SET v_attempt = v_attempt + 1;
+            END WHILE assign_loop;
+
+            INSERT INTO teaching_class_session (teaching_class_id, week_day, section_desc, week_parity, sort_order)
+            VALUES (v_tc_id, v_try_day, v_try_section, v_parity, v_made + 1);
+            SET v_made = v_made + 1;
+        END WHILE;
+    END LOOP;
+    CLOSE cur;
+END$$
+DELIMITER ;
+
+CALL sp_demo_gen_sessions();
+DROP PROCEDURE IF EXISTS sp_demo_gen_sessions;
 
 -- ---------------------------------------------------------------------
 -- 5. 生成选课记录（通过系统存储过程 sp_select_course 逐条选课）

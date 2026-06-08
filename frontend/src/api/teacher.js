@@ -119,6 +119,14 @@ export function getTeacherAvailableExamClassroomOptions(params) {
   })
 }
 
+export function getTeacherTeachingClassSessions(teachingClassId) {
+  return request({
+    url: '/teacher/teaching-class-sessions',
+    method: 'get',
+    params: { teachingClassId }
+  })
+}
+
 export function getTeacherScheduleAdjustRequests() {
   return request({
     url: '/teacher/schedule-adjust-requests',

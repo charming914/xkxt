@@ -13,6 +13,9 @@ public class ScheduleAdjustRequestCreateRequest {
     @NotNull(message = "教学班编号不能为空")
     private Integer teachingClassId;
 
+    @NotNull(message = "上课时间编号不能为空")
+    private Integer sessionId;
+
     @NotNull(message = "调整后星期不能为空")
     @Min(value = 1, message = "星期必须在1到7之间")
     @Max(value = 7, message = "星期必须在1到7之间")

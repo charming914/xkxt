@@ -48,11 +48,11 @@
         <div v-for="day in weekDays" :key="`${day.value}-${block.key}`" class="calendar-cell">
           <div
             v-for="course in getClasses(day.value, block)"
-            :key="`${course.teachingClassId}-${course.courseName}`"
+            :key="`${course.teachingClassId}-${course.courseName}-${course.weekDay}-${course.sectionDesc}`"
             class="course-card"
           >
             <strong>{{ course.courseName }}</strong>
-            <span>{{ course.sectionDesc }}</span>
+            <span>{{ course.sectionDesc }}<template v-if="course.weekParity && course.weekParity !== '全周'">（{{ course.weekParity }}）</template></span>
             <span>教学班：{{ course.teachingClassId }}</span>
             <span>{{ course.weekRange }}</span>
             <span>{{ course.buildingName || '-' }} {{ course.roomName || '' }}</span>
@@ -98,7 +98,7 @@
           </el-descriptions-item>
           <el-descriptions-item label="开课院系">{{ selectedClass.departmentName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="上课时间">
-            周{{ formatWeekDay(selectedClass.weekDay) }} {{ selectedClass.sectionDesc }} {{ selectedClass.weekRange }}
+            {{ selectedClass.scheduleText || '待排课' }}（{{ selectedClass.weekRange }}）
           </el-descriptions-item>
           <el-descriptions-item label="教室">
             {{ selectedClass.buildingName || '-' }} {{ selectedClass.roomName || '' }}
@@ -216,14 +216,35 @@ function parseSection(sectionDesc) {
   return { start: parseInt(nums[0], 10), end: parseInt(nums[nums.length - 1], 10) }
 }
 
-function getClasses(weekDay, block) {
-  return pagedData.value.filter(item => {
-    if (item.weekDay !== weekDay) {
-      return false
+function parseSessions(course) {
+  let sessions = course.sessionsJson
+  if (typeof sessions === 'string') {
+    try {
+      sessions = JSON.parse(sessions)
+    } catch {
+      sessions = null
     }
-    const { start, end } = parseSection(item.sectionDesc)
-    return start <= block.end && block.start <= end
+  }
+  if (!Array.isArray(sessions) || sessions.length === 0) {
+    return []
+  }
+  return sessions.map(s => ({ ...course, ...s }))
+}
+
+function getClasses(weekDay, block) {
+  const result = []
+  pagedData.value.forEach(item => {
+    parseSessions(item).forEach(session => {
+      if (Number(session.weekDay) !== weekDay) {
+        return
+      }
+      const { start, end } = parseSection(session.sectionDesc)
+      if (start <= block.end && block.start <= end) {
+        result.push(session)
+      }
+    })
   })
+  return result
 }
 
 function formatWeekDay(weekDay) {
@@ -281,7 +302,7 @@ function buildPrintableCourseCard(course) {
   return `
     <div class="course-card">
       <strong>${escapeHtml(course.courseName)}</strong>
-      <span>${escapeHtml(course.sectionDesc)} / ${escapeHtml(course.weekRange)}</span>
+      <span>${escapeHtml(course.sectionDesc)}${course.weekParity && course.weekParity !== '全周' ? `（${escapeHtml(course.weekParity)}）` : ''} / ${escapeHtml(course.weekRange)}</span>
       <span>教学班：${escapeHtml(course.teachingClassId)}</span>
       <span>教室：${escapeHtml(classroomLabel(course))}</span>
       <span>人数：${escapeHtml(course.selectedCount)} / ${escapeHtml(course.maxStudents)}</span>
@@ -302,11 +323,12 @@ function exportTeacherTimetablePdf() {
   const rows = timeBlocks.map(block => {
     const cells = weekDays.map(day => {
       const cards = filteredClasses.value
-        .filter(item => {
-          if (item.weekDay !== day.value) {
+        .flatMap(item => parseSessions(item))
+        .filter(session => {
+          if (Number(session.weekDay) !== day.value) {
             return false
           }
-          const { start, end } = parseSection(item.sectionDesc)
+          const { start, end } = parseSection(session.sectionDesc)
           return start <= block.end && block.start <= end
         })
         .map(buildPrintableCourseCard).join('')

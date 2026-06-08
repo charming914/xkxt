@@ -49,12 +49,12 @@
 
       <div
         v-for="course in filteredTimetable"
-        :key="`${course.courseName}-${course.teacherName}-${course.weekDay}-${course.sectionDesc}-${course.weekRange}`"
+        :key="`${course.courseName}-${course.teacherName}-${course.weekDay}-${course.sectionDesc}-${course.weekParity}-${course.weekRange}`"
         class="course-card"
         :style="courseGridStyle(course)"
       >
         <strong>{{ course.courseName }}</strong>
-        <span>{{ course.sectionDesc }}</span>
+        <span>{{ course.sectionDesc }}<template v-if="course.weekParity && course.weekParity !== '全周'">（{{ course.weekParity }}）</template></span>
         <span>{{ course.teacherName }}</span>
         <span>{{ course.weekRange }}</span>
         <span>{{ course.buildingName || '-' }} {{ course.roomName || '' }}</span>
@@ -179,7 +179,7 @@ function handlePrintTimetable() {
     return `
       <div class="print-course" style="grid-column:${style.gridColumn};grid-row:${style.gridRow};">
         <strong>${escapeHtml(course.courseName)}</strong>
-        <span>${escapeHtml(course.sectionDesc)}</span>
+        <span>${escapeHtml(course.sectionDesc)}${course.weekParity && course.weekParity !== '全周' ? '（' + escapeHtml(course.weekParity) + '）' : ''}</span>
         <span>${escapeHtml(course.teacherName)}</span>
         <span>${escapeHtml(course.weekRange)}</span>
         <span>${escapeHtml(course.buildingName || '-')} ${escapeHtml(course.roomName || '')}</span>

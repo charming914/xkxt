@@ -140,9 +140,18 @@ public class TeacherController {
         @RequestParam Integer teachingClassId,
         @RequestParam Integer weekDay,
         @RequestParam String sectionDesc,
+        @RequestParam(required = false, defaultValue = "全周") String weekParity,
         @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
     ) {
-        return ApiResponse.success(teacherService.availableClassroomOptions(teacherId, teachingClassId, weekDay, sectionDesc));
+        return ApiResponse.success(teacherService.availableClassroomOptions(teacherId, teachingClassId, weekDay, sectionDesc, weekParity));
+    }
+
+    @GetMapping("/teaching-class-sessions")
+    public ApiResponse<List<Map<String, Object>>> teachingClassSessions(
+        @RequestParam Integer teachingClassId,
+        @RequestHeader(value = "X-Teacher-Id", defaultValue = "T0101") String teacherId
+    ) {
+        return ApiResponse.success(teacherService.teachingClassSessions(teacherId, teachingClassId));
     }
 
     @GetMapping("/exam-available-classroom-options")

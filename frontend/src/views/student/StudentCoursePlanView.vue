@@ -42,7 +42,7 @@
         <el-table-column prop="credit" label="学分" width="80" />
         <el-table-column label="时间" min-width="180">
           <template #default="{ row }">
-            周{{ weekLabel(row.weekDay) }} / {{ row.sectionDesc }} / {{ row.weekRange }}
+            {{ row.scheduleText || '待排课' }}（{{ row.weekRange }}）
           </template>
         </el-table-column>
         <el-table-column label="地点" min-width="130">
@@ -101,13 +101,13 @@
           </template>
 
           <div
-            v-for="course in filteredPlans"
-            :key="`${course.planId}-${course.teachingClassId}`"
+            v-for="course in planTimetableSessions"
+            :key="`${course.planId}-${course.teachingClassId}-${course.weekDay}-${course.sectionDesc}`"
             class="course-card"
             :style="courseGridStyle(course)"
           >
             <strong>{{ course.courseName }}</strong>
-            <span>{{ course.sectionDesc }}</span>
+            <span>{{ course.sectionDesc }}<template v-if="course.weekParity && course.weekParity !== '全周'">（{{ course.weekParity }}）</template></span>
             <span>{{ course.teacherName }}</span>
             <span>{{ course.weekRange }}</span>
             <span>{{ course.buildingName || '-' }} {{ course.roomName || '' }}</span>
@@ -162,6 +162,25 @@ const filteredPlans = computed(() => {
 
 const selectablePlanRows = computed(() => {
   return filteredPlans.value.filter(item => Number(item.alreadySelected) !== 1)
+})
+
+function parseSessions(course) {
+  let sessions = course.sessionsJson
+  if (typeof sessions === 'string') {
+    try {
+      sessions = JSON.parse(sessions)
+    } catch {
+      sessions = null
+    }
+  }
+  if (!Array.isArray(sessions) || sessions.length === 0) {
+    return []
+  }
+  return sessions.map(s => ({ ...course, ...s }))
+}
+
+const planTimetableSessions = computed(() => {
+  return filteredPlans.value.flatMap(course => parseSessions(course))
 })
 
 function weekLabel(weekDay) {
