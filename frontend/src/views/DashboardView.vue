@@ -36,7 +36,13 @@
       <article v-if="userStore.roleCode === 'TEACHER'" class="dashboard-card span-2">
         <div class="todo-header">
           <h2>教学待办</h2>
-          <el-button size="small" @click="loadTeacherTodos">刷新</el-button>
+          <div class="todo-header-actions">
+            <el-tag v-if="teacherTodoTotal > 0" type="warning" effect="dark" round>
+              共 {{ teacherTodoTotal }} 条待处理
+            </el-tag>
+            <el-tag v-else type="success" effect="plain" round>暂无待办</el-tag>
+            <el-button size="small" @click="loadTeacherTodos">刷新</el-button>
+          </div>
         </div>
         <div v-loading="todoLoading" class="todo-grid">
           <RouterLink to="/teacher/course-drop-requests" class="todo-item todo-link">
@@ -233,6 +239,19 @@ const scoreTodoTotal = computed(() => {
   return Number(teacherTodos.value.missingScores || 0) + Number(teacherTodos.value.unsubmittedScores || 0)
 })
 
+const activeScoreTodoTotal = computed(() => {
+  return scoreSubmitWindowOpen.value ? scoreTodoTotal.value : 0
+})
+
+const teacherTodoTotal = computed(() => {
+  return (
+    Number(teacherTodos.value.pendingDropRequests || 0) +
+    Number(teacherTodos.value.pendingMakeupRequests || 0) +
+    activeScoreTodoTotal.value +
+    Number(teacherTodos.value.pendingScheduleAdjustRequests || 0)
+  )
+})
+
 const roleLabel = computed(() => {
   const roleMap = {
     ADMIN: '系统管理员',
@@ -302,7 +321,7 @@ async function loadStudentTodos() {
 }
 
 function showScoreSubmitReminder() {
-  if (!scoreSubmitWindowOpen.value) {
+  if (!scoreSubmitWindowOpen.value || scoreTodoTotal.value <= 0) {
     return
   }
   const reminderKey = `score-submit-reminder-${userStore.userId}-${userStore.loginAt || 'current'}`
@@ -312,9 +331,7 @@ function showScoreSubmitReminder() {
   sessionStorage.setItem(reminderKey, '1')
   const missingScores = Number(teacherTodos.value.missingScores || 0)
   const unsubmittedScores = Number(teacherTodos.value.unsubmittedScores || 0)
-  const message = scoreTodoTotal.value > 0
-    ? `当前处于成绩录入时间范围内。未录入成绩 ${missingScores} 条，未提交成绩 ${unsubmittedScores} 条，请及时处理。`
-    : '当前处于成绩录入时间范围内，暂无未录入或未提交成绩。'
+  const message = `当前处于成绩录入时间范围内。未录入成绩 ${missingScores} 条，未提交成绩 ${unsubmittedScores} 条，请及时处理。`
   ElMessageBox.alert(message, '成绩录入提醒', {
     type: 'warning',
     confirmButtonText: '知道了'
@@ -417,6 +434,12 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.todo-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .todo-grid {

@@ -140,12 +140,12 @@ const navItems = computed(() => {
       { path: '/teacher/classes', label: '教师授课' },
       { path: '/teacher/scores', label: '学生成绩录入' },
       { path: '/teacher/exams', label: '考试安排' },
+      { path: '/teacher/schedule-adjust-requests', label: '调课申请' },
       {
         label: '审核处理',
         children: [
           { path: '/teacher/course-drop-requests', label: '退课审核' },
-          { path: '/teacher/makeup-requests', label: '补考确认' },
-          { path: '/teacher/schedule-adjust-requests', label: '调课申请' }
+          { path: '/teacher/makeup-requests', label: '补考确认' }
         ]
       }
     )
