@@ -172,6 +172,41 @@ export function importCultivationPlan(file) {
   })
 }
 
+export function importAdminStudents(file) {
+  const data = new FormData()
+  data.append('file', file)
+  return request({
+    url: '/admin/students/import',
+    method: 'post',
+    data
+  })
+}
+
+export function importAdminTeachers(file) {
+  const data = new FormData()
+  data.append('file', file)
+  return request({
+    url: '/admin/teachers/import',
+    method: 'post',
+    data
+  })
+}
+
+export function publishAnnouncement(data) {
+  return request({
+    url: '/admin/announcements',
+    method: 'post',
+    data
+  })
+}
+
+export function getAnnouncements() {
+  return request({
+    url: '/admin/announcements',
+    method: 'get'
+  })
+}
+
 export function getAdminOperationLogs(params) {
   return request({
     url: '/admin/operation-logs',

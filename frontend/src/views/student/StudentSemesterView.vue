@@ -8,6 +8,7 @@
       <div class="toolbar">
         <el-select
           v-model="selectedSemesterId"
+          filterable
           placeholder="选择学期"
           class="semester-select"
           :disabled="semesterLoading || semesters.length === 0"

@@ -7,6 +7,7 @@ import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.AdminTeachingClassRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
 import com.school.admin.dto.ExamUpdateRequest;
+import com.school.admin.dto.ImportResult;
 import com.school.admin.dto.MakeupExamArrangeRequest;
 import com.school.admin.dto.ScoreReviewRequestReviewRequest;
 import com.school.admin.dto.ScoreSubmitSettingRequest;
@@ -18,6 +19,7 @@ import com.school.common.dto.CourseDropReviewRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.mapper.AdminMapper;
 import com.school.common.exception.BusinessException;
+import com.school.notification.service.NotificationService;
 import com.school.common.schedule.SessionScheduleGenerator;
 import com.school.common.schedule.SessionSlot;
 import java.io.BufferedReader;
@@ -44,6 +46,7 @@ public class AdminService {
 
     private final AdminMapper adminMapper;
     private final PasswordEncoder passwordEncoder;
+    private final NotificationService notificationService;
 
     public List<Map<String, Object>> students() {
         return adminMapper.selectStudents();
@@ -144,6 +147,124 @@ public class AdminService {
         return adminMapper.selectMakeupExamRequests();
     }
 
+    @Transactional(rollbackFor = Exception.class)
+    public ImportResult importStudents(MultipartFile file) {
+        return importPersons(file, "STUDENT");
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public ImportResult importTeachers(MultipartFile file) {
+        return importPersons(file, "TEACHER");
+    }
+
+    private ImportResult importPersons(MultipartFile file, String role) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("请选择 CSV 文件");
+        }
+        ImportResult result = new ImportResult();
+        try (BufferedReader reader = new BufferedReader(
+            new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8)
+        )) {
+            String line;
+            int rowNumber = 0;
+            boolean firstLine = true;
+            while ((line = reader.readLine()) != null) {
+                rowNumber++;
+                String normalized = stripBom(line).trim();
+                if (normalized.isBlank()) {
+                    continue;
+                }
+                String[] parts = normalized.split(",", -1);
+                if (firstLine && isPersonHeader(parts)) {
+                    firstLine = false;
+                    continue;
+                }
+                firstLine = false;
+                result.setTotal(result.getTotal() + 1);
+                try {
+                    if ("STUDENT".equals(role)) {
+                        importStudentRow(parts);
+                    } else {
+                        importTeacherRow(parts);
+                    }
+                    result.markSuccess();
+                } catch (BusinessException e) {
+                    result.addError(rowNumber, e.getMessage());
+                }
+            }
+        } catch (IOException e) {
+            throw new BusinessException("CSV 读取失败");
+        }
+        if (result.getSuccess() == 0 && result.getFailed() > 0) {
+            // 全部失败时回滚，避免误以为导入成功
+            throw new BusinessException("导入失败，所有数据均无效：" + String.join("；", result.getErrors()));
+        }
+        return result;
+    }
+
+    private void importStudentRow(String[] parts) {
+        // 学号,姓名,性别,入学年份,院系编号,专业编号,班级编号,状态[,出生日期,籍贯,手机号,邮箱]
+        if (parts.length < 8) {
+            throw new BusinessException("学生 CSV 至少需要8列：学号,姓名,性别,入学年份,院系编号,专业编号,班级编号,状态");
+        }
+        AdminStudentRequest request = new AdminStudentRequest();
+        request.setStudentId(parts[0].trim());
+        request.setStudentName(parts[1].trim());
+        request.setGender(parts[2].trim());
+        request.setEnrollmentYear(parts[3].trim());
+        request.setDepartmentId(parts[4].trim());
+        request.setMajorId(parts[5].trim());
+        request.setClassId(parts[6].trim());
+        request.setStatus(parts[7].trim());
+        request.setBirthDate(parts.length > 8 ? parts[8].trim() : "");
+        request.setHometown(parts.length > 9 ? parts[9].trim() : "");
+        request.setPhone(parts.length > 10 ? parts[10].trim() : "");
+        request.setEmail(parts.length > 11 ? parts[11].trim() : "");
+        if (request.getStudentId().isBlank() || request.getStudentName().isBlank()) {
+            throw new BusinessException("学号和姓名不能为空");
+        }
+        if (adminMapper.countStudentById(request.getStudentId()) > 0) {
+            throw new BusinessException("学号已存在：" + request.getStudentId());
+        }
+        adminMapper.insertStudent(request);
+        createUserIfNecessary(request.getStudentId(), request.getStudentName(), "学生", "STUDENT");
+    }
+
+    private void importTeacherRow(String[] parts) {
+        // 工号,姓名,性别,职称,院系编号,状态[,学历,手机号,邮箱,出生日期]
+        if (parts.length < 6) {
+            throw new BusinessException("教师 CSV 至少需要6列：工号,姓名,性别,职称,院系编号,状态");
+        }
+        AdminTeacherRequest request = new AdminTeacherRequest();
+        request.setTeacherId(parts[0].trim());
+        request.setTeacherName(parts[1].trim());
+        request.setGender(parts[2].trim());
+        request.setTitleName(parts[3].trim());
+        request.setDepartmentId(parts[4].trim());
+        request.setStatus(parts[5].trim());
+        request.setEducation(parts.length > 6 ? parts[6].trim() : "");
+        request.setPhone(parts.length > 7 ? parts[7].trim() : "");
+        request.setEmail(parts.length > 8 ? parts[8].trim() : "");
+        request.setBirthDate(parts.length > 9 ? parts[9].trim() : "");
+        if (request.getTeacherId().isBlank() || request.getTeacherName().isBlank()) {
+            throw new BusinessException("工号和姓名不能为空");
+        }
+        if (adminMapper.countTeacherById(request.getTeacherId()) > 0) {
+            throw new BusinessException("工号已存在：" + request.getTeacherId());
+        }
+        adminMapper.insertTeacher(request);
+        createUserIfNecessary(request.getTeacherId(), request.getTeacherName(), "教师", "TEACHER");
+    }
+
+    private boolean isPersonHeader(String[] parts) {
+        if (parts.length == 0) {
+            return false;
+        }
+        String first = stripBom(parts[0]).trim();
+        return first.contains("学号") || first.contains("工号")
+            || first.toLowerCase().contains("id");
+    }
+
     public List<Map<String, Object>> retakeRequests() {
         return adminMapper.selectRetakeRequests();
     }
@@ -203,6 +324,8 @@ public class AdminService {
                 "补考教室安排",
                 "管理员安排补考教室，申请编号：" + requestId + "，教室：" + classroomId
             );
+            notifyStudent((String) makeupRequest.get("studentId"), "补考",
+                String.valueOf(requestId), true, request.getReviewComment());
             return;
         }
 
@@ -224,6 +347,8 @@ public class AdminService {
                 "补考教室安排",
                 "管理员驳回补考教室申请，申请编号：" + requestId
             );
+            notifyStudent((String) makeupRequest.get("studentId"), "补考",
+                String.valueOf(requestId), false, request.getReviewComment());
             return;
         }
 
@@ -267,6 +392,8 @@ public class AdminService {
             "重修审核",
             "管理员处理重修申请，申请编号：" + requestId + "，结果：" + reviewStatus
         );
+        notifyStudent((String) retakeRequest.get("studentId"), "重修",
+            String.valueOf(requestId), "已通过".equals(reviewStatus), request.getReviewComment());
     }
 
     public List<Map<String, Object>> departments() {
@@ -624,11 +751,15 @@ public class AdminService {
             Long scoreId = ((Number) scoreChangeRequest.get("scoreId")).longValue();
             adminMapper.rollbackSubmittedScore(scoreId);
             adminMapper.updateScoreChangeRequestStatus(scoreChangeRequestId, "已通过", request.getReviewComment(), adminUserId);
+            notifyTeacherUser(notificationService.resolveTeacherUserIdByScoreChange(scoreChangeRequestId),
+                "成绩修改", String.valueOf(scoreChangeRequestId), true, request.getReviewComment());
             return;
         }
 
         if ("REJECT".equalsIgnoreCase(action)) {
             adminMapper.updateScoreChangeRequestStatus(scoreChangeRequestId, "已驳回", request.getReviewComment(), adminUserId);
+            notifyTeacherUser(notificationService.resolveTeacherUserIdByScoreChange(scoreChangeRequestId),
+                "成绩修改", String.valueOf(scoreChangeRequestId), false, request.getReviewComment());
             return;
         }
 
@@ -666,6 +797,8 @@ public class AdminService {
             "成绩复核审核",
             "管理员处理成绩复核申请，申请编号：" + requestId + "，结果：" + reviewStatus
         );
+        notifyStudent((String) scoreReviewRequest.get("studentId"), "成绩复核",
+            String.valueOf(requestId), "已通过".equals(reviewStatus), request.getReviewComment());
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -711,11 +844,16 @@ public class AdminService {
             }
             adminMapper.applyScheduleAdjustClass(teachingClassId, weekRange, classroomId);
             adminMapper.updateScheduleAdjustRequestStatus(adjustRequestId, "已通过", request.getReviewComment(), adminUserId);
+            notifyTeacherUser(notificationService.resolveTeacherUserIdByTeachingClass(teachingClassId),
+                "调课", String.valueOf(adjustRequestId), true, request.getReviewComment());
             return;
         }
 
         if ("REJECT".equalsIgnoreCase(action)) {
             adminMapper.updateScheduleAdjustRequestStatus(adjustRequestId, "已驳回", request.getReviewComment(), adminUserId);
+            Integer adjustTeachingClassId = ((Number) adjustRequest.get("teachingClassId")).intValue();
+            notifyTeacherUser(notificationService.resolveTeacherUserIdByTeachingClass(adjustTeachingClassId),
+                "调课", String.valueOf(adjustRequestId), false, request.getReviewComment());
             return;
         }
 
@@ -760,11 +898,13 @@ public class AdminService {
             }
             adminMapper.increaseSelectedCount(teachingClassId);
             adminMapper.updateCourseSelectionRequestStatus(requestId, "已通过", request.getReviewComment(), reviewedBy);
+            notifyStudent(studentId, "补选", String.valueOf(requestId), true, request.getReviewComment());
             return;
         }
 
         if ("REJECT".equalsIgnoreCase(action)) {
             adminMapper.updateCourseSelectionRequestStatus(requestId, "已驳回", request.getReviewComment(), reviewedBy);
+            notifyStudent((String) selectionRequest.get("studentId"), "补选", String.valueOf(requestId), false, request.getReviewComment());
             return;
         }
 
@@ -801,6 +941,8 @@ public class AdminService {
             adminUserId
         );
         dropCourseIfFullyApproved(dropRequestId, dropRequest);
+        boolean approved = "已通过".equals(adminStatus);
+        notifyStudent((String) dropRequest.get("studentId"), "退课", String.valueOf(dropRequestId), approved, request.getReviewComment());
     }
 
     private void dropCourseIfFullyApproved(Long dropRequestId, Map<String, Object> dropRequest) {
@@ -824,6 +966,35 @@ public class AdminService {
             throw new BusinessException("管理员账号不存在");
         }
         return adminUserId;
+    }
+
+    /**
+     * 给申请学生发送审批结果通知。studentId 即学生登录账号。
+     */
+    private void notifyStudent(String studentId, String bizName, String refId, boolean approved, String comment) {
+        String result = approved ? "已通过" : "已驳回";
+        String title = bizName + "审核结果：" + result;
+        StringBuilder content = new StringBuilder("您的").append(bizName).append("申请").append(result).append("。");
+        if (comment != null && !comment.isBlank()) {
+            content.append("审核意见：").append(comment);
+        }
+        notificationService.notifyByUsername(studentId, bizName, refId, title, content.toString());
+    }
+
+    /**
+     * 给申请教师（按用户编号）发送审批结果通知。
+     */
+    private void notifyTeacherUser(Integer teacherUserId, String bizName, String refId, boolean approved, String comment) {
+        if (teacherUserId == null) {
+            return;
+        }
+        String result = approved ? "已通过" : "已驳回";
+        String title = bizName + "审核结果：" + result;
+        StringBuilder content = new StringBuilder("您的").append(bizName).append("申请").append(result).append("。");
+        if (comment != null && !comment.isBlank()) {
+            content.append("审核意见：").append(comment);
+        }
+        notificationService.notifyByUserId(teacherUserId, bizName, refId, title, content.toString());
     }
 
     private String stripBom(String value) {
@@ -1093,11 +1264,15 @@ public class AdminService {
             }
             adminMapper.updateExam(examId, examDate, startTime, endTime, classroomId);
             adminMapper.updateExamChangeRequestStatus(examChangeRequestId, "已通过", request.getReviewComment(), adminUserId);
+            notifyTeacherUser(notificationService.resolveTeacherUserIdByExamChange(examChangeRequestId),
+                "考试修改", String.valueOf(examChangeRequestId), true, request.getReviewComment());
             return;
         }
 
         if ("REJECT".equalsIgnoreCase(action)) {
             adminMapper.updateExamChangeRequestStatus(examChangeRequestId, "已驳回", request.getReviewComment(), adminUserId);
+            notifyTeacherUser(notificationService.resolveTeacherUserIdByExamChange(examChangeRequestId),
+                "考试修改", String.valueOf(examChangeRequestId), false, request.getReviewComment());
             return;
         }
 

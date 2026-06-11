@@ -6,7 +6,7 @@
         <p>当前登录学生：{{ userStore.realName }}（{{ userStore.refId }}）</p>
       </div>
       <div class="toolbar">
-        <el-select v-model="selectedSemester" clearable placeholder="全部学期" class="semester-select">
+        <el-select v-model="selectedSemester" clearable filterable placeholder="全部学期" class="semester-select">
           <el-option
             v-for="semester in semesterOptions"
             :key="semester"

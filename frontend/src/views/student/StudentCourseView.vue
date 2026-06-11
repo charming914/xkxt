@@ -26,7 +26,7 @@
     <el-form :model="queryForm" label-width="88px" class="query-panel">
       <div class="query-grid">
         <el-form-item label="学期">
-          <el-select v-model="queryForm.semesterId" clearable placeholder="选择学期">
+          <el-select v-model="queryForm.semesterId" clearable filterable placeholder="选择学期">
             <el-option
               v-for="semester in semesters"
               :key="semester.semesterId"
@@ -45,22 +45,22 @@
           <el-input v-model="queryForm.courseId" clearable placeholder="按课程号查询" />
         </el-form-item>
         <el-form-item label="课程种类">
-          <el-select v-model="queryForm.courseType" clearable placeholder="选择课程种类">
+          <el-select v-model="queryForm.courseType" clearable filterable placeholder="选择课程种类">
             <el-option v-for="item in courseTypeOptions" :key="item" :label="item" :value="item" />
           </el-select>
         </el-form-item>
         <el-form-item label="学分数">
-          <el-select v-model="queryForm.credit" clearable placeholder="选择学分">
+          <el-select v-model="queryForm.credit" clearable filterable placeholder="选择学分">
             <el-option v-for="item in creditOptions" :key="item" :label="`${item} 学分`" :value="item" />
           </el-select>
         </el-form-item>
         <el-form-item label="星期">
-          <el-select v-model="queryForm.weekDay" clearable placeholder="选择星期">
+          <el-select v-model="queryForm.weekDay" clearable filterable placeholder="选择星期">
             <el-option v-for="item in weekDayOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="节次">
-          <el-select v-model="queryForm.sectionDesc" clearable placeholder="选择节次">
+          <el-select v-model="queryForm.sectionDesc" clearable filterable placeholder="选择节次">
             <el-option v-for="item in sectionOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>

@@ -5,9 +5,11 @@ import com.school.admin.dto.AdminCourseRequest;
 import com.school.admin.dto.AdminStudentRequest;
 import com.school.admin.dto.AdminTeacherRequest;
 import com.school.admin.dto.AdminTeachingClassRequest;
+import com.school.admin.dto.AnnouncementRequest;
 import com.school.admin.dto.CourseSelectionSettingRequest;
 import com.school.admin.dto.CourseSelectionRequestReviewRequest;
 import com.school.admin.dto.ExamUpdateRequest;
+import com.school.admin.dto.ImportResult;
 import com.school.admin.dto.MakeupExamArrangeRequest;
 import com.school.admin.dto.ScoreReviewRequestReviewRequest;
 import com.school.admin.dto.ScoreSubmitSettingRequest;
@@ -16,6 +18,7 @@ import com.school.admin.service.AdminService;
 import com.school.common.api.ApiResponse;
 import com.school.common.dto.CourseDropReviewRequest;
 import com.school.log.OperationLog;
+import com.school.notification.service.NotificationService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +41,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class AdminController {
 
     private final AdminService adminService;
+    private final NotificationService notificationService;
 
     @GetMapping("/students")
     public ApiResponse<List<Map<String, Object>>> students() {
@@ -181,6 +185,47 @@ public class AdminController {
     public ApiResponse<Integer> importCultivationPlan(@RequestParam("file") MultipartFile file) {
         int imported = adminService.importCultivationPlan(file);
         return ApiResponse.success("培养方案导入成功", imported);
+    }
+
+    @PostMapping("/students/import")
+    @OperationLog(type = "学生管理", action = "批量导入学生")
+    public ApiResponse<ImportResult> importStudents(@RequestParam("file") MultipartFile file) {
+        ImportResult result = adminService.importStudents(file);
+        return ApiResponse.success(
+            "学生导入完成，成功" + result.getSuccess() + "条，失败" + result.getFailed() + "条，默认密码123456",
+            result
+        );
+    }
+
+    @PostMapping("/teachers/import")
+    @OperationLog(type = "教师管理", action = "批量导入教师")
+    public ApiResponse<ImportResult> importTeachers(@RequestParam("file") MultipartFile file) {
+        ImportResult result = adminService.importTeachers(file);
+        return ApiResponse.success(
+            "教师导入完成，成功" + result.getSuccess() + "条，失败" + result.getFailed() + "条，默认密码123456",
+            result
+        );
+    }
+
+    @PostMapping("/announcements")
+    @OperationLog(type = "公告管理", action = "发布公告")
+    public ApiResponse<Integer> publishAnnouncement(
+        @Valid @RequestBody AnnouncementRequest request,
+        @RequestHeader("X-Username") String adminUsername
+    ) {
+        int recipients = notificationService.publishAnnouncement(
+            request.getTitle(),
+            request.getContent(),
+            request.getTargetScope(),
+            request.getTargetDepartmentId(),
+            adminUsername
+        );
+        return ApiResponse.success("公告发布成功，已送达" + recipients + "人", recipients);
+    }
+
+    @GetMapping("/announcements")
+    public ApiResponse<List<Map<String, Object>>> announcements() {
+        return ApiResponse.success(notificationService.announcements());
     }
 
     @GetMapping("/departments")

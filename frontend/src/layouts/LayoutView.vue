@@ -43,6 +43,21 @@
         <strong>{{ currentSemester.semesterName || '-' }}</strong>
         <small>{{ semesterDateRange }}</small>
       </div>
+      <el-badge
+        :value="unreadCount"
+        :hidden="unreadCount === 0"
+        :max="99"
+        class="bell-badge"
+      >
+        <button
+          type="button"
+          class="bell-button"
+          title="消息中心"
+          @click="router.push('/notifications')"
+        >
+          🔔
+        </button>
+      </el-badge>
       <el-dropdown trigger="hover" popper-class="nav-dropdown-popper">
         <div class="user-panel">
           <div>
@@ -66,17 +81,20 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { getStudentCurrentSemester } from '../api/student'
 import { getTeacherCurrentSemester } from '../api/teacher'
+import { getUnreadCount } from '../api/notification'
 import shuLogo from '../assets/shu-logo.png'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const currentSemester = ref({})
+const unreadCount = ref(0)
+let unreadTimer = null
 
 const roleLabel = computed(() => {
   const roleMap = {
@@ -160,12 +178,14 @@ const navItems = computed(() => {
           { path: '/admin/semesters', label: '学期管理' },
           { path: '/admin/teaching-classes', label: '教学班管理' },
           { path: '/admin/exams', label: '考试管理' },
-          { path: '/admin/cultivation-plan', label: '培养方案' }
+          { path: '/admin/cultivation-plan', label: '培养方案' },
+          { path: '/admin/conflict-check', label: '冲突检测' }
         ]
       },
       {
         label: '审核管理',
         children: [
+          { path: '/admin/workflow-board', label: '审批看板' },
           { path: '/admin/course-selection-requests', label: '补选审核' },
           { path: '/admin/course-drop-requests', label: '退课审核' },
           { path: '/admin/schedule-adjust-requests', label: '调课审核' },
@@ -180,6 +200,8 @@ const navItems = computed(() => {
         children: [
           { path: '/admin/statistics', label: '统计分析' },
           { path: '/admin/score-analysis', label: '成绩分析' },
+          { path: '/admin/data-exchange', label: '数据交换' },
+          { path: '/admin/announcements', label: '公告发布' },
           { path: '/admin/operation-logs', label: '操作日志' }
         ]
       }
@@ -225,15 +247,47 @@ async function loadCurrentSemester() {
   }
 }
 
+async function loadUnreadCount() {
+  if (!userStore.isLoggedIn) {
+    unreadCount.value = 0
+    return
+  }
+  try {
+    const response = await getUnreadCount()
+    unreadCount.value = Number(response.data || 0)
+  } catch {
+    unreadCount.value = 0
+  }
+}
+
 watch(
   () => userStore.roleCode,
   () => {
     loadCurrentSemester()
+    loadUnreadCount()
+  }
+)
+
+// 切换到消息中心时刷新未读数
+watch(
+  () => route.path,
+  (path) => {
+    if (path === '/notifications') {
+      loadUnreadCount()
+    }
   }
 )
 
 onMounted(() => {
   loadCurrentSemester()
+  loadUnreadCount()
+  unreadTimer = setInterval(loadUnreadCount, 60000)
+})
+
+onUnmounted(() => {
+  if (unreadTimer) {
+    clearInterval(unreadTimer)
+  }
 })
 </script>
 
@@ -370,6 +424,31 @@ onMounted(() => {
   font-size: 11px;
   opacity: 0.85;
   line-height: 1;
+}
+
+.bell-badge {
+  flex: 0 0 auto;
+}
+
+.bell-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  font-size: 19px;
+  line-height: 1;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.bell-button:hover {
+  background: rgba(255, 255, 255, 0.32);
+  transform: translateY(-1px);
 }
 
 .user-panel {

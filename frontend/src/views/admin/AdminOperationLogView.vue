@@ -21,6 +21,7 @@
         v-model="filters.operationType"
         placeholder="操作类型"
         clearable
+        filterable
         style="width: 180px"
         @change="handleSearch"
       >

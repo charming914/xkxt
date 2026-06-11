@@ -11,20 +11,30 @@
       </div>
     </div>
 
-    <el-empty v-if="!loading && courses.length === 0" description="暂无课程数据" />
+    <div class="filter-bar">
+      <el-input
+        v-model.trim="filters.keyword"
+        clearable
+        placeholder="搜索课程编号 / 名称 / 类型 / 院系"
+        style="width: 320px"
+      />
+      <el-button @click="resetFilters">重置</el-button>
+    </div>
+
+    <el-empty v-if="!loading && sortedCourses.length === 0" description="暂无匹配课程数据" />
 
     <template v-else>
-      <el-table v-loading="loading" :data="pagedData" border>
-        <el-table-column prop="courseId" label="课程编号" width="120" />
-        <el-table-column prop="courseName" label="课程名称" min-width="160" />
-        <el-table-column prop="courseType" label="课程类型" min-width="130" />
-        <el-table-column prop="credit" label="学分" width="80" />
-        <el-table-column prop="totalHours" label="学时" width="80" />
-        <el-table-column prop="assessmentMethod" label="考核方式" width="100" />
-        <el-table-column label="平时:考试" width="110">
+      <el-table v-loading="loading" :data="pagedData" border @sort-change="handleSortChange">
+        <el-table-column prop="courseId" label="课程编号" width="120" sortable="custom" />
+        <el-table-column prop="courseName" label="课程名称" min-width="160" sortable="custom" />
+        <el-table-column prop="courseType" label="课程类型" min-width="130" sortable="custom" />
+        <el-table-column prop="credit" label="学分" width="80" sortable="custom" />
+        <el-table-column prop="totalHours" label="学时" width="80" sortable="custom" />
+        <el-table-column prop="assessmentMethod" label="考核方式" width="100" sortable="custom" />
+        <el-table-column prop="usualRatio" label="平时:考试" width="110" sortable="custom">
           <template #default="{ row }">{{ row.usualRatio }} : {{ row.examRatio }}</template>
         </el-table-column>
-        <el-table-column prop="departmentName" label="开课院系" min-width="150" />
+        <el-table-column prop="departmentName" label="开课院系" min-width="150" sortable="custom" />
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <div class="action-row">
@@ -76,7 +86,7 @@
           <span class="ratio-hint">考试占比 {{ form.examRatio }}%（平时+考试=100）</span>
         </el-form-item>
         <el-form-item label="开课院系">
-          <el-select v-model="form.departmentId">
+          <el-select v-model="form.departmentId" filterable>
             <el-option v-for="item in departments" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
@@ -99,7 +109,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   createAdminCourse,
@@ -109,21 +119,21 @@ import {
   updateAdminCourse
 } from '../../api/admin'
 import { useClientPagination } from '../../composables/useClientPagination'
+import { includesKeyword, sortRows, updateSortState } from '../../utils/tableTools'
 
 const loading = ref(false)
 const courses = ref([])
-const {
-  currentPage,
-  pageSize,
-  total,
-  pagedData,
-  handleSizeChange,
-  handleCurrentChange
-} = useClientPagination(courses, 10)
 const departments = ref([])
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const currentId = ref('')
+const filters = reactive({
+  keyword: ''
+})
+const sortState = reactive({
+  prop: '',
+  order: ''
+})
 const form = reactive({
   courseId: '',
   courseName: '',
@@ -137,6 +147,28 @@ const form = reactive({
   isRequired: 1,
   description: ''
 })
+
+const filteredCourses = computed(() => {
+  return courses.value.filter(row => includesKeyword(row, [
+    'courseId',
+    'courseName',
+    'courseType',
+    'assessmentMethod',
+    'departmentName',
+    'description'
+  ], filters.keyword))
+})
+
+const sortedCourses = computed(() => sortRows(filteredCourses.value, sortState))
+
+const {
+  currentPage,
+  pageSize,
+  total,
+  pagedData,
+  handleSizeChange,
+  handleCurrentChange
+} = useClientPagination(sortedCourses, 10)
 
 function handleUsualRatioChange(value) {
   const usual = Number.isFinite(value) ? value : 0
@@ -173,6 +205,16 @@ function resetForm() {
     isRequired: 1,
     description: ''
   })
+}
+
+function resetFilters() {
+  filters.keyword = ''
+  sortState.prop = ''
+  sortState.order = ''
+}
+
+function handleSortChange(sort) {
+  updateSortState(sortState, sort)
 }
 
 function openCreateDialog() {
@@ -242,6 +284,13 @@ onMounted(() => {
 .toolbar {
   display: flex;
   gap: 12px;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
 .action-row {

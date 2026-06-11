@@ -118,7 +118,7 @@
 
         <template v-if="!isEdit">
           <el-form-item label="结转教学班">
-            <el-select v-model="form.carryOverFromSemesterId" clearable placeholder="不结转" style="width: 100%">
+            <el-select v-model="form.carryOverFromSemesterId" clearable filterable placeholder="不结转" style="width: 100%">
               <el-option
                 v-for="item in semesters"
                 :key="item.semesterId"

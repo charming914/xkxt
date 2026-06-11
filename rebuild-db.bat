@@ -70,7 +70,11 @@ echo [7/8] 0611_course_selection_manual_control.sql  (manual course selection co
 %MYSQL% %DB_NAME% < sql\0611_course_selection_manual_control.sql
 if errorlevel 1 goto :failed
 
-echo [8/8] Done.
+echo [8/9] 0611_notification.sql  (in-app notifications / announcements)...
+%MYSQL% %DB_NAME% < sql\0611_notification.sql
+if errorlevel 1 goto :failed
+
+echo [9/9] Done.
 echo.
 echo ============================================================
 echo  Database "%DB_NAME%" rebuilt successfully.

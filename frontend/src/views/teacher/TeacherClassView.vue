@@ -13,7 +13,7 @@
 
     <div v-if="classes.length > 0" class="semester-toolbar">
       <el-form-item label="课表学期">
-        <el-select v-model="selectedSemesterId" placeholder="请选择学期" class="semester-select">
+        <el-select v-model="selectedSemesterId" filterable placeholder="请选择学期" class="semester-select">
           <el-option
             v-for="item in semesterOptions"
             :key="item.semesterId"

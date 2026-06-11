@@ -11,18 +11,28 @@
       </div>
     </div>
 
-    <el-empty v-if="!loading && students.length === 0" description="暂无学生数据" />
+    <div class="filter-bar">
+      <el-input
+        v-model.trim="filters.keyword"
+        clearable
+        placeholder="搜索学号 / 姓名 / 院系 / 专业 / 班级 / 手机号"
+        style="width: 320px"
+      />
+      <el-button @click="resetFilters">重置</el-button>
+    </div>
+
+    <el-empty v-if="!loading && sortedStudents.length === 0" description="暂无匹配学生数据" />
 
     <template v-else>
-      <el-table v-loading="loading" :data="pagedData" border>
-      <el-table-column prop="studentId" label="学号" width="120" />
-      <el-table-column prop="studentName" label="姓名" width="120" />
-      <el-table-column prop="gender" label="性别" width="80" />
-      <el-table-column prop="departmentName" label="院系" min-width="140" />
-      <el-table-column prop="majorName" label="专业" min-width="180" />
-      <el-table-column prop="className" label="班级" min-width="140" />
-      <el-table-column prop="phone" label="联系电话" min-width="140" />
-      <el-table-column label="状态" width="100">
+      <el-table v-loading="loading" :data="pagedData" border @sort-change="handleSortChange">
+      <el-table-column prop="studentId" label="学号" width="120" sortable="custom" />
+      <el-table-column prop="studentName" label="姓名" width="120" sortable="custom" />
+      <el-table-column prop="gender" label="性别" width="80" sortable="custom" />
+      <el-table-column prop="departmentName" label="院系" min-width="140" sortable="custom" />
+      <el-table-column prop="majorName" label="专业" min-width="180" sortable="custom" />
+      <el-table-column prop="className" label="班级" min-width="140" sortable="custom" />
+      <el-table-column prop="phone" label="联系电话" min-width="140" sortable="custom" />
+      <el-table-column prop="status" label="状态" width="100" sortable="custom">
         <template #default="{ row }">
           <el-tag :type="row.status === '正常' ? 'success' : 'warning'">{{ row.status }}</el-tag>
         </template>
@@ -80,17 +90,17 @@
           <el-input v-model="form.enrollmentYear" />
         </el-form-item>
         <el-form-item label="院系">
-          <el-select v-model="form.departmentId">
+          <el-select v-model="form.departmentId" filterable>
             <el-option v-for="item in departments" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="专业">
-          <el-select v-model="form.majorId">
+          <el-select v-model="form.majorId" filterable>
             <el-option v-for="item in filteredMajors" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="班级">
-          <el-select v-model="form.classId">
+          <el-select v-model="form.classId" filterable>
             <el-option v-for="item in filteredClasses" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
@@ -123,23 +133,23 @@ import {
   updateAdminStudent
 } from '../../api/admin'
 import { useClientPagination } from '../../composables/useClientPagination'
+import { includesKeyword, sortRows, updateSortState } from '../../utils/tableTools'
 
 const loading = ref(false)
 const students = ref([])
-const {
-  currentPage,
-  pageSize,
-  total,
-  pagedData,
-  handleSizeChange,
-  handleCurrentChange
-} = useClientPagination(students, 10)
 const departments = ref([])
 const majors = ref([])
 const classes = ref([])
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const currentId = ref('')
+const filters = reactive({
+  keyword: ''
+})
+const sortState = reactive({
+  prop: '',
+  order: ''
+})
 const form = reactive({
   studentId: '',
   studentName: '',
@@ -162,6 +172,31 @@ const filteredMajors = computed(() => {
 const filteredClasses = computed(() => {
   return classes.value.filter(item => !form.majorId || item.majorId === form.majorId)
 })
+
+const filteredStudents = computed(() => {
+  return students.value.filter(row => includesKeyword(row, [
+    'studentId',
+    'studentName',
+    'gender',
+    'departmentName',
+    'majorName',
+    'className',
+    'phone',
+    'email',
+    'status'
+  ], filters.keyword))
+})
+
+const sortedStudents = computed(() => sortRows(filteredStudents.value, sortState))
+
+const {
+  currentPage,
+  pageSize,
+  total,
+  pagedData,
+  handleSizeChange,
+  handleCurrentChange
+} = useClientPagination(sortedStudents, 10)
 
 async function loadStudents() {
   loading.value = true
@@ -199,6 +234,16 @@ function resetForm() {
     classId: '',
     status: '正常'
   })
+}
+
+function resetFilters() {
+  filters.keyword = ''
+  sortState.prop = ''
+  sortState.order = ''
+}
+
+function handleSortChange(sort) {
+  updateSortState(sortState, sort)
 }
 
 function openCreateDialog() {
@@ -265,6 +310,13 @@ onMounted(() => {
 .toolbar {
   display: flex;
   gap: 12px;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
 .action-row {

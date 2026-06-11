@@ -17,7 +17,7 @@
     <el-form :model="queryForm" label-width="78px" class="query-panel">
       <div class="query-grid">
         <el-form-item label="学期">
-          <el-select v-model="queryForm.semesterName" clearable placeholder="选择学期">
+          <el-select v-model="queryForm.semesterName" clearable filterable placeholder="选择学期">
             <el-option
               v-for="semester in semesterOptions"
               :key="semester"
@@ -30,7 +30,7 @@
           <el-input v-model="queryForm.keyword" clearable placeholder="按课程号或课程名查询" />
         </el-form-item>
         <el-form-item label="成绩状态">
-          <el-select v-model="queryForm.status" clearable placeholder="选择状态">
+          <el-select v-model="queryForm.status" clearable filterable placeholder="选择状态">
             <el-option label="通过" value="PASS" />
             <el-option label="未通过" value="FAIL" />
           </el-select>

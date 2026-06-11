@@ -12,16 +12,22 @@
     </div>
 
     <div class="filter-bar">
-      <el-select v-model="filters.semesterId" clearable placeholder="按学期筛选">
+      <el-input
+        v-model.trim="filters.keyword"
+        clearable
+        placeholder="搜索课程 / 教师 / 教室 / 教学班"
+        style="width: 260px"
+      />
+      <el-select v-model="filters.semesterId" clearable filterable placeholder="按学期筛选">
         <el-option v-for="item in semesters" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
-      <el-select v-model="filters.courseId" clearable placeholder="按课程筛选">
+      <el-select v-model="filters.courseId" clearable filterable placeholder="按课程筛选">
         <el-option v-for="item in courses" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
-      <el-select v-model="filters.teacherId" clearable placeholder="按教师筛选">
+      <el-select v-model="filters.teacherId" clearable filterable placeholder="按教师筛选">
         <el-option v-for="item in teachers" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
-      <el-select v-model="filters.classroomId" clearable placeholder="按教室筛选">
+      <el-select v-model="filters.classroomId" clearable filterable placeholder="按教室筛选">
         <el-option v-for="item in classrooms" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
       <el-button :disabled="filteredTeachingClasses.length === 0" @click="exportClassroomTimetable">导出教室课表</el-button>
@@ -31,34 +37,34 @@
     <el-empty v-if="!loading && filteredTeachingClasses.length === 0" description="暂无教学班数据" />
 
     <template v-else>
-      <el-table v-loading="loading" :data="pagedData" border>
-        <el-table-column prop="teachingClassId" label="教学班编号" width="120" />
-        <el-table-column prop="semesterName" label="学期" min-width="120" />
-        <el-table-column prop="courseName" label="课程名称" min-width="150" />
-        <el-table-column label="班型" width="100">
+      <el-table v-loading="loading" :data="pagedData" border @sort-change="handleSortChange">
+        <el-table-column prop="teachingClassId" label="教学班编号" width="120" sortable="custom" />
+        <el-table-column prop="semesterName" label="学期" min-width="120" sortable="custom" />
+        <el-table-column prop="courseName" label="课程名称" min-width="150" sortable="custom" />
+        <el-table-column prop="isRetakeClass" label="班型" width="100" sortable="custom">
           <template #default="{ row }">
             <el-tag v-if="Number(row.isRetakeClass) === 1" type="warning">重修班</el-tag>
             <el-tag v-else type="info">普通班</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="courseStartDate" label="开课日期" width="120" />
-        <el-table-column prop="teacherName" label="任课教师" width="110" />
-        <el-table-column label="上课时间" min-width="200">
+        <el-table-column prop="courseStartDate" label="开课日期" width="120" sortable="custom" />
+        <el-table-column prop="teacherName" label="任课教师" width="110" sortable="custom" />
+        <el-table-column prop="scheduleText" label="上课时间" min-width="200" sortable="custom">
           <template #default="{ row }">
             {{ row.scheduleText || '待排课' }}
           </template>
         </el-table-column>
-        <el-table-column label="教室" min-width="140">
+        <el-table-column prop="classroomLabel" label="教室" min-width="140" sortable="custom">
           <template #default="{ row }">
             {{ row.buildingName || '-' }} {{ row.roomName || '' }}
           </template>
         </el-table-column>
-        <el-table-column label="容量" width="90">
+        <el-table-column prop="selectedCount" label="容量" width="90" sortable="custom">
           <template #default="{ row }">
             {{ row.selectedCount }}/{{ row.maxStudents }}
           </template>
         </el-table-column>
-        <el-table-column label="选课状态" width="100">
+        <el-table-column prop="status" label="选课状态" width="100" sortable="custom">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.status)">{{ row.status }}</el-tag>
           </template>
@@ -90,12 +96,12 @@
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑教学班' : '新增教学班'" width="760px">
       <el-form :model="form" label-width="90px" class="grid-form">
         <el-form-item label="学期">
-          <el-select v-model="form.semesterId">
+          <el-select v-model="form.semesterId" filterable>
             <el-option v-for="item in semesters" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="课程">
-          <el-select v-model="form.courseId">
+          <el-select v-model="form.courseId" filterable>
             <el-option v-for="item in courses" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
@@ -108,12 +114,12 @@
           />
         </el-form-item>
         <el-form-item label="任课教师">
-          <el-select v-model="form.teacherId">
+          <el-select v-model="form.teacherId" filterable>
             <el-option v-for="item in teachers" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="教室">
-          <el-select v-model="form.classroomId" clearable>
+          <el-select v-model="form.classroomId" clearable filterable>
             <el-option v-for="item in classrooms" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
@@ -177,6 +183,7 @@ import {
   updateAdminTeachingClass
 } from '../../api/admin'
 import { useClientPagination } from '../../composables/useClientPagination'
+import { sortRows, updateSortState } from '../../utils/tableTools'
 
 const loading = ref(false)
 const dialogVisible = ref(false)
@@ -192,10 +199,15 @@ const studentDialogVisible = ref(false)
 const studentLoading = ref(false)
 const currentTeachingClassLabel = ref('')
 const filters = reactive({
+  keyword: '',
   semesterId: null,
   courseId: '',
   teacherId: '',
   classroomId: ''
+})
+const sortState = reactive({
+  prop: '',
+  order: ''
 })
 
 const weekDayOptions = [
@@ -222,11 +234,28 @@ const form = reactive({
 
 const filteredTeachingClasses = computed(() => {
   return teachingClasses.value.filter(item => {
+    const keyword = filters.keyword.toLowerCase()
     const matchSemester = !filters.semesterId || item.semesterId === filters.semesterId
     const matchCourse = !filters.courseId || item.courseId === filters.courseId
     const matchTeacher = !filters.teacherId || item.teacherId === filters.teacherId
     const matchClassroom = !filters.classroomId || item.classroomId === filters.classroomId
-    return matchSemester && matchCourse && matchTeacher && matchClassroom
+    const haystack = [
+      item.teachingClassId,
+      item.semesterName,
+      item.courseId,
+      item.courseName,
+      item.teacherName,
+      item.scheduleText,
+      classroomLabel(item)
+    ].join(' ').toLowerCase()
+    const matchKeyword = !keyword || haystack.includes(keyword)
+    return matchSemester && matchCourse && matchTeacher && matchClassroom && matchKeyword
+  })
+})
+
+const sortedTeachingClasses = computed(() => {
+  return sortRows(filteredTeachingClasses.value, sortState, {
+    classroomLabel
   })
 })
 
@@ -237,7 +266,7 @@ const {
   pagedData,
   handleSizeChange,
   handleCurrentChange
-} = useClientPagination(filteredTeachingClasses, 10)
+} = useClientPagination(sortedTeachingClasses, 10)
 
 const selectedClassroomLabel = computed(() => {
   if (!filters.classroomId) {
@@ -295,10 +324,17 @@ function resetForm() {
 }
 
 function resetFilters() {
+  filters.keyword = ''
   filters.semesterId = null
   filters.courseId = ''
   filters.teacherId = ''
   filters.classroomId = ''
+  sortState.prop = ''
+  sortState.order = ''
+}
+
+function handleSortChange(sort) {
+  updateSortState(sortState, sort)
 }
 
 function classroomLabel(row) {

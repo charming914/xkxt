@@ -11,25 +11,35 @@
       </div>
     </div>
 
-    <el-empty v-if="!loading && exams.length === 0" description="暂无考试安排，请先生成" />
+    <div class="filter-bar">
+      <el-input
+        v-model.trim="filters.keyword"
+        clearable
+        placeholder="搜索课程 / 教师 / 教学班 / 教室 / 状态"
+        style="width: 320px"
+      />
+      <el-button @click="resetFilters">重置</el-button>
+    </div>
+
+    <el-empty v-if="!loading && sortedExams.length === 0" description="暂无匹配考试安排" />
 
     <template v-else>
-      <el-table v-loading="loading" :data="pagedData" border>
-        <el-table-column prop="examId" label="编号" width="80" />
-        <el-table-column prop="courseName" label="课程名称" min-width="150" />
-        <el-table-column prop="teacherName" label="任课教师" width="110" />
-        <el-table-column prop="teachingClassId" label="教学班" width="90" />
-        <el-table-column label="考试时间" min-width="220">
+      <el-table v-loading="loading" :data="pagedData" border @sort-change="handleSortChange">
+        <el-table-column prop="examId" label="编号" width="80" sortable="custom" />
+        <el-table-column prop="courseName" label="课程名称" min-width="150" sortable="custom" />
+        <el-table-column prop="teacherName" label="任课教师" width="110" sortable="custom" />
+        <el-table-column prop="teachingClassId" label="教学班" width="90" sortable="custom" />
+        <el-table-column prop="examDate" label="考试时间" min-width="220" sortable="custom">
           <template #default="{ row }">
             {{ formatDate(row.examDate) }} {{ formatTimeRange(row.startTime, row.endTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="考试地点" min-width="160">
+        <el-table-column prop="classroomLabel" label="考试地点" min-width="160" sortable="custom">
           <template #default="{ row }">
             {{ row.buildingName ? `${row.buildingName} ${row.roomName || ''}` : '未指定' }}
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100">
+        <el-table-column prop="examStatus" label="状态" width="100" sortable="custom">
           <template #default="{ row }">
             <el-tag>{{ row.examStatus }}</el-tag>
           </template>
@@ -104,7 +114,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   deleteAdminExam,
@@ -114,6 +124,7 @@ import {
   updateAdminExam
 } from '../../api/admin'
 import { useClientPagination } from '../../composables/useClientPagination'
+import { includesKeyword, sortRows, updateSortState } from '../../utils/tableTools'
 
 const loading = ref(false)
 const generating = ref(false)
@@ -122,11 +133,37 @@ const exams = ref([])
 const classroomOptions = ref([])
 const editVisible = ref(false)
 const currentRow = ref(null)
+const filters = reactive({
+  keyword: ''
+})
+const sortState = reactive({
+  prop: '',
+  order: ''
+})
 const form = reactive({
   examDate: '',
   startTime: '',
   endTime: '',
   classroomId: ''
+})
+
+const filteredExams = computed(() => {
+  return exams.value.filter(row => includesKeyword(row, [
+    'examId',
+    'teachingClassId',
+    'semesterName',
+    'courseName',
+    'teacherName',
+    classroomLabel,
+    'examStatus'
+  ], filters.keyword))
+})
+
+const sortedExams = computed(() => {
+  return sortRows(filteredExams.value, sortState, {
+    classroomLabel,
+    examDate: row => `${formatDate(row.examDate)} ${formatTimeRange(row.startTime, row.endTime)}`
+  })
 })
 const {
   currentPage,
@@ -135,7 +172,7 @@ const {
   pagedData,
   handleSizeChange,
   handleCurrentChange
-} = useClientPagination(exams, 10)
+} = useClientPagination(sortedExams, 10)
 
 function formatDate(value) {
   if (!value) return '-'
@@ -145,6 +182,20 @@ function formatDate(value) {
 function formatTimeRange(start, end) {
   if (!start || !end) return ''
   return `${String(start).slice(0, 5)}-${String(end).slice(0, 5)}`
+}
+
+function classroomLabel(row) {
+  return [row.buildingName, row.roomName].filter(Boolean).join(' ') || row.classroomId || ''
+}
+
+function resetFilters() {
+  filters.keyword = ''
+  sortState.prop = ''
+  sortState.order = ''
+}
+
+function handleSortChange(sort) {
+  updateSortState(sortState, sort)
 }
 
 async function loadExams() {
@@ -234,6 +285,13 @@ onMounted(() => {
 .action-row {
   display: flex;
   gap: 8px;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
 .pager {

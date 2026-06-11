@@ -29,6 +29,9 @@ import AdminCultivationPlanView from '../views/admin/AdminCultivationPlanView.vu
 import AdminStatisticsView from '../views/admin/AdminStatisticsView.vue'
 import AdminScoreAnalysisView from '../views/admin/AdminScoreAnalysisView.vue'
 import AdminOperationLogView from '../views/admin/AdminOperationLogView.vue'
+import AdminWorkflowBoardView from '../views/admin/AdminWorkflowBoardView.vue'
+import AdminConflictCheckView from '../views/admin/AdminConflictCheckView.vue'
+import AdminDataExchangeView from '../views/admin/AdminDataExchangeView.vue'
 import AdminSelectionRequestView from '../views/admin/AdminSelectionRequestView.vue'
 import AdminDropRequestView from '../views/admin/AdminDropRequestView.vue'
 import AdminScheduleRequestView from '../views/admin/AdminScheduleRequestView.vue'
@@ -37,6 +40,8 @@ import AdminScoreReviewRequestView from '../views/admin/AdminScoreReviewRequestV
 import AdminExamView from '../views/admin/AdminExamView.vue'
 import AdminExamChangeRequestView from '../views/admin/AdminExamChangeRequestView.vue'
 import AdminRemediationRequestView from '../views/admin/AdminRemediationRequestView.vue'
+import AdminAnnouncementView from '../views/admin/AdminAnnouncementView.vue'
+import NotificationView from '../views/NotificationView.vue'
 import PasswordView from '../views/PasswordView.vue'
 
 const routes = [
@@ -61,6 +66,12 @@ const routes = [
         path: 'password',
         name: 'password',
         component: PasswordView,
+        meta: { roles: ['ADMIN', 'TEACHER', 'STUDENT'] }
+      },
+      {
+        path: 'notifications',
+        name: 'notifications',
+        component: NotificationView,
         meta: { roles: ['ADMIN', 'TEACHER', 'STUDENT'] }
       },
       {
@@ -214,6 +225,18 @@ const routes = [
         meta: { roles: ['ADMIN'] }
       },
       {
+        path: 'admin/conflict-check',
+        name: 'admin-conflict-check',
+        component: AdminConflictCheckView,
+        meta: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'admin/workflow-board',
+        name: 'admin-workflow-board',
+        component: AdminWorkflowBoardView,
+        meta: { roles: ['ADMIN'] }
+      },
+      {
         path: 'admin/course-selection-requests',
         name: 'admin-course-selection-requests',
         component: AdminSelectionRequestView,
@@ -268,9 +291,21 @@ const routes = [
         meta: { roles: ['ADMIN'] }
       },
       {
+        path: 'admin/data-exchange',
+        name: 'admin-data-exchange',
+        component: AdminDataExchangeView,
+        meta: { roles: ['ADMIN'] }
+      },
+      {
         path: 'admin/operation-logs',
         name: 'admin-operation-logs',
         component: AdminOperationLogView,
+        meta: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'admin/announcements',
+        name: 'admin-announcements',
+        component: AdminAnnouncementView,
         meta: { roles: ['ADMIN'] }
       }
     ]

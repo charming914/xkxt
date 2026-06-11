@@ -9,7 +9,7 @@
     </div>
 
     <div class="score-toolbar">
-      <el-select v-model="selectedTeachingClassId" clearable placeholder="按教学班筛选" class="class-filter">
+      <el-select v-model="selectedTeachingClassId" clearable filterable placeholder="按教学班筛选" class="class-filter">
         <el-option
           v-for="item in classOptions"
           :key="item.value"

@@ -335,6 +335,9 @@ public interface AdminMapper {
         """)
     int insertStudent(@Param("request") AdminStudentRequest request);
 
+    @Select("SELECT COUNT(*) FROM student WHERE student_id = #{studentId}")
+    int countStudentById(@Param("studentId") String studentId);
+
     @Update("""
         UPDATE student
         SET student_name = #{request.studentName},
@@ -368,6 +371,9 @@ public interface AdminMapper {
         )
         """)
     int insertTeacher(@Param("request") AdminTeacherRequest request);
+
+    @Select("SELECT COUNT(*) FROM teacher WHERE teacher_id = #{teacherId}")
+    int countTeacherById(@Param("teacherId") String teacherId);
 
     @Update("""
         UPDATE teacher
