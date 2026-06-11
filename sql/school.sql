@@ -113,6 +113,8 @@ CREATE TABLE semester (
     end_date DATE NOT NULL COMMENT '结束日期',
     course_select_start DATETIME NOT NULL COMMENT '选课开始时间',
     course_select_end DATETIME NOT NULL COMMENT '选课结束时间',
+    course_selection_manual_mode VARCHAR(10) NOT NULL DEFAULT 'AUTO' COMMENT '选课手动控制：AUTO按默认时间，OPEN手动开启，CLOSED强制关闭',
+    course_selection_manual_end DATETIME NULL COMMENT '手动开启截止时间，为空表示一直开启',
     score_submit_start DATETIME NULL COMMENT '成绩提交开始时间',
     score_submit_end DATETIME NULL COMMENT '成绩提交结束时间',
     makeup_request_start DATETIME NULL COMMENT '补考申请开放开始时间',
@@ -553,6 +555,8 @@ BEGIN
     DECLARE v_course_id VARCHAR(12);
     DECLARE v_select_start DATETIME;
     DECLARE v_select_end DATETIME;
+    DECLARE v_manual_mode VARCHAR(10) DEFAULT 'AUTO';
+    DECLARE v_manual_end DATETIME;
     DECLARE v_exists_count INT DEFAULT 0;
     DECLARE v_dropped_count INT DEFAULT 0;
     DECLARE v_conflict_count INT DEFAULT 0;
@@ -562,12 +566,19 @@ BEGIN
     FROM teaching_class tc
     WHERE tc.teaching_class_id = p_teaching_class_id;
 
-    SELECT s.course_select_start, s.course_select_end
-    INTO v_select_start, v_select_end
+    SELECT s.course_select_start,
+           s.course_select_end,
+           COALESCE(s.course_selection_manual_mode, 'AUTO'),
+           s.course_selection_manual_end
+    INTO v_select_start, v_select_end, v_manual_mode, v_manual_end
     FROM semester s
     WHERE s.semester_id = v_semester_id;
 
-    IF NOW() < v_select_start OR NOW() > v_select_end THEN
+    IF v_manual_mode = 'CLOSED'
+       OR NOT (
+           NOW() BETWEEN v_select_start AND v_select_end
+           OR (v_manual_mode = 'OPEN' AND (v_manual_end IS NULL OR NOW() <= v_manual_end))
+       ) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '当前不在选课时间范围内';
     END IF;
 

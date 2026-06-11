@@ -253,8 +253,10 @@ public class AdminController {
     }
 
     @GetMapping("/course-selection-setting")
-    public ApiResponse<Map<String, Object>> currentSemesterSetting() {
-        return ApiResponse.success(adminService.currentSemesterSetting());
+    public ApiResponse<Map<String, Object>> currentSemesterSetting(
+        @RequestParam(value = "semesterId", required = false) Integer semesterId
+    ) {
+        return ApiResponse.success(adminService.courseSelectionSetting(semesterId));
     }
 
     @PutMapping("/course-selection-setting")

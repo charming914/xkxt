@@ -252,7 +252,8 @@ function weekLabel(weekDay) {
 }
 
 function statusTagType(status) {
-  if (status === '选课中') return 'success'
+  if (status === '选课中' || status === '手动开启') return 'success'
+  if (status === '强制关闭') return 'danger'
   if (status === '已结束') return 'info'
   return 'warning'
 }

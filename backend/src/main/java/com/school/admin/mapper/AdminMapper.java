@@ -110,6 +110,9 @@ public interface AdminMapper {
             tc.max_students AS maxStudents,
             tc.selected_count AS selectedCount,
             CASE
+                WHEN COALESCE(sem.course_selection_manual_mode, 'AUTO') = 'CLOSED' THEN '强制关闭'
+                WHEN COALESCE(sem.course_selection_manual_mode, 'AUTO') = 'OPEN'
+                 AND (sem.course_selection_manual_end IS NULL OR NOW() <= sem.course_selection_manual_end) THEN '手动开启'
                 WHEN sem.course_select_start IS NULL OR sem.course_select_end IS NULL THEN '未开始'
                 WHEN NOW() < sem.course_select_start THEN '未开始'
                 WHEN NOW() > sem.course_select_end THEN '已结束'
@@ -195,6 +198,8 @@ public interface AdminMapper {
             end_date AS endDate,
             course_select_start AS courseSelectStart,
             course_select_end AS courseSelectEnd,
+            course_selection_manual_mode AS courseSelectionManualMode,
+            course_selection_manual_end AS courseSelectionManualEnd,
             is_current AS isCurrent
         FROM semester
         ORDER BY semester_id DESC
@@ -538,6 +543,8 @@ public interface AdminMapper {
             semester_name AS semesterName,
             course_select_start AS courseSelectStart,
             course_select_end AS courseSelectEnd,
+            course_selection_manual_mode AS courseSelectionManualMode,
+            course_selection_manual_end AS courseSelectionManualEnd,
             makeup_request_start AS makeupRequestStart,
             makeup_request_end AS makeupRequestEnd,
             is_current AS isCurrent
@@ -547,10 +554,29 @@ public interface AdminMapper {
         """)
     Map<String, Object> selectCurrentSemesterSetting();
 
+    @Select("""
+        SELECT
+            semester_id AS semesterId,
+            semester_name AS semesterName,
+            course_select_start AS courseSelectStart,
+            course_select_end AS courseSelectEnd,
+            course_selection_manual_mode AS courseSelectionManualMode,
+            course_selection_manual_end AS courseSelectionManualEnd,
+            makeup_request_start AS makeupRequestStart,
+            makeup_request_end AS makeupRequestEnd,
+            is_current AS isCurrent
+        FROM semester
+        WHERE semester_id = #{semesterId}
+        LIMIT 1
+        """)
+    Map<String, Object> selectSemesterSetting(@Param("semesterId") Integer semesterId);
+
     @Update("""
         UPDATE semester
         SET course_select_start = #{request.courseSelectStart},
             course_select_end = #{request.courseSelectEnd},
+            course_selection_manual_mode = #{request.courseSelectionManualMode},
+            course_selection_manual_end = NULLIF(#{request.courseSelectionManualEnd}, ''),
             makeup_request_start = NULLIF(#{request.makeupRequestStart}, ''),
             makeup_request_end = NULLIF(#{request.makeupRequestEnd}, '')
         WHERE semester_id = #{semesterId}

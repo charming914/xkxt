@@ -187,10 +187,11 @@ export function getAdminOperationLogTypes() {
   })
 }
 
-export function getCourseSelectionSetting() {
+export function getCourseSelectionSetting(params) {
   return request({
     url: '/admin/course-selection-setting',
-    method: 'get'
+    method: 'get',
+    params
   })
 }
 

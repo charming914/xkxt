@@ -5,13 +5,18 @@
         <h1>考试修改审核</h1>
         <p>审核教师提交的考试时间、地点调整申请；通过后会同步更新考试安排。</p>
       </div>
-      <el-button @click="loadRequests">刷新列表</el-button>
+      <div class="toolbar">
+        <el-button type="primary" plain :disabled="selectedRows.length === 0" @click="openBatchReview('APPROVE')">批量通过</el-button>
+        <el-button type="danger" plain :disabled="selectedRows.length === 0" @click="openBatchReview('REJECT')">批量驳回</el-button>
+        <el-button @click="loadRequests">刷新列表</el-button>
+      </div>
     </div>
 
     <el-empty v-if="!loading && requests.length === 0" description="暂无考试修改申请" />
 
     <template v-else>
-      <el-table v-loading="loading" :data="pagedData" border>
+      <el-table v-loading="loading" :data="pagedData" border @selection-change="selectedRows = $event">
+        <el-table-column type="selection" width="46" :selectable="canSelectRow" />
         <el-table-column prop="examChangeRequestId" label="申请编号" width="100" />
         <el-table-column prop="courseName" label="课程名称" min-width="150" />
         <el-table-column prop="teachingClassId" label="教学班" width="90" />
@@ -57,7 +62,7 @@
       </div>
     </template>
 
-    <el-dialog v-model="reviewVisible" title="考试修改审核" width="460px">
+    <el-dialog v-model="reviewVisible" :title="reviewDialogTitle" width="460px">
       <el-form label-position="top">
         <el-form-item label="审核意见">
           <el-input v-model.trim="reviewComment" type="textarea" :rows="4" maxlength="200" show-word-limit />
@@ -72,10 +77,11 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getAdminExamChangeRequests, reviewAdminExamChangeRequest } from '../../api/admin'
 import { useClientPagination } from '../../composables/useClientPagination'
+import { runBatchAction } from '../../utils/batchActions'
 
 const loading = ref(false)
 const reviewing = ref(false)
@@ -88,10 +94,16 @@ const {
   handleSizeChange,
   handleCurrentChange
 } = useClientPagination(requests, 10)
-const currentRow = ref(null)
+const currentRows = ref([])
 const reviewAction = ref('')
 const reviewComment = ref('')
 const reviewVisible = ref(false)
+const selectedRows = ref([])
+
+const reviewDialogTitle = computed(() => {
+  const actionLabel = reviewAction.value === 'APPROVE' ? '通过' : '驳回'
+  return currentRows.value.length > 1 ? `批量${actionLabel}考试修改申请` : `${actionLabel}考试修改申请`
+})
 
 function formatDate(value) {
   if (!value) return '-'
@@ -116,6 +128,10 @@ function statusType(status) {
   return 'warning'
 }
 
+function canSelectRow(row) {
+  return row.requestStatus === '待审核'
+}
+
 async function loadRequests() {
   loading.value = true
   try {
@@ -127,7 +143,19 @@ async function loadRequests() {
 }
 
 function openReview(row, action) {
-  currentRow.value = row
+  currentRows.value = [row]
+  reviewAction.value = action
+  reviewComment.value = ''
+  reviewVisible.value = true
+}
+
+function openBatchReview(action) {
+  const rows = selectedRows.value.filter(canSelectRow)
+  if (rows.length === 0) {
+    ElMessage.warning('请先选择待审核申请')
+    return
+  }
+  currentRows.value = rows
   reviewAction.value = action
   reviewComment.value = ''
   reviewVisible.value = true
@@ -136,13 +164,22 @@ function openReview(row, action) {
 async function handleReview() {
   reviewing.value = true
   try {
-    await reviewAdminExamChangeRequest(currentRow.value.examChangeRequestId, {
+    const payload = {
       action: reviewAction.value,
       reviewComment: reviewComment.value
-    })
-    ElMessage.success('考试修改申请处理成功')
+    }
+    const { successCount, failedCount } = await runBatchAction(
+      currentRows.value,
+      row => reviewAdminExamChangeRequest(row.examChangeRequestId, payload)
+    )
+    selectedRows.value = []
     reviewVisible.value = false
     await loadRequests()
+    if (failedCount > 0) {
+      ElMessage.warning(`考试修改申请处理完成：成功 ${successCount} 条，失败 ${failedCount} 条`)
+      return
+    }
+    ElMessage.success(`考试修改申请处理成功，共 ${successCount} 条`)
   } finally {
     reviewing.value = false
   }
@@ -160,6 +197,11 @@ onMounted(() => {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 20px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
 }
 
 .action-row {

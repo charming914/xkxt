@@ -5,13 +5,18 @@
         <h1>退课审核</h1>
         <p>管理员可以审核学生退课申请；教师和管理员均通过后，系统自动执行退课。</p>
       </div>
-      <el-button @click="loadRequests">刷新申请</el-button>
+      <div class="toolbar">
+        <el-button type="primary" plain :disabled="selectedRows.length === 0" @click="openBatchReview('APPROVE')">批量通过</el-button>
+        <el-button type="danger" plain :disabled="selectedRows.length === 0" @click="openBatchReview('REJECT')">批量驳回</el-button>
+        <el-button @click="loadRequests">刷新申请</el-button>
+      </div>
     </div>
 
     <el-empty v-if="!loading && requests.length === 0" description="暂无退课申请" />
 
     <template v-else>
-      <el-table v-loading="loading" :data="pagedData" border>
+      <el-table v-loading="loading" :data="pagedData" border @selection-change="selectedRows = $event">
+      <el-table-column type="selection" width="46" :selectable="canSelectRow" />
       <el-table-column prop="studentId" label="学号" width="120" />
       <el-table-column prop="studentName" label="姓名" width="110" />
       <el-table-column prop="courseId" label="课程号" width="120" />
@@ -62,7 +67,7 @@
     </div>
     </template>
 
-    <el-dialog v-model="dialogVisible" :title="reviewAction === 'APPROVE' ? '通过退课申请' : '驳回退课申请'" width="520px">
+    <el-dialog v-model="dialogVisible" :title="reviewDialogTitle" width="520px">
       <el-form label-position="top">
         <el-form-item label="审核备注">
           <el-input v-model="reviewComment" type="textarea" :rows="4" placeholder="可填写审核意见" />
@@ -70,17 +75,18 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button :type="reviewAction === 'APPROVE' ? 'primary' : 'danger'" @click="handleReview">确认</el-button>
+        <el-button :type="reviewAction === 'APPROVE' ? 'primary' : 'danger'" :loading="reviewing" @click="handleReview">确认</el-button>
       </template>
     </el-dialog>
   </section>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getAdminCourseDropRequests, reviewAdminCourseDropRequest } from '../../api/admin'
 import { useClientPagination } from '../../composables/useClientPagination'
+import { runBatchAction } from '../../utils/batchActions'
 
 const loading = ref(false)
 const requests = ref([])
@@ -93,9 +99,16 @@ const {
   handleCurrentChange
 } = useClientPagination(requests, 10)
 const dialogVisible = ref(false)
-const currentRequestId = ref(null)
+const currentRows = ref([])
 const reviewAction = ref('APPROVE')
 const reviewComment = ref('')
+const reviewing = ref(false)
+const selectedRows = ref([])
+
+const reviewDialogTitle = computed(() => {
+  const actionLabel = reviewAction.value === 'APPROVE' ? '通过' : '驳回'
+  return currentRows.value.length > 1 ? `批量${actionLabel}退课申请` : `${actionLabel}退课申请`
+})
 
 function weekLabel(weekDay) {
   const map = { 1: '一', 2: '二', 3: '三', 4: '四', 5: '五', 6: '六', 7: '日' }
@@ -106,6 +119,10 @@ function statusTagType(status) {
   if (status === '已通过') return 'success'
   if (status === '已驳回') return 'danger'
   return 'warning'
+}
+
+function canSelectRow(row) {
+  return row.requestStatus === '待审核' && row.adminStatus === '待审核'
 }
 
 async function loadRequests() {
@@ -119,20 +136,46 @@ async function loadRequests() {
 }
 
 function openReviewDialog(row, action) {
-  currentRequestId.value = row.dropRequestId
+  currentRows.value = [row]
+  reviewAction.value = action
+  reviewComment.value = ''
+  dialogVisible.value = true
+}
+
+function openBatchReview(action) {
+  const rows = selectedRows.value.filter(canSelectRow)
+  if (rows.length === 0) {
+    ElMessage.warning('请先选择待审核申请')
+    return
+  }
+  currentRows.value = rows
   reviewAction.value = action
   reviewComment.value = ''
   dialogVisible.value = true
 }
 
 async function handleReview() {
-  await reviewAdminCourseDropRequest(currentRequestId.value, {
-    action: reviewAction.value,
-    reviewComment: reviewComment.value
-  })
-  ElMessage.success(reviewAction.value === 'APPROVE' ? '退课申请已通过' : '退课申请已驳回')
-  dialogVisible.value = false
-  await loadRequests()
+  reviewing.value = true
+  try {
+    const payload = {
+      action: reviewAction.value,
+      reviewComment: reviewComment.value
+    }
+    const { successCount, failedCount } = await runBatchAction(
+      currentRows.value,
+      row => reviewAdminCourseDropRequest(row.dropRequestId, payload)
+    )
+    selectedRows.value = []
+    dialogVisible.value = false
+    await loadRequests()
+    if (failedCount > 0) {
+      ElMessage.warning(`退课申请处理完成：成功 ${successCount} 条，失败 ${failedCount} 条`)
+      return
+    }
+    ElMessage.success(reviewAction.value === 'APPROVE' ? `退课申请已通过 ${successCount} 条` : `退课申请已驳回 ${successCount} 条`)
+  } finally {
+    reviewing.value = false
+  }
 }
 
 onMounted(() => {
@@ -147,6 +190,11 @@ onMounted(() => {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 20px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
 }
 
 .action-row {

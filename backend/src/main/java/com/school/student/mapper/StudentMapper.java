@@ -120,7 +120,14 @@ public interface StudentMapper {
                AND sc.is_submitted = 1
                AND sc.final_score < 60
                AND COALESCE(tc.is_retake_class, 0) = 1
-               AND NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+               AND COALESCE(sem.course_selection_manual_mode, 'AUTO') != 'CLOSED'
+               AND (
+                   NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+                   OR (
+                       COALESCE(sem.course_selection_manual_mode, 'AUTO') = 'OPEN'
+                       AND (sem.course_selection_manual_end IS NULL OR NOW() <= sem.course_selection_manual_end)
+                   )
+               )
                AND NOT EXISTS (
                    SELECT 1
                    FROM makeup_exam_request passed_makeup
@@ -204,7 +211,14 @@ public interface StudentMapper {
                AND sc.is_submitted = 1
                AND sc.final_score < 60
                AND COALESCE(tc.is_retake_class, 0) = 1
-               AND NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+               AND COALESCE(sem.course_selection_manual_mode, 'AUTO') != 'CLOSED'
+               AND (
+                   NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+                   OR (
+                       COALESCE(sem.course_selection_manual_mode, 'AUTO') = 'OPEN'
+                       AND (sem.course_selection_manual_end IS NULL OR NOW() <= sem.course_selection_manual_end)
+                   )
+               )
                AND NOT EXISTS (
                    SELECT 1
                    FROM makeup_exam_request passed_makeup
@@ -335,7 +349,14 @@ public interface StudentMapper {
             tc.max_students AS maxStudents,
             tc.selected_count AS selectedCount,
             CASE
-                WHEN NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+                WHEN COALESCE(sem.course_selection_manual_mode, 'AUTO') != 'CLOSED'
+                 AND (
+                    NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+                    OR (
+                        COALESCE(sem.course_selection_manual_mode, 'AUTO') = 'OPEN'
+                        AND (sem.course_selection_manual_end IS NULL OR NOW() &lt;= sem.course_selection_manual_end)
+                    )
+                 )
                  AND tc.selected_count &lt; tc.max_students
                  AND NOT EXISTS (
                     SELECT 1 FROM course_selection selected
@@ -366,7 +387,16 @@ public interface StudentMapper {
             END AS canSelectDirectly,
             CASE
                 WHEN (
-                    NOW() NOT BETWEEN sem.course_select_start AND sem.course_select_end
+                    NOT (
+                        COALESCE(sem.course_selection_manual_mode, 'AUTO') != 'CLOSED'
+                        AND (
+                            NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+                            OR (
+                                COALESCE(sem.course_selection_manual_mode, 'AUTO') = 'OPEN'
+                                AND (sem.course_selection_manual_end IS NULL OR NOW() &lt;= sem.course_selection_manual_end)
+                            )
+                        )
+                    )
                     OR tc.selected_count >= tc.max_students
                 )
                  AND NOT EXISTS (
@@ -465,8 +495,27 @@ public interface StudentMapper {
                       AND pending.teaching_class_id = tc.teaching_class_id
                       AND pending.request_status = '待审核'
                 ) THEN '补选申请待审核'
-                WHEN NOW() &lt; sem.course_select_start THEN '选课时间未到'
-                WHEN NOW() > sem.course_select_end THEN '选课时间已结束'
+                WHEN COALESCE(sem.course_selection_manual_mode, 'AUTO') = 'CLOSED' THEN '管理员已关闭选课'
+                WHEN NOT (
+                    COALESCE(sem.course_selection_manual_mode, 'AUTO') != 'CLOSED'
+                    AND (
+                        NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+                        OR (
+                            COALESCE(sem.course_selection_manual_mode, 'AUTO') = 'OPEN'
+                            AND (sem.course_selection_manual_end IS NULL OR NOW() &lt;= sem.course_selection_manual_end)
+                        )
+                    )
+                ) AND NOW() &lt; sem.course_select_start THEN '选课时间未到'
+                WHEN NOT (
+                    COALESCE(sem.course_selection_manual_mode, 'AUTO') != 'CLOSED'
+                    AND (
+                        NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+                        OR (
+                            COALESCE(sem.course_selection_manual_mode, 'AUTO') = 'OPEN'
+                            AND (sem.course_selection_manual_end IS NULL OR NOW() &lt;= sem.course_selection_manual_end)
+                        )
+                    )
+                ) THEN '选课时间已结束'
                 WHEN tc.selected_count >= tc.max_students THEN '教学班人数已满，可提交补选申请'
                 WHEN EXISTS (
                     SELECT 1
@@ -874,7 +923,14 @@ public interface StudentMapper {
         FROM teaching_class tc
         JOIN semester sem ON tc.semester_id = sem.semester_id
         WHERE tc.teaching_class_id = #{teachingClassId}
-          AND NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+          AND COALESCE(sem.course_selection_manual_mode, 'AUTO') != 'CLOSED'
+          AND (
+              NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+              OR (
+                  COALESCE(sem.course_selection_manual_mode, 'AUTO') = 'OPEN'
+                  AND (sem.course_selection_manual_end IS NULL OR NOW() <= sem.course_selection_manual_end)
+              )
+          )
         """)
     int countSelectableTeachingClass(@Param("teachingClassId") Integer teachingClassId);
 
@@ -1428,7 +1484,16 @@ public interface StudentMapper {
                       AND selected.teaching_class_id = tc.teaching_class_id
                       AND selected.selection_status = '已选'
                 ) THEN 0
-                WHEN NOW() NOT BETWEEN sem.course_select_start AND sem.course_select_end THEN 0
+                WHEN NOT (
+                    COALESCE(sem.course_selection_manual_mode, 'AUTO') != 'CLOSED'
+                    AND (
+                        NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+                        OR (
+                            COALESCE(sem.course_selection_manual_mode, 'AUTO') = 'OPEN'
+                            AND (sem.course_selection_manual_end IS NULL OR NOW() <= sem.course_selection_manual_end)
+                        )
+                    )
+                ) THEN 0
                 WHEN tc.selected_count >= tc.max_students THEN 0
                 WHEN EXISTS (
                     SELECT 1
@@ -1459,8 +1524,27 @@ public interface StudentMapper {
                       AND selected.teaching_class_id = tc.teaching_class_id
                       AND selected.selection_status = '已选'
                 ) THEN '已选择该重修班'
-                WHEN NOW() < sem.course_select_start THEN '重修班选课未开始'
-                WHEN NOW() > sem.course_select_end THEN '重修班选课已结束'
+                WHEN COALESCE(sem.course_selection_manual_mode, 'AUTO') = 'CLOSED' THEN '管理员已关闭重修班选课'
+                WHEN NOT (
+                    COALESCE(sem.course_selection_manual_mode, 'AUTO') != 'CLOSED'
+                    AND (
+                        NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+                        OR (
+                            COALESCE(sem.course_selection_manual_mode, 'AUTO') = 'OPEN'
+                            AND (sem.course_selection_manual_end IS NULL OR NOW() <= sem.course_selection_manual_end)
+                        )
+                    )
+                ) AND NOW() < sem.course_select_start THEN '重修班选课未开始'
+                WHEN NOT (
+                    COALESCE(sem.course_selection_manual_mode, 'AUTO') != 'CLOSED'
+                    AND (
+                        NOW() BETWEEN sem.course_select_start AND sem.course_select_end
+                        OR (
+                            COALESCE(sem.course_selection_manual_mode, 'AUTO') = 'OPEN'
+                            AND (sem.course_selection_manual_end IS NULL OR NOW() <= sem.course_selection_manual_end)
+                        )
+                    )
+                ) THEN '重修班选课已结束'
                 WHEN tc.selected_count >= tc.max_students THEN '重修班容量已满'
                 WHEN EXISTS (
                     SELECT 1

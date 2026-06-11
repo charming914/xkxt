@@ -22,7 +22,7 @@ echo           ALL existing data will be permanently deleted.
 echo ============================================================
 echo.
 
-echo [0/7] Checking mysql client...
+echo [0/8] Checking mysql client...
 where mysql >nul 2>nul
 if errorlevel 1 (
     echo [Error] mysql client not found. Please install MySQL and add it to PATH.
@@ -66,7 +66,11 @@ echo [6/7] 0607_fix_schedule_conflicts.sql  (resolve teaching class conflicts)..
 %MYSQL% < sql\0607_fix_schedule_conflicts.sql
 if errorlevel 1 goto :failed
 
-echo [7/7] Done.
+echo [7/8] 0611_course_selection_manual_control.sql  (manual course selection control)...
+%MYSQL% %DB_NAME% < sql\0611_course_selection_manual_control.sql
+if errorlevel 1 goto :failed
+
+echo [8/8] Done.
 echo.
 echo ============================================================
 echo  Database "%DB_NAME%" rebuilt successfully.

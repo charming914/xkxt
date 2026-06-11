@@ -10,8 +10,14 @@
 
     <el-tabs v-model="activeTab">
       <el-tab-pane label="补考申请" name="makeup">
+        <div class="batch-toolbar">
+          <el-button type="danger" plain :disabled="selectedMakeupRows.length === 0" @click="openBatchMakeupReject">
+            批量驳回
+          </el-button>
+        </div>
         <el-empty v-if="!makeupLoading && makeupRequests.length === 0" description="暂无补考申请" />
-        <el-table v-else v-loading="makeupLoading" :data="makeupRequests" border>
+        <el-table v-else v-loading="makeupLoading" :data="makeupRequests" border @selection-change="selectedMakeupRows = $event">
+          <el-table-column type="selection" width="46" :selectable="canSelectMakeupRow" />
           <el-table-column prop="requestId" label="编号" width="90" />
           <el-table-column prop="studentId" label="学号" width="120" />
           <el-table-column prop="studentName" label="学生" width="100" />
@@ -64,8 +70,17 @@
       </el-tab-pane>
 
       <el-tab-pane label="历史重修申请" name="retake">
+        <div class="batch-toolbar">
+          <el-button type="primary" plain :disabled="selectedRetakeRows.length === 0" @click="openBatchRetakeReview('APPROVE')">
+            批量通过
+          </el-button>
+          <el-button type="danger" plain :disabled="selectedRetakeRows.length === 0" @click="openBatchRetakeReview('REJECT')">
+            批量驳回
+          </el-button>
+        </div>
         <el-empty v-if="!retakeLoading && retakeRequests.length === 0" description="暂无重修申请" />
-        <el-table v-else v-loading="retakeLoading" :data="retakeRequests" border>
+        <el-table v-else v-loading="retakeLoading" :data="retakeRequests" border @selection-change="selectedRetakeRows = $event">
+          <el-table-column type="selection" width="46" :selectable="canSelectRetakeRow" />
           <el-table-column prop="requestId" label="编号" width="90" />
           <el-table-column prop="studentId" label="学号" width="120" />
           <el-table-column prop="studentName" label="学生" width="100" />
@@ -100,7 +115,7 @@
     <el-dialog v-model="reviewVisible" :title="reviewTitle" width="500px">
       <el-form label-position="top">
         <template v-if="reviewKind === 'MAKEUP'">
-          <el-form-item label="确认补考时间">
+          <el-form-item v-if="currentRows.length === 1" label="确认补考时间">
             <el-input :model-value="currentRow?.confirmedExamTime || '-'" disabled />
           </el-form-item>
           <el-form-item v-if="reviewAction === 'APPROVE'" label="补考教室">
@@ -152,6 +167,7 @@ import {
   reviewAdminRetakeRequest,
   updateAdminMakeupResult
 } from '../../api/admin'
+import { runBatchAction } from '../../utils/batchActions'
 
 const activeTab = ref('makeup')
 const makeupLoading = ref(false)
@@ -163,18 +179,22 @@ const classrooms = ref([])
 const reviewVisible = ref(false)
 const resultVisible = ref(false)
 const currentRow = ref(null)
+const currentRows = ref([])
 const reviewKind = ref('MAKEUP')
 const reviewAction = ref('APPROVE')
 const reviewComment = ref('')
 const resultStatus = ref('待考试')
 const classroomId = ref('')
+const selectedMakeupRows = ref([])
+const selectedRetakeRows = ref([])
 
 const reviewTitle = computed(() => {
+  const prefix = currentRows.value.length > 1 ? '批量' : ''
   if (reviewKind.value === 'MAKEUP') {
-    return reviewAction.value === 'APPROVE' ? '安排补考教室' : '驳回补考安排'
+    return reviewAction.value === 'APPROVE' ? '安排补考教室' : `${prefix}驳回补考安排`
   }
   const actionLabel = reviewAction.value === 'APPROVE' ? '通过' : '驳回'
-  return `${actionLabel}历史重修申请`
+  return `${prefix}${actionLabel}历史重修申请`
 })
 
 function statusType(status) {
@@ -193,6 +213,14 @@ function makeupResultType(status) {
 
 function classroomLabel(row) {
   return [row.buildingName, row.roomName].filter(Boolean).join(' ') || '-'
+}
+
+function canSelectMakeupRow(row) {
+  return row.requestStatus === '待管理员排教室'
+}
+
+function canSelectRetakeRow(row) {
+  return row.requestStatus === '待审核'
 }
 
 async function loadOptions() {
@@ -226,6 +254,7 @@ async function refreshAll() {
 
 function openReview(row, kind, action) {
   currentRow.value = row
+  currentRows.value = [row]
   reviewKind.value = kind
   reviewAction.value = action
   reviewComment.value = ''
@@ -236,11 +265,44 @@ function openReview(row, kind, action) {
 
 function openArrange(row, action) {
   currentRow.value = row
+  currentRows.value = [row]
   reviewKind.value = 'MAKEUP'
   reviewAction.value = action
   reviewComment.value = ''
   classroomId.value = row.classroomId || ''
   resultStatus.value = '待考试'
+  reviewVisible.value = true
+}
+
+function openBatchMakeupReject() {
+  const rows = selectedMakeupRows.value.filter(canSelectMakeupRow)
+  if (rows.length === 0) {
+    ElMessage.warning('请先选择待排教室的补考申请')
+    return
+  }
+  currentRow.value = rows[0] || null
+  currentRows.value = rows
+  reviewKind.value = 'MAKEUP'
+  reviewAction.value = 'REJECT'
+  reviewComment.value = ''
+  classroomId.value = ''
+  resultStatus.value = '未安排'
+  reviewVisible.value = true
+}
+
+function openBatchRetakeReview(action) {
+  const rows = selectedRetakeRows.value.filter(canSelectRetakeRow)
+  if (rows.length === 0) {
+    ElMessage.warning('请先选择待审核的重修申请')
+    return
+  }
+  currentRow.value = rows[0] || null
+  currentRows.value = rows
+  reviewKind.value = 'RETAKE'
+  reviewAction.value = action
+  reviewComment.value = ''
+  resultStatus.value = action === 'APPROVE' ? '待考试' : '未安排'
+  classroomId.value = ''
   reviewVisible.value = true
 }
 
@@ -251,7 +313,7 @@ function openResult(row) {
 }
 
 async function handleReview() {
-  if (!currentRow.value) {
+  if (currentRows.value.length === 0) {
     return
   }
   if (reviewKind.value === 'MAKEUP' && reviewAction.value === 'APPROVE' && !classroomId.value) {
@@ -270,12 +332,28 @@ async function handleReview() {
     }
     if (reviewKind.value === 'MAKEUP') {
       payload.classroomId = classroomId.value
-      await reviewAdminMakeupRequest(currentRow.value.requestId, payload)
-      ElMessage.success(reviewAction.value === 'APPROVE' ? '补考教室安排成功' : '补考安排已驳回')
+      const { successCount, failedCount } = await runBatchAction(
+        currentRows.value,
+        row => reviewAdminMakeupRequest(row.requestId, payload)
+      )
+      selectedMakeupRows.value = []
+      if (failedCount > 0) {
+        ElMessage.warning(`补考安排处理完成：成功 ${successCount} 条，失败 ${failedCount} 条`)
+      } else {
+        ElMessage.success(reviewAction.value === 'APPROVE' ? '补考教室安排成功' : `补考安排已驳回 ${successCount} 条`)
+      }
     } else {
       payload.resultStatus = resultStatus.value
-      await reviewAdminRetakeRequest(currentRow.value.requestId, payload)
-      ElMessage.success('重修申请处理成功')
+      const { successCount, failedCount } = await runBatchAction(
+        currentRows.value,
+        row => reviewAdminRetakeRequest(row.requestId, payload)
+      )
+      selectedRetakeRows.value = []
+      if (failedCount > 0) {
+        ElMessage.warning(`重修申请处理完成：成功 ${successCount} 条，失败 ${failedCount} 条`)
+      } else {
+        ElMessage.success(`重修申请处理成功，共 ${successCount} 条`)
+      }
     }
     reviewVisible.value = false
     await refreshAll()
@@ -321,6 +399,12 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.batch-toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 :deep(.el-select) {

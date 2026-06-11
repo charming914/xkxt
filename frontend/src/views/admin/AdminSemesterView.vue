@@ -78,7 +78,7 @@
       </div>
     </template>
 
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑学期' : '新建学期'" width="560px">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑学期' : '新建学期'" width="min(640px, calc(100vw - 32px))">
       <el-form :model="form" label-width="110px">
         <el-form-item label="学期开始日期">
           <el-date-picker
@@ -90,23 +90,31 @@
           />
         </el-form-item>
 
-        <el-alert
+        <div
           v-if="preview"
-          type="info"
-          :closable="false"
-          show-icon
-          class="preview-alert"
+          class="preview-panel"
         >
-          <template #title>
-            <div class="preview-grid">
-              <div><span class="label">学期名称</span>{{ preview.semesterName }}</div>
-              <div><span class="label">学年 / 学期</span>{{ preview.schoolYear }} / 第{{ preview.termCode === '1' ? '一' : '二' }}学期</div>
-              <div><span class="label">教学周(16周)</span>{{ preview.startDate }} ~ {{ preview.endDate }}</div>
-              <div><span class="label">考试周(2周)</span>{{ preview.examStart }} ~ {{ preview.examEnd }}</div>
-              <div><span class="label">选课时间</span>{{ preview.courseSelectStart }} ~ {{ preview.courseSelectEnd }}</div>
-            </div>
-          </template>
-        </el-alert>
+          <div class="preview-row">
+            <span>学期名称</span>
+            <strong>{{ preview.semesterName }}</strong>
+          </div>
+          <div class="preview-row">
+            <span>学年 / 学期</span>
+            <strong>{{ preview.schoolYear }} / 第{{ preview.termCode === '1' ? '一' : '二' }}学期</strong>
+          </div>
+          <div class="preview-row">
+            <span>教学周(16周)</span>
+            <strong>{{ preview.startDate }} ~ {{ preview.endDate }}</strong>
+          </div>
+          <div class="preview-row">
+            <span>考试周(2周)</span>
+            <strong>{{ preview.examStart }} ~ {{ preview.examEnd }}</strong>
+          </div>
+          <div class="preview-row">
+            <span>选课时间</span>
+            <strong>{{ preview.courseSelectStart }} ~ {{ preview.courseSelectEnd }}</strong>
+          </div>
+        </div>
 
         <template v-if="!isEdit">
           <el-form-item label="结转教学班">
@@ -241,7 +249,8 @@ function examWeekRange(row) {
 }
 
 function statusTagType(status) {
-  if (status === '选课中') return 'success'
+  if (status === '选课中' || status === '手动开启') return 'success'
+  if (status === '强制关闭') return 'danger'
   if (status === '已结束') return 'info'
   return 'warning'
 }
@@ -257,6 +266,9 @@ function formatTime(str) {
 }
 
 function selectionStatus(row) {
+  const manualMode = row.courseSelectionManualMode || 'AUTO'
+  if (manualMode === 'CLOSED') return '强制关闭'
+  if (manualMode === 'OPEN' && isManualOpenActive(row)) return '手动开启'
   if (!row.courseSelectStart || !row.courseSelectEnd) return '未设置'
   const now = Date.now()
   const start = parseTime(row.courseSelectStart)
@@ -264,6 +276,11 @@ function selectionStatus(row) {
   if (now < start) return '未开始'
   if (now > end) return '已结束'
   return '选课中'
+}
+
+function isManualOpenActive(row) {
+  if (!row.courseSelectionManualEnd) return true
+  return Date.now() <= parseTime(row.courseSelectionManualEnd)
 }
 
 async function loadSemesters() {
@@ -360,27 +377,50 @@ onMounted(() => {
   gap: 12px;
 }
 
-.preview-alert {
-  margin: 4px 0 18px 110px;
-}
-
-.preview-grid {
+.preview-panel {
   display: grid;
-  gap: 6px;
+  gap: 10px;
+  margin: 4px 0 18px 110px;
+  padding: 14px 16px;
+  border: 1px solid #d9ecff;
+  border-radius: 8px;
+  background: #f5faff;
   font-size: 13px;
-  line-height: 1.6;
-  white-space: normal;
 }
 
-.preview-grid .label {
-  display: inline-block;
-  width: 96px;
+.preview-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  line-height: 1.5;
+}
+
+.preview-row span {
   color: #909399;
+}
+
+.preview-row strong {
+  min-width: 0;
+  color: #606266;
+  font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
 .pager {
   display: flex;
   justify-content: flex-end;
   margin-top: 18px;
+}
+
+@media (max-width: 640px) {
+  .preview-panel {
+    margin-left: 0;
+  }
+
+  .preview-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
 }
 </style>

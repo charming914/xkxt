@@ -164,6 +164,8 @@ const semesterOptions = computed(() => {
         semesterEndDate: item.semesterEndDate,
         courseSelectStart: item.courseSelectStart,
         courseSelectEnd: item.courseSelectEnd,
+        courseSelectionManualMode: item.courseSelectionManualMode,
+        courseSelectionManualEnd: item.courseSelectionManualEnd,
         isCurrent: item.isCurrent
       })
     }
@@ -262,6 +264,9 @@ function parseTime(str) {
 }
 
 function selectionStatus(row) {
+  const manualMode = row?.courseSelectionManualMode || 'AUTO'
+  if (manualMode === 'CLOSED') return '强制关闭'
+  if (manualMode === 'OPEN' && isManualOpenActive(row)) return '手动开启'
   if (!row?.courseSelectStart || !row?.courseSelectEnd) return '未设置'
   const now = Date.now()
   const start = parseTime(row.courseSelectStart)
@@ -272,9 +277,15 @@ function selectionStatus(row) {
 }
 
 function statusTagType(status) {
-  if (status === '选课中') return 'success'
+  if (status === '选课中' || status === '手动开启') return 'success'
+  if (status === '强制关闭') return 'danger'
   if (status === '已结束') return 'info'
   return 'warning'
+}
+
+function isManualOpenActive(row) {
+  if (!row?.courseSelectionManualEnd) return true
+  return Date.now() <= parseTime(row.courseSelectionManualEnd)
 }
 
 function classroomLabel(row) {

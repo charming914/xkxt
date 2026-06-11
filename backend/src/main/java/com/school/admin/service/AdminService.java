@@ -526,12 +526,26 @@ public class AdminService {
         return setting;
     }
 
+    public Map<String, Object> courseSelectionSetting(Integer semesterId) {
+        if (semesterId == null) {
+            return currentSemesterSetting();
+        }
+        Map<String, Object> setting = adminMapper.selectSemesterSetting(semesterId);
+        if (setting == null) {
+            throw new BusinessException("学期不存在");
+        }
+        return setting;
+    }
+
     @Transactional
     public void updateCourseSelectionSetting(CourseSelectionSettingRequest request) {
-        Map<String, Object> setting = adminMapper.selectCurrentSemesterSetting();
+        Map<String, Object> setting = request.getSemesterId() == null
+            ? adminMapper.selectCurrentSemesterSetting()
+            : adminMapper.selectSemesterSetting(request.getSemesterId());
         if (setting == null) {
-            throw new BusinessException("当前学期不存在");
+            throw new BusinessException(request.getSemesterId() == null ? "当前学期不存在" : "学期不存在");
         }
+        validateCourseSelectionSetting(request);
         validateMakeupRequestWindow(request);
         Integer semesterId = ((Number) setting.get("semesterId")).intValue();
         adminMapper.updateCourseSelectionTime(semesterId, request);
@@ -857,7 +871,37 @@ public class AdminService {
         }
     }
 
+    private void validateCourseSelectionSetting(CourseSelectionSettingRequest request) {
+        LocalDateTime start = parseDateTime(request.getCourseSelectStart(), "选课开始时间");
+        LocalDateTime end = parseDateTime(request.getCourseSelectEnd(), "选课结束时间");
+        if (!end.isAfter(start)) {
+            throw new BusinessException("选课结束时间必须晚于开始时间");
+        }
+
+        String mode = request.getCourseSelectionManualMode();
+        mode = mode == null || mode.isBlank() ? "AUTO" : mode.trim().toUpperCase();
+        if (!"AUTO".equals(mode) && !"OPEN".equals(mode) && !"CLOSED".equals(mode)) {
+            throw new BusinessException("选课手动控制状态不正确");
+        }
+        request.setCourseSelectionManualMode(mode);
+
+        if (!"OPEN".equals(mode)) {
+            request.setCourseSelectionManualEnd(null);
+            return;
+        }
+
+        String manualEnd = request.getCourseSelectionManualEnd();
+        if (manualEnd == null || manualEnd.isBlank()) {
+            request.setCourseSelectionManualEnd(null);
+            return;
+        }
+        parseDateTime(manualEnd, "手动开启截止时间");
+    }
+
     private LocalDateTime parseDateTime(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new BusinessException(fieldName + "不能为空");
+        }
         try {
             return LocalDateTime.parse(value.trim().replace(' ', 'T'));
         } catch (DateTimeParseException e) {

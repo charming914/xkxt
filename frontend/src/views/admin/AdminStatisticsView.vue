@@ -4,7 +4,7 @@
       <div class="setting-header">
         <div>
           <h2>选课设置</h2>
-          <p>管理员为当前学期设置选课时间窗口。选课状态依据当前时间自动判定，到点自动开始、结束。</p>
+          <p>管理员为当前学期设置选课时间窗口，也可以临时手动开启或强制关闭。</p>
         </div>
         <div class="toolbar">
           <el-button @click="loadSetting">刷新设置</el-button>
@@ -14,12 +14,54 @@
 
       <div class="setting-grid">
         <div class="setting-item">
-          <span class="setting-label">当前学期</span>
-          <strong>{{ setting.semesterName || '-' }}</strong>
+          <span class="setting-label">设置学期</span>
+          <el-select
+            v-model="selectedSettingSemesterId"
+            filterable
+            placeholder="选择学期"
+            :disabled="semesterOptions.length === 0"
+            @change="loadSetting"
+          >
+            <el-option
+              v-for="semester in semesterOptions"
+              :key="semester.semesterId"
+              :label="semester.semesterName"
+              :value="semester.semesterId"
+            >
+              <span>{{ semester.semesterName }}</span>
+              <el-tag v-if="Number(semester.isCurrent) === 1" size="small" type="success" class="inline-tag">当前</el-tag>
+            </el-option>
+          </el-select>
         </div>
         <div class="setting-item">
           <span class="setting-label">选课状态</span>
           <el-tag :type="courseSelectionStatusType">{{ courseSelectionStatus }}</el-tag>
+        </div>
+        <div class="setting-item setting-item-wide">
+          <span class="setting-label">手动控制</span>
+          <el-radio-group v-model="setting.courseSelectionManualMode">
+            <el-radio-button label="AUTO">按默认时间</el-radio-button>
+            <el-radio-button label="OPEN">手动开启</el-radio-button>
+            <el-radio-button label="CLOSED">强制关闭</el-radio-button>
+          </el-radio-group>
+        </div>
+        <div v-if="setting.courseSelectionManualMode === 'OPEN'" class="setting-item setting-item-wide">
+          <span class="setting-label">手动开启截止时间</span>
+          <div class="manual-end-row">
+            <el-date-picker
+              v-model="setting.courseSelectionManualEnd"
+              type="datetime"
+              format="YYYY-MM-DD HH:mm:ss"
+              value-format="YYYY-MM-DD HH:mm:ss"
+              placeholder="不填则一直开启"
+            />
+            <el-button plain @click="clearManualEnd">长期开启</el-button>
+          </div>
+          <div class="duration-actions">
+            <el-button size="small" plain @click="setManualDuration(1)">1小时</el-button>
+            <el-button size="small" plain @click="setManualDuration(24)">1天</el-button>
+            <el-button size="small" plain @click="setManualDuration(168)">1周</el-button>
+          </div>
         </div>
         <div class="setting-item">
           <span class="setting-label">选课开始时间</span>
@@ -170,12 +212,23 @@
         <h1>已提交成绩</h1>
         <p>管理员可将已提交成绩退回为可修改状态。</p>
       </div>
-      <el-button @click="loadSubmittedScores">刷新成绩</el-button>
+      <div class="toolbar">
+        <el-button type="warning" plain :disabled="selectedScores.length === 0" @click="handleBatchRollback">
+          批量退回
+        </el-button>
+        <el-button @click="loadSubmittedScores">刷新成绩</el-button>
+      </div>
     </div>
 
     <el-empty v-if="!scoreLoading && submittedScores.length === 0" description="暂无已提交成绩" />
     <template v-else>
-      <el-table v-loading="scoreLoading" :data="scorePaged.pagedData.value" border>
+      <el-table
+        v-loading="scoreLoading"
+        :data="scorePaged.pagedData.value"
+        border
+        @selection-change="selectedScores = $event"
+      >
+      <el-table-column type="selection" width="46" />
       <el-table-column prop="scoreId" label="成绩编号" width="100" />
       <el-table-column prop="semesterName" label="学期" width="130" />
       <el-table-column prop="courseName" label="课程名称" min-width="150" />
@@ -215,6 +268,7 @@ import {
   getScoreSubmitSetting,
   getSubmittedScores,
   getCourseSelectionSetting,
+  getSemesterManagement,
   rollbackSubmittedScore,
   updateScoreSubmitSetting,
   updateCourseSelectionSetting
@@ -225,12 +279,17 @@ const loading = ref(false)
 const scoreLoading = ref(false)
 const statistics = ref([])
 const submittedScores = ref([])
+const semesterOptions = ref([])
+const selectedSettingSemesterId = ref(null)
+const selectedScores = ref([])
 const statPaged = useClientPagination(statistics, 10)
 const scorePaged = useClientPagination(submittedScores, 10)
 const setting = reactive({
   semesterName: '',
   courseSelectStart: '',
   courseSelectEnd: '',
+  courseSelectionManualMode: 'AUTO',
+  courseSelectionManualEnd: '',
   makeupRequestStart: '',
   makeupRequestEnd: ''
 })
@@ -241,12 +300,18 @@ const scoreSetting = reactive({
 })
 
 const courseSelectionStatus = computed(() => {
+  if (setting.courseSelectionManualMode === 'CLOSED') {
+    return '强制关闭'
+  }
+  if (setting.courseSelectionManualMode === 'OPEN' && isManualOpenActive()) {
+    return '手动开启'
+  }
   if (!setting.courseSelectStart || !setting.courseSelectEnd) {
     return '未设置'
   }
   const now = Date.now()
-  const start = new Date(setting.courseSelectStart.replace('T', ' ').replace(/-/g, '/')).getTime()
-  const end = new Date(setting.courseSelectEnd.replace('T', ' ').replace(/-/g, '/')).getTime()
+  const start = parseTime(setting.courseSelectStart)
+  const end = parseTime(setting.courseSelectEnd)
   if (now < start) return '未开始'
   if (now > end) return '已结束'
   return '选课中'
@@ -254,7 +319,8 @@ const courseSelectionStatus = computed(() => {
 
 const courseSelectionStatusType = computed(() => {
   const status = courseSelectionStatus.value
-  if (status === '选课中') return 'success'
+  if (status === '选课中' || status === '手动开启') return 'success'
+  if (status === '强制关闭') return 'danger'
   if (status === '已结束') return 'info'
   return 'warning'
 })
@@ -284,6 +350,38 @@ function usageRate(row) {
   return `${((selected / max) * 100).toFixed(2)}%`
 }
 
+function parseTime(value) {
+  if (!value) return NaN
+  return new Date(String(value).replace('T', ' ').replace(/-/g, '/')).getTime()
+}
+
+function isManualOpenActive() {
+  if (!setting.courseSelectionManualEnd) {
+    return true
+  }
+  return Date.now() <= parseTime(setting.courseSelectionManualEnd)
+}
+
+function formatDateTime(date) {
+  const pad = (value) => String(value).padStart(2, '0')
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate())
+  ].join('-') + ` ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
+function setManualDuration(hours) {
+  const end = new Date()
+  end.setHours(end.getHours() + hours)
+  setting.courseSelectionManualMode = 'OPEN'
+  setting.courseSelectionManualEnd = formatDateTime(end)
+}
+
+function clearManualEnd() {
+  setting.courseSelectionManualEnd = ''
+}
+
 async function loadStatistics() {
   loading.value = true
   try {
@@ -294,9 +392,30 @@ async function loadStatistics() {
   }
 }
 
+async function loadSemesters() {
+  const response = await getSemesterManagement()
+  semesterOptions.value = response.data || []
+  if (!selectedSettingSemesterId.value) {
+    const current = semesterOptions.value.find(item => Number(item.isCurrent) === 1)
+    selectedSettingSemesterId.value = current?.semesterId ?? semesterOptions.value[0]?.semesterId ?? null
+  }
+}
+
 async function loadSetting() {
-  const response = await getCourseSelectionSetting()
-  Object.assign(setting, response.data || {})
+  const params = selectedSettingSemesterId.value ? { semesterId: selectedSettingSemesterId.value } : undefined
+  const response = await getCourseSelectionSetting(params)
+  Object.assign(setting, {
+    semesterName: '',
+    courseSelectStart: '',
+    courseSelectEnd: '',
+    courseSelectionManualMode: 'AUTO',
+    courseSelectionManualEnd: '',
+    makeupRequestStart: '',
+    makeupRequestEnd: '',
+    ...(response.data || {})
+  })
+  setting.courseSelectionManualMode = setting.courseSelectionManualMode || 'AUTO'
+  setting.courseSelectionManualEnd = setting.courseSelectionManualEnd || ''
 }
 
 async function loadScoreSetting() {
@@ -316,8 +435,11 @@ async function loadSubmittedScores() {
 
 async function handleSaveSetting() {
   await updateCourseSelectionSetting({
+    semesterId: selectedSettingSemesterId.value,
     courseSelectStart: setting.courseSelectStart,
     courseSelectEnd: setting.courseSelectEnd,
+    courseSelectionManualMode: setting.courseSelectionManualMode || 'AUTO',
+    courseSelectionManualEnd: setting.courseSelectionManualMode === 'OPEN' ? setting.courseSelectionManualEnd : '',
     makeupRequestStart: setting.makeupRequestStart,
     makeupRequestEnd: setting.makeupRequestEnd
   })
@@ -340,8 +462,25 @@ async function handleRollback(row) {
   await loadSubmittedScores()
 }
 
+async function handleBatchRollback() {
+  if (selectedScores.value.length === 0) {
+    ElMessage.warning('请先选择要退回的成绩')
+    return
+  }
+  const results = await Promise.allSettled(selectedScores.value.map(row => rollbackSubmittedScore(row.scoreId)))
+  const successCount = results.filter(item => item.status === 'fulfilled').length
+  const failedCount = results.length - successCount
+  selectedScores.value = []
+  await loadSubmittedScores()
+  if (failedCount > 0) {
+    ElMessage.warning(`批量退回完成：成功 ${successCount} 条，失败 ${failedCount} 条`)
+    return
+  }
+  ElMessage.success(`批量退回成功，共 ${successCount} 条`)
+}
+
 onMounted(() => {
-  loadSetting()
+  loadSemesters().then(loadSetting)
   loadScoreSetting()
   loadStatistics()
   loadSubmittedScores()
@@ -377,9 +516,29 @@ onMounted(() => {
   gap: 8px;
 }
 
+.setting-item-wide {
+  grid-column: span 2;
+}
+
 .setting-label {
   color: var(--text-muted);
   font-size: 13px;
+}
+
+.inline-tag {
+  margin-left: 8px;
+}
+
+.manual-end-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.duration-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .page-header {
@@ -429,5 +588,20 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 18px;
+}
+
+@media (max-width: 720px) {
+  .setting-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .setting-item-wide {
+    grid-column: auto;
+  }
+
+  .manual-end-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 </style>
