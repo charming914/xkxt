@@ -110,15 +110,17 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   createAdminCourse,
   deleteAdminCourse,
+  getAdminCourseDeleteCheck,
   getAdminCourses,
   getDepartmentOptions,
   updateAdminCourse
 } from '../../api/admin'
 import { useClientPagination } from '../../composables/useClientPagination'
+import { runProtectedDelete } from '../../utils/deleteGuard'
 import { includesKeyword, sortRows, updateSortState } from '../../utils/tableTools'
 
 const loading = ref(false)
@@ -260,10 +262,17 @@ async function handleSave() {
 }
 
 async function handleDelete(row) {
-  await ElMessageBox.confirm(`确定删除课程 ${row.courseName} 吗？`, '提示', { type: 'warning' })
-  await deleteAdminCourse(row.courseId)
-  ElMessage.success('课程删除成功')
-  await loadCourses()
+  const deleted = await runProtectedDelete({
+    entityName: '课程',
+    targetLabel: `${row.courseName}（${row.courseId}）`,
+    checkAction: () => getAdminCourseDeleteCheck(row.courseId),
+    deleteAction: () => deleteAdminCourse(row.courseId),
+    finalWarning: '删除后将移除课程基础信息，无法恢复。'
+  })
+  if (deleted) {
+    ElMessage.success('课程删除成功')
+    await loadCourses()
+  }
 }
 
 onMounted(() => {

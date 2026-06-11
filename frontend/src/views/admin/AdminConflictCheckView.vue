@@ -257,9 +257,10 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   deleteAdminExam,
+  getAdminExamDeleteCheck,
   getAdminExams,
   getAdminTeachingClasses,
   getSemesterOptions,
@@ -270,6 +271,7 @@ import {
   updateAdminTeachingClass
 } from '../../api/admin'
 import { useClientPagination } from '../../composables/useClientPagination'
+import { runProtectedDelete } from '../../utils/deleteGuard'
 
 const loading = ref(false)
 const teachingClasses = ref([])
@@ -877,17 +879,24 @@ async function handleDeleteSelectedExam() {
   if (!examForm.examId) {
     return
   }
-  await ElMessageBox.confirm(`确认删除「${examForm.courseName || examForm.examId}」的考试安排？`, '提示', {
-    type: 'warning'
+  const deleted = await runProtectedDelete({
+    entityName: '考试安排',
+    targetLabel: `${examForm.courseName || examForm.examId}（${examForm.examId}）`,
+    checkAction: () => getAdminExamDeleteCheck(examForm.examId),
+    deleteAction: async () => {
+      resolveDialog.saving = true
+      try {
+        await deleteAdminExam(examForm.examId)
+      } finally {
+        resolveDialog.saving = false
+      }
+    },
+    finalWarning: '删除后将移除该考试安排，无法恢复。'
   })
-  resolveDialog.saving = true
-  try {
-    await deleteAdminExam(examForm.examId)
+  if (deleted) {
     ElMessage.success('考试安排已删除，冲突检测已刷新')
     resolveDialog.visible = false
     await loadData()
-  } finally {
-    resolveDialog.saving = false
   }
 }
 

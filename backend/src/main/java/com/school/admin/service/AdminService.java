@@ -32,6 +32,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -512,16 +514,18 @@ public class AdminService {
 
     @Transactional
     public void deleteSemester(Integer semesterId) {
+        Map<String, Object> check = semesterDeleteCheck(semesterId);
+        if (!Boolean.TRUE.equals(check.get("canDelete"))) {
+            throw new BusinessException("该学期存在关联数据，不能删除。请先处理关联数据后再删除");
+        }
+        adminMapper.deleteSemester(semesterId);
+    }
+
+    public Map<String, Object> semesterDeleteCheck(Integer semesterId) {
         if (adminMapper.countSemesterById(semesterId) == 0) {
             throw new BusinessException("学期不存在");
         }
-        if (adminMapper.isCurrentSemester(semesterId) > 0) {
-            throw new BusinessException("当前学期不可删除，请先切换到其他学期");
-        }
-        if (adminMapper.countTeachingClassesBySemester(semesterId) > 0) {
-            throw new BusinessException("该学期已存在教学班，不可删除");
-        }
-        adminMapper.deleteSemester(semesterId);
+        return buildDeleteCheck("semesterId", semesterId, adminMapper.selectSemesterDeleteReferences(semesterId));
     }
 
     @Transactional
@@ -559,9 +563,20 @@ public class AdminService {
 
     @Transactional
     public void deleteStudent(String studentId) {
+        Map<String, Object> check = studentDeleteCheck(studentId);
+        if (!Boolean.TRUE.equals(check.get("canDelete"))) {
+            throw new BusinessException("该学生存在关联数据，不能删除。请先处理关联数据后再删除");
+        }
         adminMapper.deleteUserRoleByRefId(studentId);
         adminMapper.deleteSysUserByRefId(studentId);
         adminMapper.deleteStudent(studentId);
+    }
+
+    public Map<String, Object> studentDeleteCheck(String studentId) {
+        if (adminMapper.countStudentById(studentId) == 0) {
+            throw new BusinessException("学生不存在");
+        }
+        return buildDeleteCheck("studentId", studentId, adminMapper.selectStudentDeleteReferences(studentId));
     }
 
     @Transactional
@@ -576,8 +591,43 @@ public class AdminService {
         adminMapper.updateSysUserRealName(teacherId, request.getTeacherName());
     }
 
+    public Map<String, Object> teacherDeleteCheck(String teacherId) {
+        if (adminMapper.countTeacherById(teacherId) == 0) {
+            throw new BusinessException("教师不存在");
+        }
+        return buildDeleteCheck("teacherId", teacherId, adminMapper.selectTeacherDeleteReferences(teacherId));
+    }
+
+    private Map<String, Object> buildDeleteCheck(String idName, Object idValue, List<Map<String, Object>> references) {
+        List<Map<String, Object>> items = new ArrayList<>();
+        int totalReferences = 0;
+        for (Map<String, Object> reference : references) {
+            int count = numberValue(reference.get("referenceCount"));
+            if (count <= 0) {
+                continue;
+            }
+            totalReferences += count;
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("label", reference.get("label"));
+            item.put("count", count);
+            item.put("suggestion", reference.get("suggestion"));
+            items.add(item);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put(idName, idValue);
+        result.put("canDelete", totalReferences == 0);
+        result.put("totalReferences", totalReferences);
+        result.put("items", items);
+        return result;
+    }
+
     @Transactional
     public void deleteTeacher(String teacherId) {
+        Map<String, Object> check = teacherDeleteCheck(teacherId);
+        if (!Boolean.TRUE.equals(check.get("canDelete"))) {
+            throw new BusinessException("该教师存在关联数据，不能删除。请先处理关联数据后再删除");
+        }
         adminMapper.deleteUserRoleByRefId(teacherId);
         adminMapper.deleteSysUserByRefId(teacherId);
         adminMapper.deleteTeacher(teacherId);
@@ -599,8 +649,30 @@ public class AdminService {
         }
     }
 
+    private int numberValue(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value == null) {
+            return 0;
+        }
+        return Integer.parseInt(value.toString());
+    }
+
+    @Transactional
     public void deleteCourse(String courseId) {
+        Map<String, Object> check = courseDeleteCheck(courseId);
+        if (!Boolean.TRUE.equals(check.get("canDelete"))) {
+            throw new BusinessException("该课程存在关联数据，不能删除。请先处理关联数据后再删除");
+        }
         adminMapper.deleteCourse(courseId);
+    }
+
+    public Map<String, Object> courseDeleteCheck(String courseId) {
+        if (adminMapper.countCourseById(courseId) == 0) {
+            throw new BusinessException("课程不存在");
+        }
+        return buildDeleteCheck("courseId", courseId, adminMapper.selectCourseDeleteReferences(courseId));
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -638,11 +710,25 @@ public class AdminService {
         }
     }
 
+    @Transactional
     public void deleteTeachingClass(Integer teachingClassId) {
-        if (adminMapper.countSelectedByTeachingClassId(teachingClassId) > 0) {
-            throw new BusinessException("该教学班已有学生选课，不能删除");
+        Map<String, Object> check = teachingClassDeleteCheck(teachingClassId);
+        if (!Boolean.TRUE.equals(check.get("canDelete"))) {
+            throw new BusinessException("该教学班存在关联数据，不能删除。请先处理关联数据后再删除");
         }
+        adminMapper.deleteSessions(teachingClassId);
         adminMapper.deleteTeachingClass(teachingClassId);
+    }
+
+    public Map<String, Object> teachingClassDeleteCheck(Integer teachingClassId) {
+        if (adminMapper.countTeachingClassById(teachingClassId) == 0) {
+            throw new BusinessException("教学班不存在");
+        }
+        return buildDeleteCheck(
+            "teachingClassId",
+            teachingClassId,
+            adminMapper.selectTeachingClassDeleteReferences(teachingClassId)
+        );
     }
 
     public Map<String, Object> currentSemesterSetting() {
@@ -1217,12 +1303,19 @@ public class AdminService {
 
     @Transactional(rollbackFor = Exception.class)
     public void deleteExam(Long examId) {
+        Map<String, Object> check = examDeleteCheck(examId);
+        if (!Boolean.TRUE.equals(check.get("canDelete"))) {
+            throw new BusinessException("该考试安排存在关联数据，不能删除。请先处理关联数据后再删除");
+        }
+        adminMapper.deleteExam(examId);
+    }
+
+    public Map<String, Object> examDeleteCheck(Long examId) {
         Map<String, Object> exam = adminMapper.selectExamById(examId);
         if (exam == null) {
             throw new BusinessException("考试安排不存在");
         }
-        adminMapper.deleteExamChangeRequestsByExam(examId);
-        adminMapper.deleteExam(examId);
+        return buildDeleteCheck("examId", examId, adminMapper.selectExamDeleteReferences(examId));
     }
 
     public List<Map<String, Object>> examChangeRequests() {

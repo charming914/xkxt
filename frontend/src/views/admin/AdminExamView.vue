@@ -115,15 +115,17 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   deleteAdminExam,
   generateAdminExams,
+  getAdminExamDeleteCheck,
   getAdminExams,
   getClassroomOptions,
   updateAdminExam
 } from '../../api/admin'
 import { useClientPagination } from '../../composables/useClientPagination'
+import { runProtectedDelete } from '../../utils/deleteGuard'
 import { includesKeyword, sortRows, updateSortState } from '../../utils/tableTools'
 
 const loading = ref(false)
@@ -259,12 +261,17 @@ async function handleSave() {
 }
 
 async function handleDelete(row) {
-  await ElMessageBox.confirm(`确认删除「${row.courseName}」的考试安排？`, '提示', {
-    type: 'warning'
+  const deleted = await runProtectedDelete({
+    entityName: '考试安排',
+    targetLabel: `${row.courseName || row.examId}（${row.examId}）`,
+    checkAction: () => getAdminExamDeleteCheck(row.examId),
+    deleteAction: () => deleteAdminExam(row.examId),
+    finalWarning: '删除后将移除该考试安排，无法恢复。'
   })
-  await deleteAdminExam(row.examId)
-  ElMessage.success('考试安排已删除')
-  await loadExams()
+  if (deleted) {
+    ElMessage.success('考试安排已删除')
+    await loadExams()
+  }
 }
 
 onMounted(() => {

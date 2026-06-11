@@ -23,6 +23,13 @@ export function updateAdminStudent(studentId, data) {
   })
 }
 
+export function getAdminStudentDeleteCheck(studentId) {
+  return request({
+    url: `/admin/students/${studentId}/delete-check`,
+    method: 'get'
+  })
+}
+
 export function deleteAdminStudent(studentId) {
   return request({
     url: `/admin/students/${studentId}`,
@@ -50,6 +57,13 @@ export function updateAdminTeacher(teacherId, data) {
     url: `/admin/teachers/${teacherId}`,
     method: 'put',
     data
+  })
+}
+
+export function getAdminTeacherDeleteCheck(teacherId) {
+  return request({
+    url: `/admin/teachers/${teacherId}/delete-check`,
+    method: 'get'
   })
 }
 
@@ -97,6 +111,13 @@ export function updateAdminCourse(courseId, data) {
   })
 }
 
+export function getAdminCourseDeleteCheck(courseId) {
+  return request({
+    url: `/admin/courses/${courseId}/delete-check`,
+    method: 'get'
+  })
+}
+
 export function deleteAdminCourse(courseId) {
   return request({
     url: `/admin/courses/${courseId}`,
@@ -117,6 +138,13 @@ export function updateAdminTeachingClass(teachingClassId, data) {
     url: `/admin/teaching-classes/${teachingClassId}`,
     method: 'put',
     data
+  })
+}
+
+export function getAdminTeachingClassDeleteCheck(teachingClassId) {
+  return request({
+    url: `/admin/teaching-classes/${teachingClassId}/delete-check`,
+    method: 'get'
   })
 }
 
@@ -372,6 +400,13 @@ export function updateSemester(semesterId, data) {
   })
 }
 
+export function getSemesterDeleteCheck(semesterId) {
+  return request({
+    url: `/admin/semesters/${semesterId}/delete-check`,
+    method: 'get'
+  })
+}
+
 export function deleteSemester(semesterId) {
   return request({
     url: `/admin/semesters/${semesterId}`,
@@ -485,6 +520,13 @@ export function updateAdminExam(examId, data) {
     url: `/admin/exams/${examId}`,
     method: 'put',
     data
+  })
+}
+
+export function getAdminExamDeleteCheck(examId) {
+  return request({
+    url: `/admin/exams/${examId}/delete-check`,
+    method: 'get'
   })
 }
 

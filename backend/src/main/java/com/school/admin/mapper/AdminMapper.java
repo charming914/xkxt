@@ -249,6 +249,109 @@ public interface AdminMapper {
     int countTeachingClassesBySemester(@Param("semesterId") Integer semesterId);
 
     @Select("""
+        SELECT '当前学期标记' AS label,
+               COUNT(*) AS referenceCount,
+               '请先切换当前学期后再删除' AS suggestion
+        FROM semester
+        WHERE semester_id = #{semesterId}
+          AND is_current = 1
+        UNION ALL
+        SELECT '教学班' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学期下的教学班' AS suggestion
+        FROM teaching_class
+        WHERE semester_id = #{semesterId}
+        UNION ALL
+        SELECT '学生选课计划' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学期教学班关联的学生培养计划记录' AS suggestion
+        FROM student_course_plan scp
+        JOIN teaching_class tc ON scp.teaching_class_id = tc.teaching_class_id
+        WHERE tc.semester_id = #{semesterId}
+        UNION ALL
+        SELECT '选课记录' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学期教学班关联的选课记录' AS suggestion
+        FROM course_selection cs
+        JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+        WHERE tc.semester_id = #{semesterId}
+        UNION ALL
+        SELECT '补选申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学期教学班关联的补选申请' AS suggestion
+        FROM course_selection_request csr
+        JOIN teaching_class tc ON csr.teaching_class_id = tc.teaching_class_id
+        WHERE tc.semester_id = #{semesterId}
+        UNION ALL
+        SELECT '退课申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学期教学班关联的退课申请' AS suggestion
+        FROM course_drop_request cdr
+        JOIN teaching_class tc ON cdr.teaching_class_id = tc.teaching_class_id
+        WHERE tc.semester_id = #{semesterId}
+        UNION ALL
+        SELECT '调课申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学期教学班关联的调课申请' AS suggestion
+        FROM schedule_adjust_request sar
+        JOIN teaching_class tc ON sar.teaching_class_id = tc.teaching_class_id
+        WHERE tc.semester_id = #{semesterId}
+        UNION ALL
+        SELECT '成绩记录' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学期教学班关联的成绩记录' AS suggestion
+        FROM score sc
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        WHERE tc.semester_id = #{semesterId}
+        UNION ALL
+        SELECT '成绩修改申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学期教学班关联的成绩修改申请' AS suggestion
+        FROM score_change_request scr
+        JOIN teaching_class tc ON scr.teaching_class_id = tc.teaching_class_id
+        WHERE tc.semester_id = #{semesterId}
+        UNION ALL
+        SELECT '成绩复核申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学期教学班关联的成绩复核申请' AS suggestion
+        FROM score_review_request srr
+        JOIN score sc ON srr.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        WHERE tc.semester_id = #{semesterId}
+        UNION ALL
+        SELECT '补考申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学期教学班关联的补考申请' AS suggestion
+        FROM makeup_exam_request mer
+        JOIN score sc ON mer.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        WHERE tc.semester_id = #{semesterId}
+        UNION ALL
+        SELECT '重修申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学期教学班关联的重修申请' AS suggestion
+        FROM course_retake_request crr
+        JOIN score sc ON crr.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        WHERE tc.semester_id = #{semesterId}
+        UNION ALL
+        SELECT '考试安排' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学期教学班关联的考试安排' AS suggestion
+        FROM exam_arrangement ea
+        JOIN teaching_class tc ON ea.teaching_class_id = tc.teaching_class_id
+        WHERE tc.semester_id = #{semesterId}
+        UNION ALL
+        SELECT '考试修改申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学期教学班关联的考试修改申请' AS suggestion
+        FROM exam_change_request ecr
+        JOIN teaching_class tc ON ecr.teaching_class_id = tc.teaching_class_id
+        WHERE tc.semester_id = #{semesterId}
+        """)
+    List<Map<String, Object>> selectSemesterDeleteReferences(@Param("semesterId") Integer semesterId);
+
+    @Select("""
         SELECT end_date FROM semester
         WHERE start_date < #{startDate}
           AND (#{excludeId} IS NULL OR semester_id <> #{excludeId})
@@ -338,6 +441,77 @@ public interface AdminMapper {
     @Select("SELECT COUNT(*) FROM student WHERE student_id = #{studentId}")
     int countStudentById(@Param("studentId") String studentId);
 
+    @Select("""
+        SELECT '学生选课计划' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学生培养计划中的课程记录' AS suggestion
+        FROM student_course_plan
+        WHERE student_id = #{studentId}
+        UNION ALL
+        SELECT '选课记录' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学生的选课/退课历史' AS suggestion
+        FROM course_selection
+        WHERE student_id = #{studentId}
+        UNION ALL
+        SELECT '补选申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学生提交的补选申请' AS suggestion
+        FROM course_selection_request
+        WHERE student_id = #{studentId}
+        UNION ALL
+        SELECT '退课申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学生提交的退课申请' AS suggestion
+        FROM course_drop_request
+        WHERE student_id = #{studentId}
+        UNION ALL
+        SELECT '成绩记录' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学生成绩记录' AS suggestion
+        FROM score
+        WHERE student_id = #{studentId}
+        UNION ALL
+        SELECT '成绩修改申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学生相关成绩修改申请' AS suggestion
+        FROM score_change_request
+        WHERE student_id = #{studentId}
+        UNION ALL
+        SELECT '成绩复核申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学生提交的成绩复核申请' AS suggestion
+        FROM score_review_request
+        WHERE student_id = #{studentId}
+        UNION ALL
+        SELECT '补考申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学生补考申请' AS suggestion
+        FROM makeup_exam_request
+        WHERE student_id = #{studentId}
+        UNION ALL
+        SELECT '重修申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该学生重修申请' AS suggestion
+        FROM course_retake_request
+        WHERE student_id = #{studentId}
+        UNION ALL
+        SELECT '站内通知' AS label,
+               COUNT(*) AS referenceCount,
+               '该学生账号仍有关联通知，请保留账号或清理通知后再删除' AS suggestion
+        FROM notification n
+        JOIN sys_user u ON n.user_id = u.user_id
+        WHERE u.ref_id = #{studentId}
+        UNION ALL
+        SELECT '操作日志' AS label,
+               COUNT(*) AS referenceCount,
+               '该学生账号仍有关联操作日志，请保留账号以保证审计记录完整' AS suggestion
+        FROM operation_log l
+        JOIN sys_user u ON l.user_id = u.user_id
+        WHERE u.ref_id = #{studentId}
+        """)
+    List<Map<String, Object>> selectStudentDeleteReferences(@Param("studentId") String studentId);
+
     @Update("""
         UPDATE student
         SET student_name = #{request.studentName},
@@ -374,6 +548,115 @@ public interface AdminMapper {
 
     @Select("SELECT COUNT(*) FROM teacher WHERE teacher_id = #{teacherId}")
     int countTeacherById(@Param("teacherId") String teacherId);
+
+    @Select("""
+        SELECT '授课教学班' AS label,
+               COUNT(*) AS referenceCount,
+               '请先转交任课教师或删除对应教学班' AS suggestion
+        FROM teaching_class
+        WHERE teacher_id = #{teacherId}
+        UNION ALL
+        SELECT '教学班选课记录' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教师教学班下的学生选课记录' AS suggestion
+        FROM course_selection cs
+        JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+        WHERE tc.teacher_id = #{teacherId}
+        UNION ALL
+        SELECT '教学班成绩记录' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教师教学班下的成绩记录' AS suggestion
+        FROM score sc
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        WHERE tc.teacher_id = #{teacherId}
+        UNION ALL
+        SELECT '考试安排' AS label,
+               COUNT(*) AS referenceCount,
+               '请先删除或调整该教师教学班的考试安排' AS suggestion
+        FROM exam_arrangement ea
+        JOIN teaching_class tc ON ea.teaching_class_id = tc.teaching_class_id
+        WHERE tc.teacher_id = #{teacherId}
+        UNION ALL
+        SELECT '补选申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教师教学班关联的补选申请' AS suggestion
+        FROM course_selection_request csr
+        JOIN teaching_class tc ON csr.teaching_class_id = tc.teaching_class_id
+        WHERE tc.teacher_id = #{teacherId}
+        UNION ALL
+        SELECT '退课申请/教师审核记录' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教师教学班退课申请或教师审核历史' AS suggestion
+        FROM course_drop_request cdr
+        JOIN teaching_class tc ON cdr.teaching_class_id = tc.teaching_class_id
+        WHERE tc.teacher_id = #{teacherId}
+           OR cdr.teacher_reviewed_by = #{teacherId}
+        UNION ALL
+        SELECT '调课申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教师提交的调课申请' AS suggestion
+        FROM schedule_adjust_request
+        WHERE teacher_id = #{teacherId}
+        UNION ALL
+        SELECT '成绩修改申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教师提交的成绩修改申请' AS suggestion
+        FROM score_change_request
+        WHERE teacher_id = #{teacherId}
+        UNION ALL
+        SELECT '成绩复核申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教师教学班关联的成绩复核申请' AS suggestion
+        FROM score_review_request srr
+        JOIN score sc ON srr.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        WHERE tc.teacher_id = #{teacherId}
+        UNION ALL
+        SELECT '补考申请/教师确认记录' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教师教学班补考申请或教师确认历史' AS suggestion
+        FROM makeup_exam_request mer
+        JOIN score sc ON mer.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        WHERE tc.teacher_id = #{teacherId}
+           OR mer.teacher_reviewed_by = #{teacherId}
+        UNION ALL
+        SELECT '重修申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教师教学班关联的重修申请' AS suggestion
+        FROM course_retake_request crr
+        JOIN score sc ON crr.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        WHERE tc.teacher_id = #{teacherId}
+        UNION ALL
+        SELECT '考试修改申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教师提交的考试修改申请' AS suggestion
+        FROM exam_change_request
+        WHERE teacher_id = #{teacherId}
+        UNION ALL
+        SELECT '站内通知' AS label,
+               COUNT(*) AS referenceCount,
+               '该教师账号仍有关联通知，请保留账号或清理通知后再删除' AS suggestion
+        FROM notification n
+        JOIN sys_user u ON n.user_id = u.user_id
+        WHERE u.ref_id = #{teacherId}
+        UNION ALL
+        SELECT '操作日志' AS label,
+               COUNT(*) AS referenceCount,
+               '该教师账号仍有关联操作日志，请保留账号以保证审计记录完整' AS suggestion
+        FROM operation_log l
+        JOIN sys_user u ON l.user_id = u.user_id
+        WHERE u.ref_id = #{teacherId}
+        UNION ALL
+        SELECT '公告发布记录' AS label,
+               COUNT(*) AS referenceCount,
+               '该账号仍有关联公告发布记录，请保留账号或调整公告记录后再删除' AS suggestion
+        FROM announcement a
+        JOIN sys_user u ON a.published_by = u.user_id
+        WHERE u.ref_id = #{teacherId}
+        """)
+    List<Map<String, Object>> selectTeacherDeleteReferences(@Param("teacherId") String teacherId);
 
     @Update("""
         UPDATE teacher
@@ -426,6 +709,105 @@ public interface AdminMapper {
         @Param("request") AdminCourseRequest request
     );
 
+    @Select("SELECT COUNT(*) FROM course WHERE course_id = #{courseId}")
+    int countCourseById(@Param("courseId") String courseId);
+
+    @Select("""
+        SELECT '教学班' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理使用该课程的教学班' AS suggestion
+        FROM teaching_class
+        WHERE course_id = #{courseId}
+        UNION ALL
+        SELECT '学生选课计划' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该课程教学班关联的学生培养计划记录' AS suggestion
+        FROM student_course_plan scp
+        JOIN teaching_class tc ON scp.teaching_class_id = tc.teaching_class_id
+        WHERE tc.course_id = #{courseId}
+        UNION ALL
+        SELECT '选课记录' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该课程教学班关联的选课记录' AS suggestion
+        FROM course_selection cs
+        JOIN teaching_class tc ON cs.teaching_class_id = tc.teaching_class_id
+        WHERE tc.course_id = #{courseId}
+        UNION ALL
+        SELECT '补选申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该课程教学班关联的补选申请' AS suggestion
+        FROM course_selection_request csr
+        JOIN teaching_class tc ON csr.teaching_class_id = tc.teaching_class_id
+        WHERE tc.course_id = #{courseId}
+        UNION ALL
+        SELECT '退课申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该课程教学班关联的退课申请' AS suggestion
+        FROM course_drop_request cdr
+        JOIN teaching_class tc ON cdr.teaching_class_id = tc.teaching_class_id
+        WHERE tc.course_id = #{courseId}
+        UNION ALL
+        SELECT '调课申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该课程教学班关联的调课申请' AS suggestion
+        FROM schedule_adjust_request sar
+        JOIN teaching_class tc ON sar.teaching_class_id = tc.teaching_class_id
+        WHERE tc.course_id = #{courseId}
+        UNION ALL
+        SELECT '成绩记录' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该课程教学班关联的成绩记录' AS suggestion
+        FROM score sc
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        WHERE tc.course_id = #{courseId}
+        UNION ALL
+        SELECT '成绩修改申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该课程教学班关联的成绩修改申请' AS suggestion
+        FROM score_change_request scr
+        JOIN teaching_class tc ON scr.teaching_class_id = tc.teaching_class_id
+        WHERE tc.course_id = #{courseId}
+        UNION ALL
+        SELECT '成绩复核申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该课程教学班关联的成绩复核申请' AS suggestion
+        FROM score_review_request srr
+        JOIN score sc ON srr.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        WHERE tc.course_id = #{courseId}
+        UNION ALL
+        SELECT '补考申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该课程教学班关联的补考申请' AS suggestion
+        FROM makeup_exam_request mer
+        JOIN score sc ON mer.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        WHERE tc.course_id = #{courseId}
+        UNION ALL
+        SELECT '重修申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该课程教学班关联的重修申请' AS suggestion
+        FROM course_retake_request crr
+        JOIN score sc ON crr.score_id = sc.score_id
+        JOIN teaching_class tc ON sc.teaching_class_id = tc.teaching_class_id
+        WHERE tc.course_id = #{courseId}
+        UNION ALL
+        SELECT '考试安排' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该课程教学班关联的考试安排' AS suggestion
+        FROM exam_arrangement ea
+        JOIN teaching_class tc ON ea.teaching_class_id = tc.teaching_class_id
+        WHERE tc.course_id = #{courseId}
+        UNION ALL
+        SELECT '考试修改申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该课程教学班关联的考试修改申请' AS suggestion
+        FROM exam_change_request ecr
+        JOIN teaching_class tc ON ecr.teaching_class_id = tc.teaching_class_id
+        WHERE tc.course_id = #{courseId}
+        """)
+    List<Map<String, Object>> selectCourseDeleteReferences(@Param("courseId") String courseId);
+
     @Delete("DELETE FROM course WHERE course_id = #{courseId}")
     int deleteCourse(@Param("courseId") String courseId);
 
@@ -458,6 +840,87 @@ public interface AdminMapper {
         @Param("teachingClassId") Integer teachingClassId,
         @Param("request") AdminTeachingClassRequest request
     );
+
+    @Select("SELECT COUNT(*) FROM teaching_class WHERE teaching_class_id = #{teachingClassId}")
+    int countTeachingClassById(@Param("teachingClassId") Integer teachingClassId);
+
+    @Select("""
+        SELECT '学生选课计划' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教学班关联的学生培养计划记录' AS suggestion
+        FROM student_course_plan
+        WHERE teaching_class_id = #{teachingClassId}
+        UNION ALL
+        SELECT '选课记录' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教学班的选课记录' AS suggestion
+        FROM course_selection
+        WHERE teaching_class_id = #{teachingClassId}
+        UNION ALL
+        SELECT '补选申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教学班关联的补选申请' AS suggestion
+        FROM course_selection_request
+        WHERE teaching_class_id = #{teachingClassId}
+        UNION ALL
+        SELECT '退课申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教学班关联的退课申请' AS suggestion
+        FROM course_drop_request
+        WHERE teaching_class_id = #{teachingClassId}
+        UNION ALL
+        SELECT '调课申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教学班关联的调课申请' AS suggestion
+        FROM schedule_adjust_request
+        WHERE teaching_class_id = #{teachingClassId}
+        UNION ALL
+        SELECT '成绩记录' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教学班关联的成绩记录' AS suggestion
+        FROM score
+        WHERE teaching_class_id = #{teachingClassId}
+        UNION ALL
+        SELECT '成绩修改申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教学班关联的成绩修改申请' AS suggestion
+        FROM score_change_request
+        WHERE teaching_class_id = #{teachingClassId}
+        UNION ALL
+        SELECT '成绩复核申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教学班关联的成绩复核申请' AS suggestion
+        FROM score_review_request srr
+        JOIN score sc ON srr.score_id = sc.score_id
+        WHERE sc.teaching_class_id = #{teachingClassId}
+        UNION ALL
+        SELECT '补考申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教学班关联的补考申请' AS suggestion
+        FROM makeup_exam_request mer
+        JOIN score sc ON mer.score_id = sc.score_id
+        WHERE sc.teaching_class_id = #{teachingClassId}
+        UNION ALL
+        SELECT '重修申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教学班关联的重修申请' AS suggestion
+        FROM course_retake_request crr
+        JOIN score sc ON crr.score_id = sc.score_id
+        WHERE sc.teaching_class_id = #{teachingClassId}
+        UNION ALL
+        SELECT '考试安排' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教学班关联的考试安排' AS suggestion
+        FROM exam_arrangement
+        WHERE teaching_class_id = #{teachingClassId}
+        UNION ALL
+        SELECT '考试修改申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该教学班关联的考试修改申请' AS suggestion
+        FROM exam_change_request
+        WHERE teaching_class_id = #{teachingClassId}
+        """)
+    List<Map<String, Object>> selectTeachingClassDeleteReferences(@Param("teachingClassId") Integer teachingClassId);
 
     @Delete("DELETE FROM teaching_class WHERE teaching_class_id = #{teachingClassId}")
     int deleteTeachingClass(@Param("teachingClassId") Integer teachingClassId);
@@ -1504,6 +1967,15 @@ public interface AdminMapper {
         LIMIT 1
         """)
     Map<String, Object> selectExamById(@Param("examId") Long examId);
+
+    @Select("""
+        SELECT '考试修改申请' AS label,
+               COUNT(*) AS referenceCount,
+               '请先处理该考试安排关联的考试修改申请' AS suggestion
+        FROM exam_change_request
+        WHERE exam_id = #{examId}
+        """)
+    List<Map<String, Object>> selectExamDeleteReferences(@Param("examId") Long examId);
 
     @Select("""
         SELECT COUNT(*)

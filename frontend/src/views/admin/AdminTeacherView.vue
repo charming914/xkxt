@@ -110,15 +110,17 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   createAdminTeacher,
   deleteAdminTeacher,
+  getAdminTeacherDeleteCheck,
   getAdminTeachers,
   getDepartmentOptions,
   updateAdminTeacher
 } from '../../api/admin'
 import { useClientPagination } from '../../composables/useClientPagination'
+import { runProtectedDelete } from '../../utils/deleteGuard'
 import { includesKeyword, sortRows, updateSortState } from '../../utils/tableTools'
 
 const loading = ref(false)
@@ -250,10 +252,17 @@ async function handleSave() {
 }
 
 async function handleDelete(row) {
-  await ElMessageBox.confirm(`确定删除教师 ${row.teacherName} 吗？`, '提示', { type: 'warning' })
-  await deleteAdminTeacher(row.teacherId)
-  ElMessage.success('教师删除成功')
-  await loadTeachers()
+  const deleted = await runProtectedDelete({
+    entityName: '教师',
+    targetLabel: `${row.teacherName}（${row.teacherId}）`,
+    checkAction: () => getAdminTeacherDeleteCheck(row.teacherId),
+    deleteAction: () => deleteAdminTeacher(row.teacherId),
+    finalWarning: '删除后将移除教师基础信息和登录账号，无法恢复。'
+  })
+  if (deleted) {
+    ElMessage.success('教师删除成功')
+    await loadTeachers()
+  }
 }
 
 onMounted(() => {

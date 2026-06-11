@@ -147,10 +147,12 @@ import {
   createSemester,
   updateSemester,
   deleteSemester,
+  getSemesterDeleteCheck,
   getSemesterManagement,
   setCurrentSemester
 } from '../../api/admin'
 import { useClientPagination } from '../../composables/useClientPagination'
+import { runProtectedDelete } from '../../utils/deleteGuard'
 
 const TEACHING_WEEKS = 16
 const EXAM_WEEKS = 2
@@ -348,14 +350,17 @@ async function handleSetCurrent(row) {
 }
 
 async function handleDelete(row) {
-  await ElMessageBox.confirm(
-    `确定删除学期「${row.semesterName}」吗？此操作不可恢复。`,
-    '提示',
-    { type: 'warning' }
-  )
-  await deleteSemester(row.semesterId)
-  ElMessage.success('学期删除成功')
-  await loadSemesters()
+  const deleted = await runProtectedDelete({
+    entityName: '学期',
+    targetLabel: `${row.semesterName}（${row.semesterId}）`,
+    checkAction: () => getSemesterDeleteCheck(row.semesterId),
+    deleteAction: () => deleteSemester(row.semesterId),
+    finalWarning: '删除后将移除学期基础信息，无法恢复。'
+  })
+  if (deleted) {
+    ElMessage.success('学期删除成功')
+    await loadSemesters()
+  }
 }
 
 onMounted(() => {

@@ -62,6 +62,11 @@ public class AdminController {
         return ApiResponse.success("学生信息修改成功", null);
     }
 
+    @GetMapping("/students/{studentId}/delete-check")
+    public ApiResponse<Map<String, Object>> studentDeleteCheck(@PathVariable String studentId) {
+        return ApiResponse.success(adminService.studentDeleteCheck(studentId));
+    }
+
     @DeleteMapping("/students/{studentId}")
     @OperationLog(type = "学生管理", action = "删除学生")
     public ApiResponse<Void> deleteStudent(@PathVariable String studentId) {
@@ -86,6 +91,11 @@ public class AdminController {
     public ApiResponse<Void> updateTeacher(@PathVariable String teacherId, @Valid @RequestBody AdminTeacherRequest request) {
         adminService.updateTeacher(teacherId, request);
         return ApiResponse.success("教师信息修改成功", null);
+    }
+
+    @GetMapping("/teachers/{teacherId}/delete-check")
+    public ApiResponse<Map<String, Object>> teacherDeleteCheck(@PathVariable String teacherId) {
+        return ApiResponse.success(adminService.teacherDeleteCheck(teacherId));
     }
 
     @DeleteMapping("/teachers/{teacherId}")
@@ -124,6 +134,11 @@ public class AdminController {
         return ApiResponse.success("课程修改成功", null);
     }
 
+    @GetMapping("/courses/{courseId}/delete-check")
+    public ApiResponse<Map<String, Object>> courseDeleteCheck(@PathVariable String courseId) {
+        return ApiResponse.success(adminService.courseDeleteCheck(courseId));
+    }
+
     @DeleteMapping("/courses/{courseId}")
     @OperationLog(type = "课程管理", action = "删除课程")
     public ApiResponse<Void> deleteCourse(@PathVariable String courseId) {
@@ -146,6 +161,11 @@ public class AdminController {
     ) {
         adminService.updateTeachingClass(teachingClassId, request);
         return ApiResponse.success("教学班修改成功", null);
+    }
+
+    @GetMapping("/teaching-classes/{teachingClassId}/delete-check")
+    public ApiResponse<Map<String, Object>> teachingClassDeleteCheck(@PathVariable Integer teachingClassId) {
+        return ApiResponse.success(adminService.teachingClassDeleteCheck(teachingClassId));
     }
 
     @DeleteMapping("/teaching-classes/{teachingClassId}")
@@ -266,6 +286,11 @@ public class AdminController {
                                             @Valid @RequestBody SemesterRequest request) {
         adminService.updateSemester(semesterId, request);
         return ApiResponse.success("学期更新成功", null);
+    }
+
+    @GetMapping("/semesters/{semesterId}/delete-check")
+    public ApiResponse<Map<String, Object>> semesterDeleteCheck(@PathVariable Integer semesterId) {
+        return ApiResponse.success(adminService.semesterDeleteCheck(semesterId));
     }
 
     @DeleteMapping("/semesters/{semesterId}")
@@ -480,6 +505,11 @@ public class AdminController {
     ) {
         adminService.updateExam(examId, request);
         return ApiResponse.success("考试安排修改成功", null);
+    }
+
+    @GetMapping("/exams/{examId}/delete-check")
+    public ApiResponse<Map<String, Object>> examDeleteCheck(@PathVariable Long examId) {
+        return ApiResponse.success(adminService.examDeleteCheck(examId));
     }
 
     @DeleteMapping("/exams/{examId}")

@@ -170,10 +170,11 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   createAdminTeachingClass,
   deleteAdminTeachingClass,
+  getAdminTeachingClassDeleteCheck,
   getAdminTeachingClassStudents,
   getAdminTeachingClasses,
   getClassroomOptions,
@@ -183,6 +184,7 @@ import {
   updateAdminTeachingClass
 } from '../../api/admin'
 import { useClientPagination } from '../../composables/useClientPagination'
+import { runProtectedDelete } from '../../utils/deleteGuard'
 import { sortRows, updateSortState } from '../../utils/tableTools'
 
 const loading = ref(false)
@@ -429,10 +431,17 @@ async function handleSave() {
 }
 
 async function handleDelete(row) {
-  await ElMessageBox.confirm(`确定删除教学班 ${row.teachingClassId} 吗？`, '提示', { type: 'warning' })
-  await deleteAdminTeachingClass(row.teachingClassId)
-  ElMessage.success('教学班删除成功')
-  await loadTeachingClasses()
+  const deleted = await runProtectedDelete({
+    entityName: '教学班',
+    targetLabel: `${row.courseName || '未命名课程'}（${row.teachingClassId}）`,
+    checkAction: () => getAdminTeachingClassDeleteCheck(row.teachingClassId),
+    deleteAction: () => deleteAdminTeachingClass(row.teachingClassId),
+    finalWarning: '删除后将移除教学班基础信息和自动生成的上课时间，无法恢复。'
+  })
+  if (deleted) {
+    ElMessage.success('教学班删除成功')
+    await loadTeachingClasses()
+  }
 }
 
 async function openStudentDialog(row) {

@@ -122,10 +122,11 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   createAdminStudent,
   deleteAdminStudent,
+  getAdminStudentDeleteCheck,
   getAdminStudents,
   getClassOptions,
   getDepartmentOptions,
@@ -133,6 +134,7 @@ import {
   updateAdminStudent
 } from '../../api/admin'
 import { useClientPagination } from '../../composables/useClientPagination'
+import { runProtectedDelete } from '../../utils/deleteGuard'
 import { includesKeyword, sortRows, updateSortState } from '../../utils/tableTools'
 
 const loading = ref(false)
@@ -286,10 +288,17 @@ async function handleSave() {
 }
 
 async function handleDelete(row) {
-  await ElMessageBox.confirm(`确定删除学生 ${row.studentName} 吗？`, '提示', { type: 'warning' })
-  await deleteAdminStudent(row.studentId)
-  ElMessage.success('学生删除成功')
-  await loadStudents()
+  const deleted = await runProtectedDelete({
+    entityName: '学生',
+    targetLabel: `${row.studentName}（${row.studentId}）`,
+    checkAction: () => getAdminStudentDeleteCheck(row.studentId),
+    deleteAction: () => deleteAdminStudent(row.studentId),
+    finalWarning: '删除后将移除学生基础信息和登录账号，无法恢复。'
+  })
+  if (deleted) {
+    ElMessage.success('学生删除成功')
+    await loadStudents()
+  }
 }
 
 onMounted(() => {
