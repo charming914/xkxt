@@ -24,13 +24,17 @@ request.interceptors.response.use(
   (response) => {
     const { data } = response
     if (data.code !== 200) {
-      ElMessage.error(data.message || '请求失败')
+      if (!response.config?.silentError) {
+        ElMessage.error(data.message || '请求失败')
+      }
       return Promise.reject(new Error(data.message || '请求失败'))
     }
     return data
   },
   (error) => {
-    ElMessage.error(error.response?.data?.message || error.message || '网络异常')
+    if (!error.config?.silentError) {
+      ElMessage.error(error.response?.data?.message || error.message || '网络异常')
+    }
     return Promise.reject(error)
   }
 )

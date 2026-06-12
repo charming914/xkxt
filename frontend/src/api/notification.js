@@ -11,7 +11,8 @@ export function getNotifications(params) {
 export function getUnreadCount() {
   return request({
     url: '/notifications/unread-count',
-    method: 'get'
+    method: 'get',
+    silentError: true
   })
 }
 

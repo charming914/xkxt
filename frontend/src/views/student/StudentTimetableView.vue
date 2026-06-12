@@ -194,28 +194,41 @@ function handlePrintTimetable() {
         <meta charset="utf-8" />
         <title>${escapeHtml(title)}</title>
         <style>
-          body { margin: 24px; color: #1f2937; font-family: Arial, "Microsoft YaHei", sans-serif; }
-          h1 { margin: 0 0 8px; font-size: 24px; }
-          p { margin: 0 0 18px; color: #64748b; }
-          .calendar-shell { display: grid; grid-template-columns: 96px repeat(7, minmax(0, 1fr)); grid-template-rows: 42px repeat(6, minmax(82px, auto)); border: 1px solid #cbd5e1; }
-          .calendar-head, .section-label, .calendar-cell { padding: 8px; border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; }
+          @page { size: A4 landscape; margin: 8mm; }
+          * { box-sizing: border-box; }
+          html,
+          body { margin: 0; color: #1f2937; font-family: Arial, "Microsoft YaHei", sans-serif; }
+          body { padding: 8mm; }
+          h1 { margin: 0 0 4px; font-size: 20px; line-height: 1.2; }
+          p { margin: 0 0 8px; color: #64748b; font-size: 11px; line-height: 1.4; }
+          .print-page { display: flex; flex-direction: column; height: calc(210mm - 16mm); overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
+          .calendar-shell { flex: 1; min-height: 0; display: grid; grid-template-columns: 82px repeat(7, minmax(0, 1fr)); grid-template-rows: 34px repeat(6, minmax(0, 1fr)); border: 1px solid #cbd5e1; break-inside: avoid; page-break-inside: avoid; }
+          .calendar-head, .section-label, .calendar-cell { min-width: 0; min-height: 0; padding: 5px; border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; overflow: hidden; }
           .calendar-head { background: #e0f2fe; font-weight: 700; text-align: center; }
           .empty-cell, .section-label { background: #f8fafc; font-weight: 700; }
-          .section-label span { display: block; margin-top: 6px; color: #64748b; font-size: 12px; }
-          .print-course { display: grid; gap: 4px; z-index: 2; margin: 5px; padding: 8px; border: 1px solid #bae6fd; border-radius: 6px; background: #f0f9ff; font-size: 12px; }
-          .print-course strong { color: #0369a1; font-size: 13px; }
-          @media print { body { margin: 12mm; } }
+          .section-label strong { display: block; font-size: 11px; line-height: 1.25; }
+          .section-label span { display: block; margin-top: 3px; color: #64748b; font-size: 9px; line-height: 1.2; }
+          .print-course { z-index: 2; display: grid; align-content: start; gap: 2px; min-width: 0; min-height: 0; margin: 3px; padding: 5px; border: 1px solid #bae6fd; border-radius: 5px; background: #f0f9ff; overflow: hidden; font-size: 10px; line-height: 1.2; break-inside: avoid; page-break-inside: avoid; }
+          .print-course strong,
+          .print-course span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .print-course strong { color: #0369a1; font-size: 11px; }
+          @media print {
+            body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .print-page { height: calc(210mm - 16mm); }
+          }
         </style>
       </head>
       <body>
-        <h1>${escapeHtml(title)}</h1>
-        <p>学号：${escapeHtml(userStore.refId || '-')}　学期：${escapeHtml(selectedSemester.value || '全部学期')}　导出时间：${escapeHtml(new Date().toLocaleString())}</p>
-        <div class="calendar-shell">
-          <div class="calendar-head empty-cell" style="grid-column:1/2;grid-row:1/2;">节次</div>
-          ${headerCells}
-          ${sectionCells}
-          ${backgroundCells}
-          ${courseCells}
+        <div class="print-page">
+          <h1>${escapeHtml(title)}</h1>
+          <p>学号：${escapeHtml(userStore.refId || '-')}　学期：${escapeHtml(selectedSemester.value || '全部学期')}　导出时间：${escapeHtml(new Date().toLocaleString())}</p>
+          <div class="calendar-shell">
+            <div class="calendar-head empty-cell" style="grid-column:1/2;grid-row:1/2;">节次</div>
+            ${headerCells}
+            ${sectionCells}
+            ${backgroundCells}
+            ${courseCells}
+          </div>
         </div>
       </body>
     </html>

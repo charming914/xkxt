@@ -170,7 +170,7 @@
             <strong>{{ studentTodos.pendingScoreReviewRequests || 0 }}</strong>
             <small>查看复核进度</small>
           </RouterLink>
-          <RouterLink to="/student/selected-courses" class="todo-item todo-link">
+          <RouterLink to="/student/academic-progress" class="todo-item todo-link">
             <span>已选课程</span>
             <strong>{{ studentTodos.selectedCourseCount || 0 }}</strong>
             <small>查看课程安排</small>

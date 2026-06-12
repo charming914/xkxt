@@ -7,7 +7,6 @@ import StudentProfileView from '../views/student/StudentProfileView.vue'
 import StudentSemesterView from '../views/student/StudentSemesterView.vue'
 import StudentCourseView from '../views/student/StudentCourseView.vue'
 import StudentCoursePlanView from '../views/student/StudentCoursePlanView.vue'
-import StudentSelectedCourseView from '../views/student/StudentSelectedCourseView.vue'
 import StudentDropCourseView from '../views/student/StudentDropCourseView.vue'
 import StudentScoreView from '../views/student/StudentScoreView.vue'
 import StudentExamView from '../views/student/StudentExamView.vue'
@@ -96,12 +95,6 @@ const routes = [
         path: 'student/course-plans',
         name: 'student-course-plans',
         component: StudentCoursePlanView,
-        meta: { roles: ['STUDENT'] }
-      },
-      {
-        path: 'student/selected-courses',
-        name: 'student-selected-courses',
-        component: StudentSelectedCourseView,
         meta: { roles: ['STUDENT'] }
       },
       {

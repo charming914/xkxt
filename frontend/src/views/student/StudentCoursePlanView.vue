@@ -64,7 +64,7 @@
         <el-table-column label="操作" width="190" fixed="right">
           <template #default="{ row }">
             <div class="action-row">
-              <el-button size="small" type="primary" :disabled="Number(row.alreadySelected) === 1" @click="handleSelect(row)">
+              <el-button size="small" type="primary" :disabled="!canSelectPlan(row)" @click="handleSelect(row)">
                 选课
               </el-button>
               <el-button size="small" type="danger" plain @click="handleDelete(row)">移出</el-button>
@@ -162,7 +162,7 @@ const filteredPlans = computed(() => {
 })
 
 const selectablePlanRows = computed(() => {
-  return filteredPlans.value.filter(item => Number(item.alreadySelected) !== 1)
+  return filteredPlans.value.filter(item => canSelectPlan(item))
 })
 
 function parseSessions(course) {
@@ -235,6 +235,10 @@ function planStatusType(row) {
   return 'primary'
 }
 
+function canSelectPlan(row) {
+  return Number(row.alreadySelected) !== 1 && Number(row.isFull) !== 1
+}
+
 function defaultSemesterId() {
   const current = semesters.value.find(item => Number(item.isCurrent) === 1)
   return current?.semesterId ?? semesters.value[0]?.semesterId ?? null
@@ -262,6 +266,10 @@ async function loadPlans() {
 }
 
 async function handleSelect(row) {
+  if (!canSelectPlan(row)) {
+    ElMessage.warning(Number(row.alreadySelected) === 1 ? '该课程已选' : '该教学班人数已满')
+    return
+  }
   const response = await selectCourse({
     studentId: userStore.refId,
     teachingClassId: row.teachingClassId

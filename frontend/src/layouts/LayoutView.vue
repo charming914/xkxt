@@ -130,7 +130,6 @@ const navItems = computed(() => {
         children: [
           { path: '/student/courses', label: '学生选课' },
           { path: '/student/course-plans', label: '选课计划' },
-          { path: '/student/selected-courses', label: '已选课程' },
           { path: '/student/drop-courses', label: '退课' }
         ]
       },
