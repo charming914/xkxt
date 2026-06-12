@@ -453,11 +453,13 @@ function courseGridStyle(course) {
 }
 
 function canSelect(row) {
-  return Boolean(row.canSelectDirectly) && !row.alreadySelected
+  return Number(row.canSelectDirectly) === 1 && Number(row.alreadySelected) !== 1
 }
 
 function canRequestSelection(row) {
-  return Boolean(row.canRequestSelection) && !row.alreadySelected && !row.hasPendingSelectionRequest
+  return Number(row.canRequestSelection) === 1 &&
+    Number(row.alreadySelected) !== 1 &&
+    Number(row.hasPendingSelectionRequest) !== 1
 }
 
 function canAddPlan(row) {
@@ -465,7 +467,7 @@ function canAddPlan(row) {
 }
 
 function planDisabledReason(row) {
-  if (row.alreadySelected) return '该课程已选，无需加入选课计划'
+  if (Number(row.alreadySelected) === 1) return '该课程已选，无需加入选课计划'
   if (Number(row.hasCoursePlan) === 1) return '该课程已在选课计划中'
   if (Number(row.hasSelectedTimeConflict) === 1) return '该课程与当前已选课程时间冲突，不能加入选课计划'
   if (Number(row.hasPlanTimeConflict) === 1) return '该课程与选课计划中已有课程时间冲突，不能加入选课计划'
@@ -473,17 +475,17 @@ function planDisabledReason(row) {
 }
 
 function canDrop(row) {
-  return Boolean(row.alreadySelected)
+  return Number(row.alreadySelected) === 1
 }
 
 function selectionReason(row) {
   if (row.selectionActionReason) {
     return row.selectionActionReason
   }
-  if (row.alreadySelected) {
+  if (Number(row.alreadySelected) === 1) {
     return '已选该教学班'
   }
-  if (row.hasPendingSelectionRequest) {
+  if (Number(row.hasPendingSelectionRequest) === 1) {
     return '补选申请待审核'
   }
   if (Number(row.hasSelectedTimeConflict) === 1) {
@@ -601,7 +603,7 @@ async function handleCreateRequest() {
   })
   ElMessage.success(response.message || '补选申请提交成功')
   dialogVisible.value = false
-  await loadRequests()
+  await Promise.all([loadRequests(), loadCourses()])
 }
 
 function defaultSemesterId() {

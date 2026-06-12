@@ -240,20 +240,22 @@ const filteredScores = computed(() => {
     const matchedKeyword = !keyword ||
       String(item.courseName || '').toLowerCase().includes(keyword) ||
       String(item.courseId || '').toLowerCase().includes(keyword)
-    const passed = Number(item.finalScore) >= 60
+    const hasFinalScore = hasScoreValue(item.finalScore)
+    const passed = hasFinalScore && Number(item.finalScore) >= 60
     const matchedStatus = !appliedQuery.status ||
       (appliedQuery.status === 'PASS' && passed) ||
-      (appliedQuery.status === 'FAIL' && !passed)
+      (appliedQuery.status === 'FAIL' && hasFinalScore && !passed)
     return matchedSemester && matchedKeyword && matchedStatus
   })
 })
 
 const averageScore = computed(() => {
-  if (!filteredScores.value.length) {
+  const scoredRows = filteredScores.value.filter(item => hasScoreValue(item.finalScore))
+  if (!scoredRows.length) {
     return '0.00'
   }
-  const total = filteredScores.value.reduce((sum, item) => sum + Number(item.finalScore || 0), 0)
-  return (total / filteredScores.value.length).toFixed(2)
+  const total = scoredRows.reduce((sum, item) => sum + Number(item.finalScore || 0), 0)
+  return (total / scoredRows.length).toFixed(2)
 })
 
 const gpaBaseScores = computed(() => {
@@ -314,7 +316,7 @@ const semesterGpaTrend = computed(() => {
       group.credits += credit
       group.weightedGpa += credit * gpa
     }
-    if (item.finalScore !== null && item.finalScore !== undefined) {
+    if (hasScoreValue(item.finalScore)) {
       group.scoreTotal += Number(item.finalScore || 0)
       group.scoreCount += 1
     }
@@ -353,7 +355,7 @@ const maxCourseTypeCredit = computed(() => {
 
 const failedScoreList = computed(() => {
   return scores.value
-    .filter(item => item.finalScore !== null && item.finalScore !== undefined && Number(item.finalScore) < 60)
+    .filter(item => hasScoreValue(item.finalScore) && Number(item.finalScore) < 60)
     .sort((a, b) => String(b.semesterName).localeCompare(String(a.semesterName), 'zh-CN'))
 })
 
@@ -368,11 +370,21 @@ const selectedScoreValue = computed(() => {
 })
 
 function scoreStatus(finalScore) {
+  if (!hasScoreValue(finalScore)) {
+    return '未录入'
+  }
   return Number(finalScore) >= 60 ? '通过' : '未通过'
 }
 
 function scoreTagType(finalScore) {
+  if (!hasScoreValue(finalScore)) {
+    return 'info'
+  }
   return Number(finalScore) >= 60 ? 'success' : 'danger'
+}
+
+function hasScoreValue(value) {
+  return value !== null && value !== undefined && value !== ''
 }
 
 function requestStatusType(status) {
@@ -382,7 +394,9 @@ function requestStatusType(status) {
 }
 
 function canRequestReview(row) {
-  return Number(row.isSubmitted) === 1 && Number(row.hasPendingScoreReview) !== 1
+  return Number(row.isSubmitted) === 1 &&
+    Number(row.hasPendingScoreReview) !== 1 &&
+    hasScoreValue(row.finalScore)
 }
 
 function gpaBarWidth(gpa) {
@@ -497,51 +511,75 @@ function handlePrintScores() {
         <meta charset="utf-8" />
         <title>${escapeHtml(title)}</title>
         <style>
-          body { margin: 24px; color: #1f2937; font-family: Arial, "Microsoft YaHei", sans-serif; }
-          h1 { margin: 0 0 8px; font-size: 24px; }
-          p { margin: 0 0 16px; color: #64748b; }
-          .summary { display: flex; gap: 16px; margin-bottom: 18px; }
-          .summary span { padding: 8px 12px; border: 1px solid #bae6fd; border-radius: 6px; background: #f0f9ff; }
-          table { width: 100%; border-collapse: collapse; font-size: 12px; }
-          th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+          @page { size: A4 landscape; margin: 8mm; }
+          * { box-sizing: border-box; }
+          html,
+          body { margin: 0; color: #1f2937; font-family: Arial, "Microsoft YaHei", sans-serif; }
+          body { padding: 8mm; }
+          .print-page { position: relative; width: calc(297mm - 16mm); height: calc(210mm - 16mm); overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
+          .print-content { position: absolute; top: 0; left: 0; width: 100%; transform-origin: top left; }
+          h1 { margin: 0 0 4px; font-size: 19px; line-height: 1.2; }
+          p { margin: 0 0 8px; color: #64748b; font-size: 10px; line-height: 1.35; }
+          .summary { display: flex; flex-wrap: nowrap; gap: 6px; margin-bottom: 8px; }
+          .summary span { padding: 3px 6px; border: 1px solid #bae6fd; border-radius: 4px; background: #f0f9ff; font-size: 10px; line-height: 1.25; white-space: nowrap; }
+          table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 9px; line-height: 1.15; }
+          th, td { border: 1px solid #cbd5e1; padding: 3px 4px; text-align: left; vertical-align: top; word-break: break-word; }
           th { background: #e0f2fe; font-weight: 700; }
-          @media print { body { margin: 12mm; } .summary { flex-wrap: wrap; } }
+          tr { break-inside: avoid; page-break-inside: avoid; }
+          @media print {
+            body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .print-page { width: 100%; height: calc(210mm - 16mm); }
+          }
         </style>
       </head>
       <body>
-        <h1>${escapeHtml(title)}</h1>
-        <p>学号：${escapeHtml(userStore.refId || '-')}　导出时间：${escapeHtml(new Date().toLocaleString())}</p>
-        <div class="summary">
-          <span>课程数：${escapeHtml(filteredScores.value.length)}</span>
-          <span>平均总评：${escapeHtml(averageScore.value)}</span>
-          <span>平均绩点：${escapeHtml(weightedGpa.value)}</span>
-          <span>计入学分：${escapeHtml(weightedCredits.value)}</span>
+        <div class="print-page">
+          <div class="print-content">
+            <h1>${escapeHtml(title)}</h1>
+            <p>学号：${escapeHtml(userStore.refId || '-')}　导出时间：${escapeHtml(new Date().toLocaleString())}</p>
+            <div class="summary">
+              <span>课程数：${escapeHtml(filteredScores.value.length)}</span>
+              <span>平均总评：${escapeHtml(averageScore.value)}</span>
+              <span>平均绩点：${escapeHtml(weightedGpa.value)}</span>
+              <span>计入学分：${escapeHtml(weightedCredits.value)}</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>学期</th>
+                  <th>课程号</th>
+                  <th>课程名称</th>
+                  <th>课程类型</th>
+                  <th>教师</th>
+                  <th>学分</th>
+                  <th>平时</th>
+                  <th>考试</th>
+                  <th>总评</th>
+                  <th>等级</th>
+                  <th>绩点</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>学期</th>
-              <th>课程号</th>
-              <th>课程名称</th>
-              <th>课程类型</th>
-              <th>教师</th>
-              <th>学分</th>
-              <th>平时</th>
-              <th>考试</th>
-              <th>总评</th>
-              <th>等级</th>
-              <th>绩点</th>
-              <th>状态</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
       </body>
     </html>
   `)
   printWindow.document.close()
   printWindow.focus()
-  printWindow.print()
+  printWindow.setTimeout(() => {
+    const page = printWindow.document.querySelector('.print-page')
+    const content = printWindow.document.querySelector('.print-content')
+    if (page && content) {
+      const scale = Math.min(1, page.clientWidth / content.scrollWidth, page.clientHeight / content.scrollHeight)
+      if (Number.isFinite(scale) && scale > 0) {
+        content.style.transform = `scale(${scale})`
+      }
+    }
+    printWindow.print()
+  }, 100)
 }
 
 function applyQuery() {
