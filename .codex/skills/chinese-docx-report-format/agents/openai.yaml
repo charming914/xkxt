@@ -1,0 +1,4 @@
+﻿interface:
+  display_name: "中文 DOCX 报告格式"
+  short_description: "生成符合课程大作业要求的中文 docx 报告格式规范"
+  default_prompt: "Use $chinese-docx-report-format to generate or revise a Chinese course report DOCX with the required formatting."
