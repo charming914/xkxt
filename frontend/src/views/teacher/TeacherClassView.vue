@@ -25,9 +25,8 @@
       <div v-if="selectedSemester" class="semester-summary">
         <strong>{{ selectedSemester.semesterName }}</strong>
         <span>{{ formatDate(selectedSemester.semesterStartDate) }} 至 {{ formatDate(selectedSemester.semesterEndDate) }}</span>
-        <el-tag v-if="Number(selectedSemester.isCurrent) === 1" type="success">当前</el-tag>
-        <el-tag :type="statusTagType(selectionStatus(selectedSemester))">
-          {{ selectionStatus(selectedSemester) }}
+        <el-tag :type="semesterStatusTagType(semesterStatus(selectedSemester))">
+          {{ semesterStatus(selectedSemester) }}
         </el-tag>
       </div>
     </div>
@@ -88,9 +87,8 @@
           <el-descriptions-item label="平时:考试">{{ scoreRatioLabel(selectedClass) }}</el-descriptions-item>
           <el-descriptions-item label="学期">
             {{ selectedClass.semesterName }}
-            <el-tag v-if="Number(selectedClass.isCurrent) === 1" class="inline-tag" type="success">当前</el-tag>
-            <el-tag class="inline-tag" :type="statusTagType(selectionStatus(selectedClass))">
-              {{ selectionStatus(selectedClass) }}
+            <el-tag class="inline-tag" :type="semesterStatusTagType(semesterStatus(selectedClass))">
+              {{ semesterStatus(selectedClass) }}
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="学期起止">
@@ -175,6 +173,9 @@ const semesterOptions = computed(() => {
 const selectedSemester = computed(() => {
   return semesterOptions.value.find(item => item.semesterId === selectedSemesterId.value) || null
 })
+const currentSemester = computed(() => {
+  return semesterOptions.value.find(item => Number(item.isCurrent) === 1) || null
+})
 const filteredClasses = computed(() => {
   if (!selectedSemesterId.value) {
     return classes.value
@@ -258,34 +259,35 @@ function formatDate(value) {
   return String(value).slice(0, 10)
 }
 
-function parseTime(str) {
-  if (!str) return NaN
-  return new Date(String(str).replace('T', ' ').replace(/-/g, '/')).getTime()
+function semesterTime(row, key) {
+  const value = row?.[key]
+  if (!value) return NaN
+  return new Date(`${String(value).slice(0, 10)}T00:00:00`).getTime()
 }
 
-function selectionStatus(row) {
-  const manualMode = row?.courseSelectionManualMode || 'AUTO'
-  if (manualMode === 'CLOSED') return '强制关闭'
-  if (manualMode === 'OPEN' && isManualOpenActive(row)) return '手动开启'
-  if (!row?.courseSelectStart || !row?.courseSelectEnd) return '未设置'
-  const now = Date.now()
-  const start = parseTime(row.courseSelectStart)
-  const end = parseTime(row.courseSelectEnd)
-  if (now < start) return '未开始'
-  if (now > end) return '已结束'
-  return '选课中'
+function semesterStatus(row) {
+  if (Number(row?.isCurrent) === 1) return '当前'
+
+  const rowStart = semesterTime(row, 'semesterStartDate')
+  const rowEnd = semesterTime(row, 'semesterEndDate')
+  const currentStart = semesterTime(currentSemester.value, 'semesterStartDate')
+
+  if (!Number.isNaN(rowStart) && !Number.isNaN(currentStart)) {
+    return rowStart > currentStart ? '未开始' : '已结束'
+  }
+
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  const today = now.getTime()
+  if (!Number.isNaN(rowStart) && today < rowStart) return '未开始'
+  if (!Number.isNaN(rowEnd) && today > rowEnd) return '已结束'
+  return '当前'
 }
 
-function statusTagType(status) {
-  if (status === '选课中' || status === '手动开启') return 'success'
-  if (status === '强制关闭') return 'danger'
+function semesterStatusTagType(status) {
+  if (status === '当前') return 'success'
   if (status === '已结束') return 'info'
   return 'warning'
-}
-
-function isManualOpenActive(row) {
-  if (!row?.courseSelectionManualEnd) return true
-  return Date.now() <= parseTime(row.courseSelectionManualEnd)
 }
 
 function classroomLabel(row) {
@@ -329,7 +331,7 @@ function exportTeacherTimetablePdf() {
 
   const teacherLabel = `${userStore.realName || '教师'}（${userStore.refId || '-'}）`
   const semesterLabel = selectedSemester.value
-    ? `${selectedSemester.value.semesterName}（${selectionStatus(selectedSemester.value)}）`
+    ? `${selectedSemester.value.semesterName}（${semesterStatus(selectedSemester.value)}）`
     : '全部学期'
   const rows = timeBlocks.map(block => {
     const cells = weekDays.map(day => {

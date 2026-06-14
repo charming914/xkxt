@@ -359,7 +359,7 @@
 说明：
 - 默认只返回当前学期教学班，避免影响调课申请等当前学期业务。
 - 教师授课课表页传 `includeAllSemesters=true`，用于按学期切换查看课表。
-- 返回字段包含 `semesterId`、`semesterName`、`semesterStartDate`、`semesterEndDate`、`courseSelectStart`、`courseSelectEnd`、`isCurrent`、`usualRatio`、`examRatio`，供课表页展示学期起止、选课状态和“平时:考试”比例。
+- 返回字段包含 `semesterId`、`semesterName`、`semesterStartDate`、`semesterEndDate`、`isCurrent`、`usualRatio`、`examRatio`，供课表页展示学期起止、学期状态和“平时:考试”比例。
 
 ### `GET /api/teacher/teaching-classes/{teachingClassId}`
 用途：查看本人教学班详情
@@ -407,7 +407,7 @@
 说明：
 - 当前页面由 `GET /api/teacher/teaching-classes?includeAllSemesters=true` 提供数据。
 - 教师授课管理页支持按学期切换课表，默认优先显示当前学期。
-- 页面显示所选学期名称、起止日期、是否当前学期和选课状态，状态计算参考管理员端学期管理。
+- 页面显示所选学期名称、起止日期和学期状态：当前学期显示“当前”，早于当前学期的历史学期显示“已结束”，晚于当前学期的未来学期显示“未开始”。
 - 教师授课管理页可基于当前筛选学期生成接近页面课表样式的打印页，并通过浏览器打印导出 PDF。
 - 导出数据来源于教学班列表中的学期、星期、节次、周次、课程和教室信息。
 
